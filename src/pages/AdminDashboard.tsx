@@ -1,0 +1,1681 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import AppLayout from '../components/AppLayout';
+import { createEmployee, deleteEmployee, listEmployees, updateEmployee } from '../api/employees';
+import { createLocation, deleteLocation, listLocations, updateLocation } from '../api/locations';
+import { adminCreateAttendance, adminDeleteAttendance, adminUpdateAttendance, listAttendanceByEmployee, todayAttendance } from '../api/attendance';
+import { createUser, listUsers, updateUser } from '../api/users';
+import { getHomeAnalytics } from '../api/analytics';
+import { downloadDailyAttendanceCsv } from '../api/reports';
+import { useAuth } from '../auth/AuthContext';
+import LoadingSpinner from '../components/LoadingSpinner';
+import StatusBadge from '../components/StatusBadge';
+import EmptyState from '../components/EmptyState';
+import { useToast } from '../hooks/useToast';
+import Toast from '../components/Toast';
+
+import type {
+  AttendanceResponse,
+  AttendanceStatus,
+  AdminUpsertAttendanceRequest,
+  CreateEmployeeRequest,
+  CreateUserRequest,
+  EmployeeResponse,
+  HomeAnalyticsResponse,
+  Role,
+  UpdateEmployeeRequest,
+  UpdateUserRequest,
+  UserResponse,
+  WorkLocation,
+} from '../api/types';
+
+type ReportItem = {
+  key: string;
+  title: string;
+  description: string;
+  format: string;
+};
+
+function getMonthRangeLabel(year: number, month1Based: number): string {
+  const from = new Date(Date.UTC(year, month1Based - 1, 1));
+  const to = new Date(Date.UTC(year, month1Based, 0));
+  const fmt = new Intl.DateTimeFormat(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+  return `${fmt.format(from)} - ${fmt.format(to)}`;
+}
+
+function getApiErrorMessage(err: unknown, fallback: string): string {
+  const e = err as { response?: { data?: { message?: string } } };
+  return e?.response?.data?.message || fallback;
+}
+
+type TabButtonProps = {
+  active: boolean;
+  children: React.ReactNode;
+  onClick: () => void;
+};
+
+function TabButton({ active, children, onClick }: TabButtonProps) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={
+        active
+          ? 'rounded-md bg-slate-900 px-3 py-1.5 text-sm text-white'
+          : 'rounded-md bg-white px-3 py-1.5 text-sm text-slate-700 border hover:bg-slate-50'
+      }
+    >
+      {children}
+    </button>
+  );
+}
+
+export default function AdminDashboard() {
+  const { user } = useAuth();
+  const { toast, showToast, hideToast } = useToast();
+  const [section, setSection] = useState('dashboard');
+  const [dashboardTab, setDashboardTab] = useState('home');
+
+  const [selectedYear, setSelectedYear] = useState<number>(() => new Date().getUTCFullYear());
+  const [selectedMonth, setSelectedMonth] = useState<number>(() => new Date().getUTCMonth() + 1);
+  const [selectedDepartment, setSelectedDepartment] = useState<string>('ALL');
+  const [selectedRoleScope, setSelectedRoleScope] = useState<'ALL' | 'MANAGERS'>('ALL');
+
+  const [expandedReportKey, setExpandedReportKey] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [attendanceStatusFilter, setAttendanceStatusFilter] = useState<'ALL' | 'IN' | 'OUT' | 'NOT_IN'>('ALL');
+
+  const [employees, setEmployees] = useState<EmployeeResponse[]>([]);
+  const [locations, setLocations] = useState<WorkLocation[]>([]);
+  const [attendance, setAttendance] = useState<AttendanceResponse[]>([]);
+  const [users, setUsers] = useState<(UserResponse & { newPassword?: string })[]>([]);
+
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<number | null>(null);
+  const [selectedEmployeeAttendance, setSelectedEmployeeAttendance] = useState<AttendanceResponse[]>([]);
+  const [employeeAttendanceLoading, setEmployeeAttendanceLoading] = useState(false);
+
+  const [attendanceUpsert, setAttendanceUpsert] = useState<AdminUpsertAttendanceRequest>({});
+  const [attendanceUpsertBusy, setAttendanceUpsertBusy] = useState(false);
+  const [editingAttendanceId, setEditingAttendanceId] = useState<number | null>(null);
+
+  const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const [homeAnalytics, setHomeAnalytics] = useState<HomeAnalyticsResponse | null>(null);
+
+  const reportItems = useMemo<ReportItem[]>(
+    () => [
+      {
+        key: 'daily_attendance',
+        title: 'Daily Attendance Summary',
+        description: 'Attendance status by employee for a selected day.',
+        format: 'CSV',
+      },
+      {
+        key: 'late_arrivals',
+        title: 'Late Arrivals',
+        description: 'Employees who checked-in after shift start (placeholder).',
+        format: 'CSV',
+      },
+      {
+        key: 'overtime',
+        title: 'Overtime Summary',
+        description: 'Overtime hours by employee (placeholder).',
+        format: 'CSV',
+      },
+      {
+        key: 'absences',
+        title: 'Absence Report',
+        description: 'Missing check-in for a given date range (placeholder).',
+        format: 'CSV',
+      },
+    ],
+    []
+  );
+
+  async function downloadReport(item: ReportItem) {
+    try {
+      if (item.key === 'daily_attendance') {
+        // default: today (UTC date on server side)
+        await downloadDailyAttendanceCsv();
+        showToast('Daily attendance report downloaded', 'success');
+        return;
+      }
+
+      showToast('This report will be enabled next (API not connected yet).', 'info');
+    } catch (err: unknown) {
+      showToast(getApiErrorMessage(err, 'Failed to download report'), 'error');
+    }
+  }
+
+  const [newEmployee, setNewEmployee] = useState<CreateEmployeeRequest>({
+    employeeCode: '',
+    firstName: '',
+    lastName: '',
+    department: '',
+    mobile: '',
+    designation: '',
+    category: '',
+    username: '',
+    password: '',
+    role: 'EMPLOYEE',
+  });
+
+  const [newLocation, setNewLocation] = useState({
+    name: '',
+    latitude: 0,
+    longitude: 0,
+    radiusMeters: 100,
+    active: true,
+  });
+
+  const [geofenceSite, setGeofenceSite] = useState<string>('ALL');
+  const [geofenceSearch, setGeofenceSearch] = useState<string>('');
+  const [showGeofenceForm, setShowGeofenceForm] = useState(false);
+
+  const [newUser, setNewUser] = useState<Pick<CreateUserRequest, 'username' | 'password' | 'role'> & { enabled: boolean }>({
+    username: '',
+    password: '',
+    role: 'EMPLOYEE',
+    enabled: true,
+  });
+
+  const roleOptions = useMemo<Role[]>(() => ['ADMIN', 'HR', 'MANAGER', 'EMPLOYEE'], []);
+  const userRoleOptions = useMemo<Role[]>(() => ['SYSTEM_ADMIN', 'ADMIN', 'HR', 'MANAGER', 'EMPLOYEE', 'PAYROLL', 'AUDITOR'], []);
+  const canManage = user && (user.role === 'ADMIN' || user.role === 'HR');
+  const canManageUsers = user && (user.role === 'SYSTEM_ADMIN' || user.role === 'ADMIN');
+
+  const workforceDays = useMemo(() => ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], []);
+  const workforcePeople = useMemo(
+    () => [
+      { id: 'p1', name: 'Employee A', dept: 'Operations' },
+      { id: 'p2', name: 'Employee B', dept: 'Sales' },
+      { id: 'p3', name: 'Employee C', dept: 'HR' },
+      { id: 'p4', name: 'Employee D', dept: 'IT' },
+    ],
+    []
+  );
+
+  const uniqueAttendance = useMemo(() => {
+    const seen = new Set<number>();
+    const result: AttendanceResponse[] = [];
+    for (const r of attendance) {
+      if (seen.has(r.employeeId)) continue;
+      seen.add(r.employeeId);
+      result.push(r);
+    }
+    return result;
+  }, [attendance]);
+
+  const dashboardStats = useMemo(() => {
+    const totalStaff = employees.length;
+    const present = uniqueAttendance.filter((r) => !!r.checkInTime).length;
+    const notIn = Math.max(0, totalStaff - present);
+    const holidays = 0;
+    const weeklyOff = 0;
+
+    const totalWorkedMinutesDay = uniqueAttendance.reduce((sum, r) => sum + Number(r.workedMinutes || 0), 0);
+    const totalOvertimeMinutesDay = uniqueAttendance.reduce((sum, r) => {
+      const worked = Number(r.workedMinutes || 0);
+      const extra = worked - 8 * 60;
+      return sum + Math.max(0, extra);
+    }, 0);
+
+    return { totalStaff, present, notIn, holidays, weeklyOff, totalWorkedMinutesDay, totalOvertimeMinutesDay };
+  }, [employees, uniqueAttendance]);
+
+  const effectiveHome = homeAnalytics
+    ? {
+        totalStaff: homeAnalytics.totalStaff ?? dashboardStats.totalStaff,
+        presentToday: homeAnalytics.presentToday ?? dashboardStats.present,
+        checkedOutToday: homeAnalytics.checkedOutToday ?? 0,
+        notInToday: homeAnalytics.notInToday ?? dashboardStats.notIn,
+        locationNotVerifiedToday: homeAnalytics.locationNotVerifiedToday ?? 0,
+        faceNotVerifiedToday: homeAnalytics.faceNotVerifiedToday ?? 0,
+        workedMinutesMonth: homeAnalytics.workedMinutesMonth ?? 0,
+        overtimeMinutesMonth: homeAnalytics.overtimeMinutesMonth ?? 0,
+        monthClockIns: homeAnalytics.monthClockIns || [],
+      }
+    : {
+        totalStaff: dashboardStats.totalStaff,
+        presentToday: dashboardStats.present,
+        checkedOutToday: 0,
+        notInToday: dashboardStats.notIn,
+        locationNotVerifiedToday: 0,
+        faceNotVerifiedToday: 0,
+        workedMinutesMonth: 0,
+        overtimeMinutesMonth: 0,
+        monthClockIns: [],
+      };
+
+  const workedMonthDisplay = useMemo(() => {
+    const mins = Number(effectiveHome.workedMinutesMonth || 0);
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return { h, m };
+  }, [effectiveHome.workedMinutesMonth]);
+
+  const overtimeMonthDisplay = useMemo(() => {
+    const mins = Number(effectiveHome.overtimeMinutesMonth || 0);
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return { h, m };
+  }, [effectiveHome.overtimeMinutesMonth]);
+
+  const employeeById = useMemo(() => {
+    const map = new Map<number, EmployeeResponse>();
+    employees.forEach((e) => map.set(e.id, e));
+    return map;
+  }, [employees]);
+
+  const departmentOptions = useMemo(() => {
+    const set = new Set<string>();
+    employees.forEach((e) => {
+      const d = (e.department || '').trim();
+      if (d) set.add(d);
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [employees]);
+
+  const filteredAttendance = useMemo(() => {
+    const q = (search || '').trim().toLowerCase();
+    const base = uniqueAttendance.filter((r) => {
+      const emp = employeeById.get(r.employeeId);
+      if (selectedDepartment !== 'ALL') {
+        const dep = (emp?.department || '').trim();
+        if (dep !== selectedDepartment) return false;
+      }
+      if (selectedRoleScope === 'MANAGERS') {
+        if (emp?.role !== 'MANAGER') return false;
+      }
+
+      if (attendanceStatusFilter === 'ALL') return true;
+      const inStatus = !!r.checkInTime && !r.checkOutTime;
+      const checkedOut = !!r.checkInTime && !!r.checkOutTime;
+      if (attendanceStatusFilter === 'IN') return inStatus;
+      if (attendanceStatusFilter === 'OUT') return checkedOut;
+      if (attendanceStatusFilter === 'NOT_IN') return !r.checkInTime;
+      return true;
+    });
+
+    if (!q) return base;
+    return base.filter((r) => {
+      const name = `${r.employeeCode || ''} ${r.employeeFirstName || ''} ${r.employeeLastName || ''}`.toLowerCase();
+      return name.includes(q);
+    });
+  }, [attendanceStatusFilter, employeeById, search, selectedDepartment, selectedRoleScope, uniqueAttendance]);
+
+  const selectedEmployee = useMemo(() => {
+    if (!selectedEmployeeId) return null;
+    return employeeById.get(selectedEmployeeId) || null;
+  }, [employeeById, selectedEmployeeId]);
+
+  async function openEmployeeAttendance(employeeId: number) {
+    setSelectedEmployeeId(employeeId);
+    setEmployeeAttendanceLoading(true);
+    try {
+      const rows = await listAttendanceByEmployee(employeeId);
+      setSelectedEmployeeAttendance(rows);
+      setEditingAttendanceId(null);
+      setAttendanceUpsert({ employeeId });
+    } catch (err: unknown) {
+      showToast(getApiErrorMessage(err, 'Failed to load employee attendance'), 'error');
+      setSelectedEmployeeAttendance([]);
+    } finally {
+      setEmployeeAttendanceLoading(false);
+    }
+  }
+
+  function closeEmployeeAttendance() {
+    setSelectedEmployeeId(null);
+    setSelectedEmployeeAttendance([]);
+    setEmployeeAttendanceLoading(false);
+    setEditingAttendanceId(null);
+    setAttendanceUpsert({});
+  }
+
+  function toDatetimeLocalValue(iso: string | null | undefined): string {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '';
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
+  function datetimeLocalToIso(value: string): string | null {
+    if (!value) return null;
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return null;
+    return d.toISOString();
+  }
+
+  async function submitAttendanceUpsert() {
+    if (!selectedEmployeeId) return;
+    setAttendanceUpsertBusy(true);
+    try {
+      const payload: AdminUpsertAttendanceRequest = {
+        ...attendanceUpsert,
+        employeeId: selectedEmployeeId,
+      };
+
+      if (editingAttendanceId) {
+        await adminUpdateAttendance(editingAttendanceId, payload);
+        showToast('Attendance updated', 'success');
+      } else {
+        await adminCreateAttendance(payload);
+        showToast('Attendance created', 'success');
+      }
+
+      const rows = await listAttendanceByEmployee(selectedEmployeeId);
+      setSelectedEmployeeAttendance(rows);
+      await refreshAll();
+
+      setEditingAttendanceId(null);
+      setAttendanceUpsert({ employeeId: selectedEmployeeId });
+    } catch (err: unknown) {
+      showToast(getApiErrorMessage(err, 'Failed to save attendance'), 'error');
+    } finally {
+      setAttendanceUpsertBusy(false);
+    }
+  }
+
+  function startEditAttendance(x: AttendanceResponse) {
+    setEditingAttendanceId(x.id);
+    setAttendanceUpsert({
+      employeeId: x.employeeId,
+      checkInTime: x.checkInTime,
+      checkOutTime: x.checkOutTime,
+      checkInLat: x.checkInLat,
+      checkInLng: x.checkInLng,
+      checkOutLat: x.checkOutLat,
+      checkOutLng: x.checkOutLng,
+      locationVerified: x.locationVerified,
+      faceVerified: x.faceVerified,
+      status: x.status,
+    });
+  }
+
+  async function deleteAttendance(id: number) {
+    if (!selectedEmployeeId) return;
+    setAttendanceUpsertBusy(true);
+    try {
+      await adminDeleteAttendance(id);
+      showToast('Attendance deleted', 'success');
+      const rows = await listAttendanceByEmployee(selectedEmployeeId);
+      setSelectedEmployeeAttendance(rows);
+      await refreshAll();
+      if (editingAttendanceId === id) {
+        setEditingAttendanceId(null);
+        setAttendanceUpsert({ employeeId: selectedEmployeeId });
+      }
+    } catch (err: unknown) {
+      showToast(getApiErrorMessage(err, 'Failed to delete attendance'), 'error');
+    } finally {
+      setAttendanceUpsertBusy(false);
+    }
+  }
+
+  async function refreshAll() {
+    try {
+      setLoading(true);
+      const [e, l, a] = await Promise.all([listEmployees(), listLocations(), todayAttendance()]);
+      setEmployees(e);
+      setLocations(l);
+      setAttendance(a);
+    } catch (err: unknown) {
+      showToast(getApiErrorMessage(err, 'Failed to load data'), 'error');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function refreshHomeAnalytics(year: number, month: number) {
+    try {
+      const data = await getHomeAnalytics(year, month);
+      setHomeAnalytics(data);
+    } catch (e) {
+      // keep analytics optional; table CRUD should continue working
+    }
+  }
+
+  async function refreshUsers() {
+    if (!canManageUsers) {
+      setUsers([]);
+      return;
+    }
+    const u = await listUsers();
+    setUsers(u);
+  }
+
+  useEffect(() => {
+    refreshAll();
+    refreshUsers();
+    refreshHomeAnalytics(selectedYear, selectedMonth);
+  }, []);
+
+  useEffect(() => {
+    refreshHomeAnalytics(selectedYear, selectedMonth);
+  }, [selectedYear, selectedMonth]);
+
+  useEffect(() => {
+    if (section === 'settings') {
+      refreshUsers();
+    }
+  }, [section]);
+
+  async function onCreateEmployee(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(null);
+    setBusy(true);
+    try {
+      await createEmployee(newEmployee);
+      setNewEmployee({
+        employeeCode: '',
+        firstName: '',
+        lastName: '',
+        department: '',
+        mobile: '',
+        designation: '',
+        category: '',
+        username: '',
+        password: '',
+        role: 'EMPLOYEE',
+      });
+      showToast('Employee created successfully', 'success');
+      await refreshAll();
+    } catch (err: unknown) {
+      const errorMsg = getApiErrorMessage(err, 'Failed to create employee');
+      setError(errorMsg);
+      showToast(errorMsg, 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onCreateUser(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(null);
+    setBusy(true);
+    try {
+      await createUser({
+        username: newUser.username,
+        password: newUser.password,
+        role: newUser.role,
+        enabled: !!newUser.enabled,
+      });
+      setNewUser({ username: '', password: '', role: 'EMPLOYEE', enabled: true });
+      await refreshUsers();
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'Failed to create user'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onQuickUpdateUser(u: UserResponse & { newPassword?: string }) {
+    setError(null);
+    setBusy(true);
+    try {
+      const payload: UpdateUserRequest = {
+        role: u.role,
+        enabled: !!u.enabled,
+        password: u.newPassword || undefined,
+      };
+      await updateUser(u.id, payload);
+      await refreshUsers();
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'Failed to update user'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onDeleteEmployee(id: number) {
+    if (!window.confirm('Are you sure you want to delete this employee?')) {
+      return;
+    }
+    setError(null);
+    setBusy(true);
+    try {
+      await deleteEmployee(id);
+      showToast('Employee deleted successfully', 'success');
+      await refreshAll();
+    } catch (err: unknown) {
+      const errorMsg = getApiErrorMessage(err, 'Failed to delete employee');
+      setError(errorMsg);
+      showToast(errorMsg, 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onQuickUpdateEmployee(emp: EmployeeResponse) {
+    setError(null);
+    setBusy(true);
+    try {
+      const payload: UpdateEmployeeRequest = {
+        firstName: emp.firstName,
+        lastName: emp.lastName,
+        department: emp.department ?? undefined,
+        mobile: emp.mobile ?? undefined,
+        designation: emp.designation ?? undefined,
+        category: emp.category ?? undefined,
+        role: emp.role,
+      };
+      await updateEmployee(emp.id, payload);
+      await refreshAll();
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'Failed to update employee'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onCreateLocation(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(null);
+    setBusy(true);
+    try {
+      const name = (newLocation.name || '').trim();
+      const lat = Number(newLocation.latitude);
+      const lng = Number(newLocation.longitude);
+      const radius = Number(newLocation.radiusMeters);
+      if (!name) {
+        setError('Location name is required');
+        return;
+      }
+      if (Number.isNaN(lat) || lat < -90 || lat > 90) {
+        setError('Latitude must be a number between -90 and 90');
+        return;
+      }
+      if (Number.isNaN(lng) || lng < -180 || lng > 180) {
+        setError('Longitude must be a number between -180 and 180');
+        return;
+      }
+      if (Number.isNaN(radius) || radius <= 0) {
+        setError('Radius must be a positive number (meters)');
+        return;
+      }
+
+      await createLocation({
+        ...newLocation,
+        name,
+        latitude: lat,
+        longitude: lng,
+        radiusMeters: radius,
+      });
+      setNewLocation({ name: '', latitude: 0, longitude: 0, radiusMeters: 100, active: true });
+      await refreshAll();
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'Failed to create location'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onDeleteLocation(id: number) {
+    setError(null);
+    setBusy(true);
+    try {
+      await deleteLocation(id);
+      await refreshAll();
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'Failed to delete location'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const geofenceSiteOptions = useMemo(() => {
+    const names = Array.from(new Set(locations.map((l) => (l.name || '').trim()).filter(Boolean)));
+    names.sort((a, b) => a.localeCompare(b));
+    return names;
+  }, [locations]);
+
+  const filteredGeofences = useMemo(() => {
+    const q = (geofenceSearch || '').trim().toLowerCase();
+    return locations.filter((l) => {
+      if (geofenceSite !== 'ALL') {
+        if ((l.name || '').trim() !== geofenceSite) return false;
+      }
+      if (!q) return true;
+      const hay = `${l.name} ${l.latitude} ${l.longitude} ${l.radiusMeters}`.toLowerCase();
+      return hay.includes(q);
+    });
+  }, [geofenceSearch, geofenceSite, locations]);
+
+  function downloadGeofencesCsv() {
+    const header = ['Location name', 'Latitude', 'Longitude', 'Radius (m)', 'Active'].join(',');
+    const rows = filteredGeofences.map((l) =>
+      [l.name, l.latitude, l.longitude, l.radiusMeters, l.active ? 'true' : 'false']
+        .map((x) => `"${String(x ?? '').replace(/"/g, '""')}"`)
+        .join(',')
+    );
+    const csv = [header, ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'geofencing_locations.csv';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  async function onQuickUpdateLocation(loc: WorkLocation) {
+    setError(null);
+    setBusy(true);
+    try {
+      await updateLocation(loc.id, {
+        name: loc.name,
+        latitude: Number(loc.latitude),
+        longitude: Number(loc.longitude),
+        radiusMeters: Number(loc.radiusMeters),
+        active: !!loc.active,
+      });
+      await refreshAll();
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'Failed to update location'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const sidebarItems = useMemo(
+    () => [
+      { key: 'dashboard', label: 'Dashboard' },
+      { key: 'reports', label: 'Reports & Analytics' },
+      { key: 'workforce', label: 'Workforce Plan' },
+      { key: 'staff', label: 'Staff Directory' },
+      { key: 'settings', label: 'Settings' },
+    ],
+    []
+  );
+
+  if (loading && employees.length === 0) {
+    return (
+      <AppLayout
+        title="Dashboard"
+        sidebarItems={sidebarItems}
+        activeSidebarKey={section}
+        onSidebarChange={setSection}
+      >
+        <div className="flex items-center justify-center py-12">
+          <LoadingSpinner size="lg" />
+        </div>
+      </AppLayout>
+    );
+  }
+
+  return (
+    <AppLayout
+      title="Attendance Management System"
+      sidebarItems={sidebarItems}
+      activeSidebarKey={section}
+      onSidebarChange={setSection}
+    >
+      {toast && <Toast message={toast.message} type={toast.type} onClose={hideToast} />}
+      <div>
+        <div>
+          <div className="text-2xl font-bold text-slate-900">{sidebarItems.find((x) => x.key === section)?.label}</div>
+          <div className="mt-1 text-sm text-slate-600">Manage your company's attendance and workforce efficiently.</div>
+        </div>
+
+        {section === 'dashboard' ? (
+          <div className="mt-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <TabButton active={dashboardTab === 'home'} onClick={() => setDashboardTab('home')}>Home</TabButton>
+              <TabButton active={dashboardTab === 'day'} onClick={() => setDashboardTab('day')}>Day</TabButton>
+              <TabButton active={dashboardTab === 'timesheet'} onClick={() => setDashboardTab('timesheet')}>Timesheet</TabButton>
+              <TabButton active={dashboardTab === 'global'} onClick={() => setDashboardTab('global')}>Global Summary</TabButton>
+            </div>
+
+            {dashboardTab === 'home' ? (
+              <div className="mt-4 grid gap-4 lg:grid-cols-12">
+                <div className="lg:col-span-9 grid gap-4">
+                  <div className="rounded-xl border bg-white">
+                    <div className="px-4 py-3 border-b">
+                      <div className="font-medium text-slate-900">Workforce Insights</div>
+                    </div>
+                    <div className="p-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                      <div className="rounded-lg border bg-white p-4">
+                        <div className="text-2xl font-semibold text-slate-900">{effectiveHome.locationNotVerifiedToday}</div>
+                        <div className="mt-1 text-xs text-slate-500">Out of Location</div>
+                        <div className="text-xs text-slate-400">Blocked</div>
+                      </div>
+                      <div className="rounded-lg border bg-white p-4">
+                        <div className="text-2xl font-semibold text-slate-900">{effectiveHome.faceNotVerifiedToday}</div>
+                        <div className="mt-1 text-xs text-slate-500">Face</div>
+                        <div className="text-xs text-slate-400">Not Verified</div>
+                      </div>
+                      <div className="rounded-lg border bg-white p-4">
+                        <div className="text-2xl font-semibold text-slate-900">{effectiveHome.presentToday}</div>
+                        <div className="mt-1 text-xs text-slate-500">Present</div>
+                        <div className="text-xs text-slate-400">Today</div>
+                      </div>
+                      <div className="rounded-lg border bg-white p-4">
+                        <div className="text-2xl font-semibold text-slate-900">{effectiveHome.checkedOutToday}</div>
+                        <div className="mt-1 text-xs text-slate-500">Checked Out</div>
+                        <div className="text-xs text-slate-400">Today</div>
+                      </div>
+                      <div className="rounded-lg border bg-white p-4">
+                        <div className="text-2xl font-semibold text-slate-900">{effectiveHome.notInToday}</div>
+                        <div className="mt-1 text-xs text-slate-500">Not In</div>
+                        <div className="text-xs text-slate-400">Today</div>
+                      </div>
+                      <div className="rounded-lg border bg-white p-4">
+                        <div className="text-2xl font-semibold text-slate-900">{effectiveHome.totalStaff}</div>
+                        <div className="mt-1 text-xs text-slate-500">Staff</div>
+                        <div className="text-xs text-slate-400">Total</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border bg-white px-4 py-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="rounded-md border bg-white px-3 py-2 text-sm text-slate-600">Monthly</div>
+                      <select
+                        className="rounded-md border bg-white px-3 py-2 text-sm text-slate-700"
+                        value={selectedYear}
+                        onChange={(e) => setSelectedYear(Number(e.target.value))}
+                      >
+                        {Array.from({ length: 6 }).map((_, i) => {
+                          const y = new Date().getUTCFullYear() - 2 + i;
+                          return (
+                            <option key={y} value={y}>
+                              {y}
+                            </option>
+                          );
+                        })}
+                      </select>
+                      <select
+                        className="rounded-md border bg-white px-3 py-2 text-sm text-slate-700"
+                        value={selectedMonth}
+                        onChange={(e) => setSelectedMonth(Number(e.target.value))}
+                      >
+                        {Array.from({ length: 12 }).map((_, i) => {
+                          const m = i + 1;
+                          const label = new Intl.DateTimeFormat(undefined, { month: 'short' }).format(new Date(Date.UTC(2000, i, 1)));
+                          return (
+                            <option key={m} value={m}>
+                              {label}
+                            </option>
+                          );
+                        })}
+                      </select>
+                      <div className="rounded-md border bg-white px-3 py-2 text-sm text-slate-600">{getMonthRangeLabel(selectedYear, selectedMonth)}</div>
+                      <select
+                        className="rounded-md border bg-white px-3 py-2 text-sm text-slate-700"
+                        value={selectedDepartment}
+                        onChange={(e) => setSelectedDepartment(e.target.value)}
+                      >
+                        <option value="ALL">All Departments</option>
+                        {departmentOptions.map((d) => (
+                          <option key={d} value={d}>
+                            {d}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        className="rounded-md border bg-white px-3 py-2 text-sm text-slate-700"
+                        value={selectedRoleScope}
+                        onChange={(e) => setSelectedRoleScope(e.target.value as 'ALL' | 'MANAGERS')}
+                      >
+                        <option value="ALL">All Roles</option>
+                        <option value="MANAGERS">Managers</option>
+                      </select>
+                      <div className="flex-1" />
+                      <input
+                        className="rounded-md border px-3 py-2 text-sm"
+                        placeholder="Search"
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border bg-white">
+                    <div className="px-4 py-3 border-b">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="font-medium text-slate-900">Clock-ins ({getMonthRangeLabel(selectedYear, selectedMonth)})</div>
+                        <div className="flex items-center gap-2">
+                          <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">Clock-ins</span>
+                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">Hours</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="p-4 grid gap-4 lg:grid-cols-12">
+                      <div className="lg:col-span-3">
+                        <div className="text-xs text-slate-500">Worked Hrs</div>
+                        <div className="mt-1 text-2xl font-semibold text-slate-900">
+                          {workedMonthDisplay.h}
+                          <span className="text-sm font-normal text-slate-500"> h {workedMonthDisplay.m} m</span>
+                        </div>
+                        <div className="mt-3 text-xs text-slate-500">Overtime Hrs</div>
+                        <div className="mt-1 text-2xl font-semibold text-slate-900">
+                          {overtimeMonthDisplay.h}
+                          <span className="text-sm font-normal text-slate-500"> h {overtimeMonthDisplay.m} m</span>
+                        </div>
+                      </div>
+                      <div className="lg:col-span-9">
+                        <div className="h-48 w-full rounded-lg border bg-slate-50 p-3">
+                          <div className="h-full flex items-end gap-2">
+                            {(effectiveHome.monthClockIns.length ? effectiveHome.monthClockIns : [{ day: 'n/a', count: 0 }]).slice(-18).map((x, idx) => (
+                              <div key={idx} className="flex-1">
+                                <div className="w-full rounded-sm bg-blue-600" style={{ height: `${Math.min(120, Number(x.count || 0) * 10)}px` }} />
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border bg-white">
+                    <div className="px-4 py-3 border-b">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="font-medium text-slate-900">Today attendance</div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <select
+                            className="rounded-md border bg-white px-3 py-2 text-sm text-slate-700"
+                            value={attendanceStatusFilter}
+                            onChange={(e) => setAttendanceStatusFilter(e.target.value as 'ALL' | 'IN' | 'OUT' | 'NOT_IN')}
+                          >
+                            <option value="ALL">All</option>
+                            <option value="IN">In</option>
+                            <option value="OUT">Out</option>
+                            <option value="NOT_IN">Not In</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="grid gap-4 lg:grid-cols-12">
+                      <div className={selectedEmployeeId ? 'lg:col-span-8 overflow-x-auto' : 'lg:col-span-12 overflow-x-auto'}>
+                        <table className="w-full text-sm">
+                          <thead className="bg-slate-50 text-slate-600">
+                            <tr>
+                              <th className="px-4 py-2 text-left">Name</th>
+                              <th className="px-4 py-2 text-left">In-Time</th>
+                              <th className="px-4 py-2 text-left">Out-Time</th>
+                              <th className="px-4 py-2 text-left">Location</th>
+                              <th className="px-4 py-2 text-left">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {filteredAttendance.map((r) => {
+                              const inStatus = !!r.checkInTime && !r.checkOutTime;
+                              const checkedOut = !!r.checkInTime && !!r.checkOutTime;
+                              const statusLabel = checkedOut ? 'Out' : inStatus ? 'In' : (r.status || 'Not In');
+                              const active = selectedEmployeeId === r.employeeId;
+
+                              return (
+                                <tr
+                                  key={r.id}
+                                  className={
+                                    active
+                                      ? 'border-t bg-blue-50 cursor-pointer'
+                                      : 'border-t hover:bg-slate-50 transition-colors cursor-pointer'
+                                  }
+                                  onClick={() => openEmployeeAttendance(r.employeeId)}
+                                >
+                                  <td className="px-4 py-3 font-medium text-slate-900">{r.employeeFirstName} {r.employeeLastName}</td>
+                                  <td className="px-4 py-3 text-slate-700">{r.checkInTime ? new Date(r.checkInTime).toLocaleTimeString() : <span className="text-slate-400">-</span>}</td>
+                                  <td className="px-4 py-3 text-slate-700">{r.checkOutTime ? new Date(r.checkOutTime).toLocaleTimeString() : <span className="text-slate-400">-</span>}</td>
+                                  <td className="px-4 py-3">
+                                    <StatusBadge status={r.locationVerified ? 'verified' : 'not verified'}>
+                                      {r.locationVerified ? 'Verified' : 'Not verified'}
+                                    </StatusBadge>
+                                  </td>
+                                  <td className="px-4 py-3">
+                                    <StatusBadge status={statusLabel.toLowerCase()}>{statusLabel}</StatusBadge>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                            {filteredAttendance.length === 0 ? (
+                              <tr>
+                                <td colSpan={5} className="px-4 py-12">
+                                  <EmptyState
+                                    title="No attendance records"
+                                    description="No attendance records found for today. Employees can check in using the employee dashboard."
+                                  />
+                                </td>
+                              </tr>
+                            ) : null}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {selectedEmployeeId ? (
+                        <div className="lg:col-span-4 border-t lg:border-t-0 lg:border-l">
+                          <div className="px-4 py-3 border-b flex items-center justify-between gap-3">
+                            <div>
+                              <div className="text-sm font-medium text-slate-900">Employee</div>
+                              <div className="text-xs text-slate-600">
+                                {selectedEmployee ? `${selectedEmployee.firstName} ${selectedEmployee.lastName}` : `#${selectedEmployeeId}`}
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={closeEmployeeAttendance}
+                              className="rounded-md border px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"
+                            >
+                              Close
+                            </button>
+                          </div>
+
+                          <div className="p-4">
+                            <div className="rounded-lg border bg-white p-3">
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="text-sm font-medium text-slate-900">
+                                  {editingAttendanceId ? 'Edit Attendance' : 'Add Attendance'}
+                                </div>
+                                {editingAttendanceId ? (
+                                  <button
+                                    type="button"
+                                    disabled={attendanceUpsertBusy}
+                                    className="rounded-md border px-2 py-1 text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                                    onClick={() => {
+                                      if (selectedEmployeeId) {
+                                        setEditingAttendanceId(null);
+                                        setAttendanceUpsert({ employeeId: selectedEmployeeId });
+                                      }
+                                    }}
+                                  >
+                                    Cancel
+                                  </button>
+                                ) : null}
+                              </div>
+
+                              <div className="mt-3 grid gap-2">
+                                <div>
+                                  <div className="text-xs font-medium text-slate-700">Check-in time</div>
+                                  <input
+                                    type="datetime-local"
+                                    value={toDatetimeLocalValue(attendanceUpsert.checkInTime)}
+                                    onChange={(e) => setAttendanceUpsert((p) => ({ ...p, checkInTime: datetimeLocalToIso(e.target.value) }))}
+                                    className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+                                  />
+                                </div>
+
+                                <div>
+                                  <div className="text-xs font-medium text-slate-700">Check-out time</div>
+                                  <input
+                                    type="datetime-local"
+                                    value={toDatetimeLocalValue(attendanceUpsert.checkOutTime)}
+                                    onChange={(e) => setAttendanceUpsert((p) => ({ ...p, checkOutTime: datetimeLocalToIso(e.target.value) }))}
+                                    className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+                                  />
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div>
+                                    <div className="text-xs font-medium text-slate-700">Status</div>
+                                    <select
+                                      value={(attendanceUpsert.status || 'PRESENT') as AttendanceStatus}
+                                      onChange={(e) => setAttendanceUpsert((p) => ({ ...p, status: e.target.value as AttendanceStatus }))}
+                                      className="mt-1 w-full rounded-md border bg-white px-3 py-2 text-sm"
+                                    >
+                                      {(['PRESENT', 'LATE', 'ABSENT', 'EXCEPTION'] as AttendanceStatus[]).map((s) => (
+                                        <option key={s} value={s}>
+                                          {s}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+
+                                  <div>
+                                    <div className="text-xs font-medium text-slate-700">Location verified</div>
+                                    <select
+                                      value={String(attendanceUpsert.locationVerified ?? false)}
+                                      onChange={(e) => setAttendanceUpsert((p) => ({ ...p, locationVerified: e.target.value === 'true' }))}
+                                      className="mt-1 w-full rounded-md border bg-white px-3 py-2 text-sm"
+                                    >
+                                      <option value="false">No</option>
+                                      <option value="true">Yes</option>
+                                    </select>
+                                  </div>
+                                </div>
+
+                                <button
+                                  type="button"
+                                  disabled={attendanceUpsertBusy}
+                                  onClick={submitAttendanceUpsert}
+                                  className="mt-2 w-full rounded-md bg-slate-900 px-3 py-2 text-sm text-white hover:bg-slate-800 disabled:opacity-60"
+                                >
+                                  {attendanceUpsertBusy ? 'Saving…' : editingAttendanceId ? 'Save Changes' : 'Create Record'}
+                                </button>
+                              </div>
+                            </div>
+
+                            {employeeAttendanceLoading ? (
+                              <div className="flex items-center justify-center py-10">
+                                <LoadingSpinner />
+                              </div>
+                            ) : (
+                              <div className="space-y-2">
+                                {selectedEmployeeAttendance.map((x) => (
+                                  <div key={x.id} className="rounded-lg border bg-white p-3">
+                                    <div className="flex items-center justify-between gap-3">
+                                      <div className="text-sm font-medium text-slate-900">
+                                        {x.checkInTime ? new Date(x.checkInTime).toLocaleDateString() : '—'}
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <StatusBadge status={(x.status || '').toLowerCase() || 'unknown'}>{x.status || '—'}</StatusBadge>
+                                        <button
+                                          type="button"
+                                          disabled={attendanceUpsertBusy}
+                                          className="rounded-md border px-2 py-1 text-[11px] text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                                          onClick={() => startEditAttendance(x)}
+                                        >
+                                          Edit
+                                        </button>
+                                        <button
+                                          type="button"
+                                          disabled={attendanceUpsertBusy}
+                                          className="rounded-md border px-2 py-1 text-[11px] text-red-700 hover:bg-red-50 disabled:opacity-60"
+                                          onClick={() => deleteAttendance(x.id)}
+                                        >
+                                          Delete
+                                        </button>
+                                      </div>
+                                    </div>
+                                    <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-slate-700">
+                                      <div>
+                                        <div className="text-slate-500">In</div>
+                                        <div>{x.checkInTime ? new Date(x.checkInTime).toLocaleString() : '-'}</div>
+                                      </div>
+                                      <div>
+                                        <div className="text-slate-500">Out</div>
+                                        <div>{x.checkOutTime ? new Date(x.checkOutTime).toLocaleString() : '-'}</div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+
+                                {selectedEmployeeAttendance.length === 0 ? (
+                                  <EmptyState
+                                    title="No history"
+                                    description="No attendance history found for this employee."
+                                  />
+                                ) : null}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="lg:col-span-3 grid gap-4">
+                  <div className="rounded-xl border bg-blue-50 p-4">
+                    <div className="text-sm text-slate-700">You have 18 licenses left. You can always purchase new licenses to assign to users.</div>
+                    <button type="button" className="mt-3 rounded-md bg-blue-700 px-3 py-2 text-sm text-white hover:bg-blue-600">Buy more licenses</button>
+                  </div>
+                  <div className="rounded-xl border bg-white">
+                    <div className="px-4 py-3 border-b font-medium text-slate-900">Pending Actions</div>
+                    <button type="button" className="w-full px-4 py-3 text-left text-sm hover:bg-slate-50">
+                      <div className="font-medium text-slate-900">Complete your onboarding</div>
+                      <div className="mt-0.5 text-xs text-slate-500">Set up locations, users, and policies</div>
+                    </button>
+                  </div>
+                  <div className="rounded-xl border bg-white">
+                    <div className="px-4 py-3 border-b font-medium text-slate-900">Quick Links</div>
+                    <div className="divide-y">
+                      {['Scheduler', 'Add Contractor Agency', 'Geofencing', 'Kiosk Settings'].map((x) => (
+                        <button key={x} type="button" className="w-full px-4 py-3 text-left text-sm text-slate-700 hover:bg-slate-50">{x}</button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : dashboardTab === 'day' ? (
+              <div className="mt-4 grid gap-4">
+                <div className="grid gap-3 lg:grid-cols-12">
+                  <div className="lg:col-span-9 rounded-xl border bg-white">
+                    <div className="px-4 py-3">
+                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+                        <div className="rounded-md bg-slate-50 px-3 py-2">
+                          <div className="text-lg font-semibold text-slate-900">{dashboardStats.totalStaff}</div>
+                          <div className="text-xs text-slate-500">Staff</div>
+                        </div>
+                        <div className="rounded-md bg-slate-50 px-3 py-2">
+                          <div className="text-lg font-semibold text-slate-900">{dashboardStats.present}</div>
+                          <div className="text-xs text-slate-500">Present</div>
+                          <div className="text-[11px] text-slate-400">{Math.max(0, dashboardStats.present - 1)} In | 1 Out</div>
+                        </div>
+                        <div className="rounded-md bg-slate-50 px-3 py-2">
+                          <div className="text-lg font-semibold text-slate-900">{dashboardStats.notIn}</div>
+                          <div className="text-xs text-slate-500">Not In</div>
+                        </div>
+                        <div className="rounded-md bg-slate-50 px-3 py-2">
+                          <div className="text-lg font-semibold text-slate-900">{dashboardStats.holidays}</div>
+                          <div className="text-xs text-slate-500">Holidays</div>
+                        </div>
+                        <div className="rounded-md bg-slate-50 px-3 py-2">
+                          <div className="text-lg font-semibold text-slate-900">{dashboardStats.weeklyOff}</div>
+                          <div className="text-xs text-slate-500">Weekly-Off</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="lg:col-span-3 rounded-xl border bg-white">
+                    <div className="px-4 py-3">
+                      <div className="grid grid-cols-3 gap-2">
+                        <div className="rounded-md bg-slate-50 px-3 py-2">
+                          <div className="text-sm font-semibold text-slate-900">
+                            {Math.floor((dashboardStats.totalWorkedMinutesDay || 0) / 60)}h{' '}
+                            {(dashboardStats.totalWorkedMinutesDay || 0) % 60}m
+                          </div>
+                          <div className="text-xs text-slate-500">Worked Hrs (Today)</div>
+                        </div>
+                        <div className="rounded-md bg-slate-50 px-3 py-2">
+                          <div className="text-sm font-semibold text-slate-900">
+                            {Math.floor((dashboardStats.totalOvertimeMinutesDay || 0) / 60)}h{' '}
+                            {(dashboardStats.totalOvertimeMinutesDay || 0) % 60}m
+                          </div>
+                          <div className="text-xs text-slate-500">Overtime (Today)</div>
+                        </div>
+                        <div className="rounded-md bg-slate-50 px-3 py-2">
+                          <div className="text-sm font-semibold text-slate-900">
+                            {attendance.length}
+                          </div>
+                          <div className="text-xs text-slate-500">Records</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                <div className="rounded-lg border bg-white p-4">
+                  <div className="text-xs text-slate-500">Staff</div>
+                  <div className="mt-1 text-2xl font-semibold text-slate-900">{dashboardStats.totalStaff}</div>
+                </div>
+                <div className="rounded-lg border bg-white p-4">
+                  <div className="text-xs text-slate-500">Present</div>
+                  <div className="mt-1 text-2xl font-semibold text-slate-900">{dashboardStats.present}</div>
+                </div>
+                <div className="rounded-lg border bg-white p-4">
+                  <div className="text-xs text-slate-500">Not In</div>
+                  <div className="mt-1 text-2xl font-semibold text-slate-900">{dashboardStats.notIn}</div>
+                </div>
+                <div className="rounded-lg border bg-white p-4">
+                  <div className="text-xs text-slate-500">Holidays</div>
+                  <div className="mt-1 text-2xl font-semibold text-slate-900">{dashboardStats.holidays}</div>
+                </div>
+                <div className="rounded-lg border bg-white p-4">
+                  <div className="text-xs text-slate-500">Weekly Off</div>
+                  <div className="mt-1 text-2xl font-semibold text-slate-900">{dashboardStats.weeklyOff}</div>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : null}
+
+        {section === 'reports' ? (
+          <div className="mt-6 grid gap-4">
+            <div className="rounded-xl border bg-white">
+              <div className="px-4 py-3 border-b">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <div className="font-medium text-slate-900">Reports & Analytics</div>
+                    <div className="mt-0.5 text-sm text-slate-600">Generate and download reports (placeholder data for now).</div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="rounded-md border bg-white px-3 py-2 text-sm text-slate-600">All locations</div>
+                    <div className="rounded-md border bg-white px-3 py-2 text-sm text-slate-600">This month</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="divide-y">
+                {reportItems.map((item) => {
+                  const expanded = expandedReportKey === item.key;
+                  return (
+                    <div key={item.key} className="px-4 py-3">
+                      <button
+                        type="button"
+                        className="w-full text-left"
+                        onClick={() => setExpandedReportKey(expanded ? null : item.key)}
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <div className="font-medium text-slate-900">{item.title}</div>
+                            <div className="mt-0.5 text-sm text-slate-600">{item.description}</div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">{item.format}</span>
+                            <span className="text-sm text-slate-500">{expanded ? 'Hide' : 'View'}</span>
+                          </div>
+                        </div>
+                      </button>
+
+                      {expanded ? (
+                        <div className="mt-3 rounded-lg border bg-slate-50 p-3">
+                          <div className="grid gap-3 sm:grid-cols-3">
+                            <div className="rounded-md border bg-white px-3 py-2 text-sm text-slate-700">Date range: This month</div>
+                            <div className="rounded-md border bg-white px-3 py-2 text-sm text-slate-700">Location: All</div>
+                            <div className="rounded-md border bg-white px-3 py-2 text-sm text-slate-700">Format: {item.format}</div>
+                          </div>
+                          <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
+                            <button
+                              type="button"
+                              className="rounded-md border px-3 py-1.5 hover:bg-white"
+                              onClick={() => setExpandedReportKey(null)}
+                            >
+                              Close
+                            </button>
+                            <button
+                              type="button"
+                              className="rounded-md bg-slate-900 px-3 py-1.5 text-white hover:bg-slate-800"
+                              onClick={() => downloadReport(item)}
+                            >
+                              Download
+                            </button>
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="rounded-xl border bg-white p-4">
+              <div className="font-medium text-slate-900">Coming next</div>
+              <div className="mt-1 text-sm text-slate-600">
+                We will connect these to real company-scoped reporting APIs (daily/monthly, late/overtime/absence) and add PDF/Excel export.
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {error ? <div className="mt-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
+
+        {section === 'staff' ? (
+          <div className="mt-6 grid gap-4">
+            {canManage ? (
+              <form className="rounded-xl border bg-white p-4" onSubmit={onCreateEmployee}>
+                <div className="font-medium text-slate-900">Create employee</div>
+                <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <input className="rounded-md border px-3 py-2" placeholder="Employee code" value={newEmployee.employeeCode} onChange={(e) => setNewEmployee({ ...newEmployee, employeeCode: e.target.value })} />
+                  <input className="rounded-md border px-3 py-2" placeholder="Department" value={newEmployee.department} onChange={(e) => setNewEmployee({ ...newEmployee, department: e.target.value })} />
+                  <input className="rounded-md border px-3 py-2" placeholder="First name" value={newEmployee.firstName} onChange={(e) => setNewEmployee({ ...newEmployee, firstName: e.target.value })} />
+                  <input className="rounded-md border px-3 py-2" placeholder="Last name" value={newEmployee.lastName} onChange={(e) => setNewEmployee({ ...newEmployee, lastName: e.target.value })} />
+                  <input className="rounded-md border px-3 py-2" placeholder="Mobile" value={newEmployee.mobile} onChange={(e) => setNewEmployee({ ...newEmployee, mobile: e.target.value })} />
+                  <input className="rounded-md border px-3 py-2" placeholder="Designation" value={newEmployee.designation} onChange={(e) => setNewEmployee({ ...newEmployee, designation: e.target.value })} />
+                  <input className="rounded-md border px-3 py-2" placeholder="Category" value={newEmployee.category} onChange={(e) => setNewEmployee({ ...newEmployee, category: e.target.value })} />
+                  <input className="rounded-md border px-3 py-2" placeholder="Username" value={newEmployee.username} onChange={(e) => setNewEmployee({ ...newEmployee, username: e.target.value })} />
+                  <input className="rounded-md border px-3 py-2" placeholder="Password" type="password" value={newEmployee.password} onChange={(e) => setNewEmployee({ ...newEmployee, password: e.target.value })} />
+                  <select className="rounded-md border px-3 py-2" value={newEmployee.role} onChange={(e) => setNewEmployee({ ...newEmployee, role: e.target.value as Role })}>
+                    {roleOptions.map((r) => (
+                      <option key={r} value={r}>{r}</option>
+                    ))}
+                  </select>
+                </div>
+                <button type="submit" disabled={busy} className="mt-4 rounded-md bg-slate-900 px-4 py-2 text-white hover:bg-slate-800 disabled:opacity-60 flex items-center gap-2">
+                  {busy && <LoadingSpinner size="sm" />}
+                  {busy ? 'Creating...' : 'Create Employee'}
+                </button>
+              </form>
+            ) : (
+              <div className="rounded-xl border bg-white p-4 text-sm text-slate-600">
+                You have read-only access.
+              </div>
+            )}
+
+            <div className="rounded-xl border bg-white overflow-x-auto">
+              <div className="px-4 py-3 border-b font-medium text-slate-900">Employees</div>
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 text-slate-600">
+                  <tr>
+                    <th className="px-4 py-2 text-left">Code</th>
+                    <th className="px-4 py-2 text-left">Name</th>
+                    <th className="px-4 py-2 text-left">Mobile</th>
+                    <th className="px-4 py-2 text-left">Designation</th>
+                    <th className="px-4 py-2 text-left">Department</th>
+                    <th className="px-4 py-2 text-left">Category</th>
+                    <th className="px-4 py-2 text-left">Username</th>
+                    <th className="px-4 py-2 text-left">Role</th>
+                    <th className="px-4 py-2"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {employees.map((emp) => (
+                    <tr key={emp.id} className="border-t">
+                      <td className="px-4 py-2">{emp.employeeCode}</td>
+                      <td className="px-4 py-2">{emp.firstName} {emp.lastName}</td>
+                      <td className="px-4 py-2">
+                        <input className="w-full rounded-md border px-2 py-1" value={emp.mobile || ''} onChange={(e) => setEmployees((prev) => prev.map((x) => (x.id === emp.id ? { ...x, mobile: e.target.value } : x)))} />
+                      </td>
+                      <td className="px-4 py-2">
+                        <input className="w-full rounded-md border px-2 py-1" value={emp.designation || ''} onChange={(e) => setEmployees((prev) => prev.map((x) => (x.id === emp.id ? { ...x, designation: e.target.value } : x)))} />
+                      </td>
+                      <td className="px-4 py-2">
+                        <input className="w-full rounded-md border px-2 py-1" value={emp.department || ''} onChange={(e) => setEmployees((prev) => prev.map((x) => (x.id === emp.id ? { ...x, department: e.target.value || undefined } : x)))} />
+                      </td>
+                      <td className="px-4 py-2">
+                        <input className="w-full rounded-md border px-2 py-1" value={emp.category || ''} onChange={(e) => setEmployees((prev) => prev.map((x) => (x.id === emp.id ? { ...x, category: e.target.value || undefined } : x)))} />
+                      </td>
+                      <td className="px-4 py-2">{emp.username}</td>
+                      <td className="px-4 py-2">
+                        <select className="rounded-md border px-2 py-1" value={emp.role} onChange={(e) => setEmployees((prev) => prev.map((x) => (x.id === emp.id ? { ...x, role: e.target.value as Role } : x)))}>
+                          {roleOptions.map((r) => (
+                            <option key={r} value={r}>{r}</option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="px-4 py-2 text-right whitespace-nowrap">
+                        {canManage ? (
+                          <>
+                            <button type="button" disabled={busy} className="rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50 disabled:opacity-60 transition-colors" onClick={() => onQuickUpdateEmployee(emp)}>
+                              {busy ? 'Saving...' : 'Save'}
+                            </button>
+                            <button type="button" disabled={busy} className="ml-2 rounded-md bg-red-600 px-3 py-1.5 text-sm text-white hover:bg-red-700 disabled:opacity-60 transition-colors" onClick={() => onDeleteEmployee(emp.id)}>
+                              Delete
+                            </button>
+                          </>
+                        ) : (
+                          <span className="text-slate-400">Read-only</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                  {employees.length === 0 ? (
+                    <tr>
+                      <td colSpan={9} className="px-4 py-12">
+                        <EmptyState
+                          title="No employees"
+                          description="Get started by creating your first employee. Employees can then check in and track their attendance."
+                        />
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : null}
+
+        {section === 'workforce' ? (
+          <div className="mt-6 grid gap-4">
+            <div className="rounded-xl border bg-white">
+              <div className="px-4 py-3 border-b">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <div className="font-medium text-slate-900">Geofencing Locations</div>
+                    <div className="mt-0.5 text-sm text-slate-600">GPS location for clock in / clock out.</div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={!canManage}
+                      className="rounded-md bg-slate-900 px-3 py-2 text-sm text-white hover:bg-slate-800 disabled:opacity-60"
+                      onClick={() => setShowGeofenceForm((v) => !v)}
+                    >
+                      Add New Geolocation
+                    </button>
+                    <button type="button" className="rounded-md border px-3 py-2 text-sm text-slate-700 hover:bg-slate-50" onClick={() => showToast('Bulk add will be added next', 'success')}>
+                      Bulk Add
+                    </button>
+                    <button type="button" className="rounded-md border px-3 py-2 text-sm text-slate-700 hover:bg-slate-50" onClick={downloadGeofencesCsv}>
+                      Download
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="text-xs text-slate-500">Select site</div>
+                    <select
+                      className="rounded-md border bg-white px-3 py-2 text-sm text-slate-700"
+                      value={geofenceSite}
+                      onChange={(e) => setGeofenceSite(e.target.value)}
+                    >
+                      <option value="ALL">All</option>
+                      {geofenceSiteOptions.map((x) => (
+                        <option key={x} value={x}>
+                          {x}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="w-full sm:w-72">
+                    <input
+                      className="w-full rounded-md border px-3 py-2 text-sm"
+                      placeholder="Search"
+                      value={geofenceSearch}
+                      onChange={(e) => setGeofenceSearch(e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {showGeofenceForm && canManage ? (
+                <div className="border-b p-4">
+                  <form onSubmit={onCreateLocation}>
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <div className="sm:col-span-2">
+                        <label className="text-sm font-medium text-slate-700">Location name</label>
+                        <input
+                          className="mt-1 w-full rounded-md border px-3 py-2"
+                          placeholder="e.g. Kigali office"
+                          value={newLocation.name}
+                          onChange={(e) => setNewLocation({ ...newLocation, name: e.target.value })}
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-slate-700">Latitude</label>
+                        <input
+                          type="number"
+                          min={-90}
+                          max={90}
+                          step="any"
+                          className="mt-1 w-full rounded-md border px-3 py-2"
+                          value={newLocation.latitude}
+                          onChange={(e) => setNewLocation({ ...newLocation, latitude: Number(e.target.value) })}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-slate-700">Longitude</label>
+                        <input
+                          type="number"
+                          min={-180}
+                          max={180}
+                          step="any"
+                          className="mt-1 w-full rounded-md border px-3 py-2"
+                          value={newLocation.longitude}
+                          onChange={(e) => setNewLocation({ ...newLocation, longitude: Number(e.target.value) })}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-slate-700">Geofence radius (m)</label>
+                        <input
+                          type="number"
+                          min={1}
+                          step={1}
+                          className="mt-1 w-full rounded-md border px-3 py-2"
+                          value={newLocation.radiusMeters}
+                          onChange={(e) => setNewLocation({ ...newLocation, radiusMeters: Number(e.target.value) })}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-slate-700">Active</label>
+                        <div className="mt-2">
+                          <label className="flex items-center gap-2 text-sm text-slate-700">
+                            <input type="checkbox" checked={!!newLocation.active} onChange={(e) => setNewLocation({ ...newLocation, active: e.target.checked })} />
+                            Enabled
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="submit"
+                      disabled={busy}
+                      className="mt-4 rounded-md bg-slate-900 px-4 py-2 text-white hover:bg-slate-800 disabled:opacity-60 flex items-center gap-2"
+                    >
+                      {busy && <LoadingSpinner size="sm" />}
+                      {busy ? 'Creating...' : 'Create Location'}
+                    </button>
+                  </form>
+                </div>
+              ) : null}
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-50 text-slate-600">
+                    <tr>
+                      <th className="px-4 py-2 text-left">Location Name</th>
+                      <th className="px-4 py-2 text-left">Latitude</th>
+                      <th className="px-4 py-2 text-left">Longitude</th>
+                      <th className="px-4 py-2 text-left">Geofenced Radius (m)</th>
+                      <th className="px-4 py-2 text-left">Active</th>
+                      <th className="px-4 py-2 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredGeofences.map((loc) => (
+                      <tr key={loc.id} className="border-t">
+                        <td className="px-4 py-2">
+                          <input className="w-full rounded-md border px-2 py-1" value={loc.name} onChange={(e) => setLocations((prev) => prev.map((x) => (x.id === loc.id ? { ...x, name: e.target.value } : x)))} />
+                        </td>
+                        <td className="px-4 py-2">
+                          <input className="w-full rounded-md border px-2 py-1" value={loc.latitude} onChange={(e) => setLocations((prev) => prev.map((x) => (x.id === loc.id ? { ...x, latitude: Number(e.target.value) } : x)))} />
+                        </td>
+                        <td className="px-4 py-2">
+                          <input className="w-full rounded-md border px-2 py-1" value={loc.longitude} onChange={(e) => setLocations((prev) => prev.map((x) => (x.id === loc.id ? { ...x, longitude: Number(e.target.value) } : x)))} />
+                        </td>
+                        <td className="px-4 py-2">
+                          <input className="w-full rounded-md border px-2 py-1" value={loc.radiusMeters} onChange={(e) => setLocations((prev) => prev.map((x) => (x.id === loc.id ? { ...x, radiusMeters: Number(e.target.value) } : x)))} />
+                        </td>
+                        <td className="px-4 py-2">
+                          <input type="checkbox" checked={!!loc.active} onChange={(e) => setLocations((prev) => prev.map((x) => (x.id === loc.id ? { ...x, active: e.target.checked } : x)))} />
+                        </td>
+                        <td className="px-4 py-2 text-right whitespace-nowrap">
+                          {canManage ? (
+                            <>
+                              <button type="button" disabled={busy} className="rounded-md border px-3 py-1.5 hover:bg-slate-50 disabled:opacity-60" onClick={() => onQuickUpdateLocation(loc)}>
+                                Save
+                              </button>
+                              <button type="button" disabled={busy} className="ml-2 rounded-md bg-red-600 px-3 py-1.5 text-white hover:bg-red-500 disabled:opacity-60" onClick={() => onDeleteLocation(loc.id)}>
+                                Delete
+                              </button>
+                            </>
+                          ) : (
+                            <span className="text-slate-400">Read-only</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+
+                    {filteredGeofences.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="px-4 py-12">
+                          <EmptyState
+                            title="No geofencing locations"
+                            description="Add a geofence so employees can be location-verified during check-in/out."
+                          />
+                        </td>
+                      </tr>
+                    ) : null}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {section === 'settings' ? (
+          <div className="mt-6 grid gap-4">
+            {canManageUsers ? (
+              <form className="rounded-xl border bg-white p-4" onSubmit={onCreateUser}>
+                <div className="font-medium text-slate-900">Create user</div>
+                <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <input className="rounded-md border px-3 py-2" placeholder="Username" value={newUser.username} onChange={(e) => setNewUser({ ...newUser, username: e.target.value })} />
+                  <input className="rounded-md border px-3 py-2" placeholder="Password" type="password" value={newUser.password} onChange={(e) => setNewUser({ ...newUser, password: e.target.value })} />
+                  <select className="rounded-md border px-3 py-2" value={newUser.role} onChange={(e) => setNewUser({ ...newUser, role: e.target.value as Role })}>
+                    {userRoleOptions.map((r) => (
+                      <option key={r} value={r}>{r}</option>
+                    ))}
+                  </select>
+                  <label className="flex items-center gap-2 text-sm text-slate-700">
+                    <input type="checkbox" checked={!!newUser.enabled} onChange={(e) => setNewUser({ ...newUser, enabled: e.target.checked })} />
+                    Enabled
+                  </label>
+                </div>
+                <button type="submit" disabled={busy} className="mt-4 rounded-md bg-slate-900 px-4 py-2 text-white hover:bg-slate-800 disabled:opacity-60 flex items-center gap-2">
+                  {busy && <LoadingSpinner size="sm" />}
+                  {busy ? 'Creating...' : 'Create User'}
+                </button>
+              </form>
+            ) : (
+              <div className="rounded-xl border bg-white p-4 text-sm text-slate-600">
+                You do not have permission to manage users.
+              </div>
+            )}
+
+            <div className="rounded-xl border bg-white overflow-x-auto">
+              <div className="px-4 py-3 border-b font-medium text-slate-900">Users</div>
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 text-slate-600">
+                  <tr>
+                    <th className="px-4 py-2 text-left">Username</th>
+                    <th className="px-4 py-2 text-left">Role</th>
+                    <th className="px-4 py-2 text-left">Enabled</th>
+                    <th className="px-4 py-2 text-left">Reset password</th>
+                    <th className="px-4 py-2"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {users.map((u) => (
+                    <tr key={u.id} className="border-t">
+                      <td className="px-4 py-2">{u.username}</td>
+                      <td className="px-4 py-2">
+                        <select className="rounded-md border px-2 py-1" value={u.role} onChange={(e) => setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, role: e.target.value as Role } : x)))}>
+                          {userRoleOptions.map((r) => (
+                            <option key={r} value={r}>{r}</option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="px-4 py-2">
+                        <input type="checkbox" checked={!!u.enabled} onChange={(e) => setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, enabled: e.target.checked } : x)))} />
+                      </td>
+                      <td className="px-4 py-2">
+                        <input className="w-full rounded-md border px-2 py-1" placeholder="New password (optional)" type="password" value={u.newPassword || ''} onChange={(e) => setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, newPassword: e.target.value } : x)))} />
+                      </td>
+                      <td className="px-4 py-2 text-right whitespace-nowrap">
+                        {canManageUsers ? (
+                          <button type="button" disabled={busy} className="rounded-md border px-3 py-1.5 hover:bg-slate-50 disabled:opacity-60" onClick={() => onQuickUpdateUser(u)}>
+                            Save
+                          </button>
+                        ) : (
+                          <span className="text-slate-400">Read-only</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                  {users.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-12">
+                        <EmptyState
+                          title="No users"
+                          description="Create system users to manage access and permissions for your attendance system."
+                        />
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </AppLayout>
+  );
+}
