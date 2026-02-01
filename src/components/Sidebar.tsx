@@ -1,4 +1,5 @@
 import React from 'react';
+import { useAuth } from '../auth/AuthContext';
 
 type SidebarItem = {
   key: string;
@@ -36,6 +37,9 @@ type SidebarProps = {
 };
 
 export default function Sidebar({ items, activeKey, onChange }: SidebarProps) {
+  const { user } = useAuth();
+  const logoLetter = (user?.companySlug || 'A').trim().charAt(0).toUpperCase();
+  const logoUrl = user?.companyLogoUrl || null;
   const icons: Record<string, React.ReactNode> = {
     dashboard: '📊',
     reports: '📈',
@@ -50,9 +54,17 @@ export default function Sidebar({ items, activeKey, onChange }: SidebarProps) {
     <div className="w-64 shrink-0 border-r bg-white shadow-sm">
       <div className="p-4 border-b">
         <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-white font-bold text-lg">
-            A
-          </div>
+          {logoUrl ? (
+            <img
+              src={logoUrl}
+              alt={user?.companySlug || 'Company logo'}
+              className="h-10 w-10 rounded-lg object-cover"
+            />
+          ) : (
+            <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-white font-bold text-lg">
+              {logoLetter}
+            </div>
+          )}
           <div>
             <div className="text-sm font-semibold text-slate-900">Attendance</div>
             <div className="text-xs text-slate-500">Management</div>

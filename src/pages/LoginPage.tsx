@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import axios from 'axios';
 import { login as loginApi } from '../api/auth';
 import { useAuth } from '../auth/AuthContext';
 
@@ -8,10 +9,7 @@ export default function LoginPage() {
   const location = useLocation();
   const { setToken, refreshMe } = useAuth();
 
-  const navState = location.state as { companySlug?: string; username?: string } | null;
-  const initialCompanySlug = navState?.companySlug || localStorage.getItem('companySlug') || 'default';
-  const [companySlug] = useState(initialCompanySlug);
-
+  const navState = location.state as { username?: string } | null;
   const [username, setUsername] = useState(navState?.username || '');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -22,18 +20,36 @@ export default function LoginPage() {
     setError(null);
     setLoading(true);
 
+    const trimmedUsername = username.trim();
+    if (!trimmedUsername) {
+      setError('Please enter your username.');
+      setLoading(false);
+      return;
+    }
+
     try {
-      const res = await loginApi(companySlug, username, password);
+      const res = await loginApi(trimmedUsername, password);
       setToken(res.token);
-      localStorage.setItem('companySlug', companySlug);
       const user = await refreshMe();
+      if (user.companySlug) {
+        localStorage.setItem('companySlug', user.companySlug);
+      }
       if (user.role === 'EMPLOYEE') {
         navigate('/employee', { replace: true });
       } else {
         navigate('/admin', { replace: true });
       }
     } catch (e2) {
-      setError('Invalid username or password');
+      const status = axios.isAxiosError(e2) ? e2.response?.status : undefined;
+      if (status === 403) {
+        setError('Access denied (403). Restart the backend and ensure CORS is enabled, or try company slug "default".');
+      } else if (status === 401) {
+        setError('Invalid username or password.');
+      } else if (status != null) {
+        setError(`Login failed (${status}). Check your credentials.`);
+      } else {
+        setError('Cannot reach server. Is the backend running on port 8080?');
+      }
     } finally {
       setLoading(false);
     }
@@ -52,11 +68,12 @@ export default function LoginPage() {
 
         <form className="mt-6 space-y-4" onSubmit={onSubmit}>
           <div>
-            <label className="text-sm font-medium text-slate-700">Username</label>
+            <label className="text-sm font-medium text-slate-700">Username or email</label>
             <input
               className="mt-1 w-full rounded-md border px-3 py-2 text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
+              placeholder="Enter username or email"
               autoComplete="username"
             />
           </div>
@@ -109,6 +126,7 @@ export default function LoginPage() {
           >
             Register New Company
           </button>
+
         </form>
       </div>
     </div>

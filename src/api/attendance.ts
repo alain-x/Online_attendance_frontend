@@ -3,21 +3,37 @@ import http from './http';
 import type {
   AdminUpsertAttendanceRequest,
   AttendanceResponse,
-  CheckInRequest,
-  CheckOutRequest,
   MessageResponse,
   VerifyFaceResponse,
 } from './types';
 
-export async function checkIn(latitude: number, longitude: number): Promise<AttendanceResponse> {
-  const payload: CheckInRequest = { latitude, longitude };
-  const res = await http.post<AttendanceResponse>('/api/attendance/check-in', payload);
+export async function checkIn(
+  imageFile: File,
+  latitude: number,
+  longitude: number
+): Promise<AttendanceResponse> {
+  const form = new FormData();
+  form.append('image', imageFile);
+  form.append('latitude', String(latitude));
+  form.append('longitude', String(longitude));
+  const res = await http.post<AttendanceResponse>('/api/attendance/check-in', form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
   return res.data;
 }
 
-export async function checkOut(latitude: number, longitude: number): Promise<AttendanceResponse> {
-  const payload: CheckOutRequest = { latitude, longitude };
-  const res = await http.post<AttendanceResponse>('/api/attendance/check-out', payload);
+export async function checkOut(
+  imageFile: File,
+  latitude: number,
+  longitude: number
+): Promise<AttendanceResponse> {
+  const form = new FormData();
+  form.append('image', imageFile);
+  form.append('latitude', String(latitude));
+  form.append('longitude', String(longitude));
+  const res = await http.post<AttendanceResponse>('/api/attendance/check-out', form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
   return res.data;
 }
 
@@ -61,12 +77,12 @@ export async function endBreak(): Promise<MessageResponse> {
   return res.data;
 }
 
-export async function verifyFace(imageFile: File): Promise<VerifyFaceResponse> {
+/** descriptorJson: optional AI face descriptor for recognition. */
+export async function verifyFace(imageFile: File, descriptorJson?: string): Promise<VerifyFaceResponse> {
   const form = new FormData();
   form.append('image', imageFile);
-  const res = await http.post<VerifyFaceResponse>('/api/attendance/face/verify', form, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  });
+  if (descriptorJson) form.append('descriptor', descriptorJson);
+  const res = await http.post<VerifyFaceResponse>('/api/attendance/face/verify', form);
   return res.data;
 }
 

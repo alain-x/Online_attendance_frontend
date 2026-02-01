@@ -7,8 +7,10 @@ export async function listEmployees(): Promise<EmployeeResponse[]> {
   return res.data;
 }
 
-export async function createEmployee(payload: CreateEmployeeRequest): Promise<EmployeeResponse> {
-  const res = await http.post<EmployeeResponse>('/api/employees', payload);
+export async function createEmployee(payload: CreateEmployeeRequest, companyId?: number | null): Promise<EmployeeResponse> {
+  const res = await http.post<EmployeeResponse>('/api/employees', payload, {
+    headers: companyId ? { 'X-Company-Id': String(companyId) } : undefined,
+  });
   return res.data;
 }
 

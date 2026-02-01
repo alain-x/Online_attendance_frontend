@@ -10,6 +10,14 @@ export default function ShellHeader({ title }: ShellHeaderProps) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
+  const logoLetter = (user?.companySlug || 'A').trim().charAt(0).toUpperCase();
+  const logoUrl = user?.companyLogoUrl || null;
+
+  const companyContextLabel = localStorage.getItem('companyContextLabel');
+  const companyContextIdRaw = localStorage.getItem('companyContextId');
+  const companyContextId = companyContextIdRaw ? Number(companyContextIdRaw) : null;
+  const isBranchView = user?.companyId != null && companyContextId != null && companyContextId !== user.companyId;
+
   const handleLogout = () => {
     logout();
     navigate('/login');
@@ -19,17 +27,28 @@ export default function ShellHeader({ title }: ShellHeaderProps) {
     <div className="w-full bg-gradient-to-r from-blue-700 to-indigo-700 text-white shadow-md">
       <div className="px-6 h-14 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="h-8 w-8 rounded-lg bg-white/20 flex items-center justify-center font-bold">
-            A
-          </div>
+          {logoUrl ? (
+            <img
+              src={logoUrl}
+              alt={user?.companySlug || 'Company logo'}
+              className="h-8 w-8 rounded-lg object-cover bg-white/20"
+            />
+          ) : (
+            <div className="h-8 w-8 rounded-lg bg-white/20 flex items-center justify-center font-bold">
+              {logoLetter}
+            </div>
+          )}
           <div className="font-semibold text-lg">{title || 'Attendance Management System'}</div>
         </div>
 
         <div className="flex items-center gap-4">
           {user?.companySlug ? (
             <div className="hidden sm:flex items-center gap-2 rounded-lg bg-white/10 px-3 py-1.5 text-sm">
-              <span className="text-white/70">Company:</span>
-              <span className="font-medium">{user.companySlug}</span>
+              <span className="text-white/70">Viewing:</span>
+              <span className="font-medium">{companyContextLabel || user.companySlug}</span>
+              {isBranchView ? (
+                <span className="rounded-full bg-white/20 px-2 py-0.5 text-xs font-medium text-white">Branch</span>
+              ) : null}
             </div>
           ) : null}
           {user ? (

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import AppLayout from '../components/AppLayout';
+import { createCompany, deleteCompany, listCompanies, updateCompany, uploadCompanyLogo } from '../api/companies';
 import { createEmployee, deleteEmployee, listEmployees, updateEmployee } from '../api/employees';
 import { createLocation, deleteLocation, listLocations, updateLocation } from '../api/locations';
 import { adminCreateAttendance, adminDeleteAttendance, adminUpdateAttendance, listAttendanceByEmployee, todayAttendance } from '../api/attendance';
@@ -17,11 +18,14 @@ import type {
   AttendanceResponse,
   AttendanceStatus,
   AdminUpsertAttendanceRequest,
+  Company,
+  CreateCompanyRequest,
   CreateEmployeeRequest,
   CreateUserRequest,
   EmployeeResponse,
   HomeAnalyticsResponse,
   Role,
+  UpdateCompanyRequest,
   UpdateEmployeeRequest,
   UpdateUserRequest,
   UserResponse,
@@ -75,6 +79,9 @@ export default function AdminDashboard() {
   const [section, setSection] = useState('dashboard');
   const [dashboardTab, setDashboardTab] = useState('home');
 
+  const companyLogoLetter = (user?.companySlug || 'A').trim().charAt(0).toUpperCase();
+  const companyLogoUrl = user?.companyLogoUrl || null;
+
   const [selectedYear, setSelectedYear] = useState<number>(() => new Date().getUTCFullYear());
   const [selectedMonth, setSelectedMonth] = useState<number>(() => new Date().getUTCMonth() + 1);
   const [selectedDepartment, setSelectedDepartment] = useState<string>('ALL');
@@ -102,6 +109,18 @@ export default function AdminDashboard() {
   const [error, setError] = useState<string | null>(null);
 
   const [homeAnalytics, setHomeAnalytics] = useState<HomeAnalyticsResponse | null>(null);
+
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [companiesLoading, setCompaniesLoading] = useState(false);
+  const [branchForm, setBranchForm] = useState<{ name: string; slug: string; logoUrl: string; asBranch: boolean }>({ name: '', slug: '', logoUrl: '', asBranch: true });
+  const [branchFormBusy, setBranchFormBusy] = useState(false);
+  const [editingCompany, setEditingCompany] = useState<Company | null>(null);
+  const [editCompanyForm, setEditCompanyForm] = useState<{ name: string; slug: string; logoUrl: string }>({ name: '', slug: '', logoUrl: '' });
+  const [editCompanyBusy, setEditCompanyBusy] = useState(false);
+  const [editCompanyLogoFile, setEditCompanyLogoFile] = useState<File | null>(null);
+  const [editCompanyLogoBusy, setEditCompanyLogoBusy] = useState(false);
+  const [deleteCompanyId, setDeleteCompanyId] = useState<number | null>(null);
+  const [deleteCompanyBusy, setDeleteCompanyBusy] = useState(false);
 
   const reportItems = useMemo<ReportItem[]>(
     () => [
@@ -161,6 +180,8 @@ export default function AdminDashboard() {
     role: 'EMPLOYEE',
   });
 
+  const [newEmployeeCompanyId, setNewEmployeeCompanyId] = useState<number | null>(null);
+
   const [newLocation, setNewLocation] = useState({
     name: '',
     latitude: 0,
@@ -184,6 +205,36 @@ export default function AdminDashboard() {
   const userRoleOptions = useMemo<Role[]>(() => ['SYSTEM_ADMIN', 'ADMIN', 'HR', 'MANAGER', 'EMPLOYEE', 'PAYROLL', 'AUDITOR'], []);
   const canManage = user && (user.role === 'ADMIN' || user.role === 'HR');
   const canManageUsers = user && (user.role === 'SYSTEM_ADMIN' || user.role === 'ADMIN');
+
+  const isOwnerAdmin = user?.role === 'ADMIN' && user?.companyId != null;
+
+  const [companyContextId, setCompanyContextId] = useState<number | null>(() => {
+    const raw = localStorage.getItem('companyContextId');
+    if (!raw) return null;
+    const n = Number(raw);
+    if (Number.isNaN(n) || n <= 0) return null;
+    return n;
+  });
+
+  const currentCompany = useMemo(() => {
+    if (!user?.companyId) return null;
+    return companies.find((c) => c.id === user.companyId) || null;
+  }, [companies, user?.companyId]);
+
+  const viewableCompanies = useMemo(() => {
+    if (!user?.companyId) return [] as Company[];
+    // Owner admin can view their own company and its direct branches.
+    const list = companies.filter((c) => c.id === user.companyId || c.parentCompanyId === user.companyId);
+    // Always ensure current company is present even if companies list isn't loaded yet.
+    return list;
+  }, [companies, user?.companyId]);
+
+  const effectiveCompanyId = useMemo(() => {
+    if (!user?.companyId) return null;
+    if (!companyContextId) return user.companyId;
+    const allowed = viewableCompanies.some((c) => c.id === companyContextId);
+    return allowed ? companyContextId : user.companyId;
+  }, [companyContextId, user?.companyId, viewableCompanies]);
 
   const workforceDays = useMemo(() => ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], []);
   const workforcePeople = useMemo(
@@ -454,6 +505,48 @@ export default function AdminDashboard() {
   }, []);
 
   useEffect(() => {
+    if (!isOwnerAdmin) {
+      localStorage.removeItem('companyContextId');
+      setCompanyContextId(null);
+      return;
+    }
+    // Owner admins need companies list available for branch selector.
+    refreshCompanies();
+  }, [isOwnerAdmin]);
+
+  useEffect(() => {
+    if (!user?.companyId) return;
+    if (!isOwnerAdmin) return;
+    // Persist selected company context. If selecting own company, clear override.
+    if (effectiveCompanyId && effectiveCompanyId !== user.companyId) {
+      localStorage.setItem('companyContextId', String(effectiveCompanyId));
+      const selected = viewableCompanies.find((c) => c.id === effectiveCompanyId) || null;
+      if (selected) {
+        localStorage.setItem('companyContextLabel', `${selected.name} (${selected.slug})`);
+      } else {
+        localStorage.setItem('companyContextLabel', String(effectiveCompanyId));
+      }
+    } else {
+      localStorage.removeItem('companyContextId');
+      localStorage.removeItem('companyContextLabel');
+    }
+    // Reload data so all filters reflect the selected company.
+    refreshAll();
+    refreshUsers();
+    refreshHomeAnalytics(selectedYear, selectedMonth);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [effectiveCompanyId]);
+
+  useEffect(() => {
+    if (!isOwnerAdmin) {
+      setNewEmployeeCompanyId(null);
+      return;
+    }
+    // default employee creation to whatever company is currently being viewed
+    setNewEmployeeCompanyId(effectiveCompanyId);
+  }, [effectiveCompanyId, isOwnerAdmin]);
+
+  useEffect(() => {
     refreshHomeAnalytics(selectedYear, selectedMonth);
   }, [selectedYear, selectedMonth]);
 
@@ -463,12 +556,30 @@ export default function AdminDashboard() {
     }
   }, [section]);
 
+  async function refreshCompanies() {
+    setCompaniesLoading(true);
+    try {
+      const list = await listCompanies();
+      setCompanies(list);
+    } catch (err: unknown) {
+      showToast(getApiErrorMessage(err, 'Failed to load companies'), 'error');
+    } finally {
+      setCompaniesLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (section === 'companies') {
+      refreshCompanies();
+    }
+  }, [section]);
+
   async function onCreateEmployee(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
     setBusy(true);
     try {
-      await createEmployee(newEmployee);
+      await createEmployee(newEmployee, isOwnerAdmin ? newEmployeeCompanyId : undefined);
       setNewEmployee({
         employeeCode: '',
         firstName: '',
@@ -489,6 +600,103 @@ export default function AdminDashboard() {
       showToast(errorMsg, 'error');
     } finally {
       setBusy(false);
+    }
+  }
+
+  function canManageCompany(company: Company): boolean {
+    if (user?.role === 'SYSTEM_ADMIN') return true;
+    if (!user?.companyId) return false;
+    if (user.companyId === company.id) return true;
+    return company.parentCompanyId != null && company.parentCompanyId === user.companyId;
+  }
+
+  function openEditCompany(c: Company) {
+    setEditingCompany(c);
+    setEditCompanyForm({ name: c.name, slug: c.slug, logoUrl: (c.logoUrl || '').trim() });
+    setEditCompanyLogoFile(null);
+  }
+
+  async function uploadEditCompanyLogo() {
+    if (!editingCompany) return;
+    if (!editCompanyLogoFile) return;
+    setEditCompanyLogoBusy(true);
+    try {
+      const updated = await uploadCompanyLogo(editingCompany.id, editCompanyLogoFile);
+      setEditCompanyForm((f) => ({ ...f, logoUrl: (updated.logoUrl || '').trim() }));
+      await refreshCompanies();
+      showToast('Logo uploaded successfully', 'success');
+      setEditCompanyLogoFile(null);
+    } catch (err: unknown) {
+      showToast(getApiErrorMessage(err, 'Failed to upload logo'), 'error');
+    } finally {
+      setEditCompanyLogoBusy(false);
+    }
+  }
+
+  async function onSaveEditCompany(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!editingCompany) return;
+    setError(null);
+    setEditCompanyBusy(true);
+    try {
+      const payload: UpdateCompanyRequest = {};
+      if (editCompanyForm.name.trim()) payload.name = editCompanyForm.name.trim();
+      if (editCompanyForm.slug.trim()) payload.slug = editCompanyForm.slug.trim().toLowerCase().replace(/\s+/g, '-');
+      payload.logoUrl = editCompanyForm.logoUrl.trim() ? editCompanyForm.logoUrl.trim() : null;
+      await updateCompany(editingCompany.id, payload);
+      setEditingCompany(null);
+      showToast('Company updated successfully', 'success');
+      await refreshCompanies();
+    } catch (err: unknown) {
+      const errorMsg = getApiErrorMessage(err, 'Failed to update company');
+      setError(errorMsg);
+      showToast(errorMsg, 'error');
+    } finally {
+      setEditCompanyBusy(false);
+    }
+  }
+
+  async function onConfirmDeleteCompany() {
+    if (deleteCompanyId == null) return;
+    setError(null);
+    setDeleteCompanyBusy(true);
+    try {
+      await deleteCompany(deleteCompanyId);
+      setDeleteCompanyId(null);
+      showToast('Company deleted successfully', 'success');
+      await refreshCompanies();
+    } catch (err: unknown) {
+      const errorMsg = getApiErrorMessage(err, 'Failed to delete company');
+      setError(errorMsg);
+      showToast(errorMsg, 'error');
+    } finally {
+      setDeleteCompanyBusy(false);
+    }
+  }
+
+  async function onCreateBranch(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(null);
+    setBranchFormBusy(true);
+    try {
+      const payload: CreateCompanyRequest = {
+        name: branchForm.name.trim(),
+        slug: branchForm.slug.trim().toLowerCase().replace(/\s+/g, '-'),
+        logoUrl: branchForm.logoUrl.trim() ? branchForm.logoUrl.trim() : null,
+      };
+      if (branchForm.asBranch && user?.companyId) {
+        payload.parentCompanyId = user.companyId;
+      }
+      await createCompany(payload);
+      setBranchForm({ name: '', slug: '', logoUrl: '', asBranch: true });
+      showToast(branchForm.asBranch ? 'Branch company created successfully' : 'Company created successfully', 'success');
+      await refreshCompanies();
+    } catch (err: unknown) {
+      const errorMsg = getApiErrorMessage(err, 'Failed to create company/branch');
+      setError(errorMsg);
+      showToast(errorMsg, 'error');
+    } finally {
+      setBranchFormBusy(false);
     }
   }
 
@@ -685,6 +893,7 @@ export default function AdminDashboard() {
   const sidebarItems = useMemo(
     () => [
       { key: 'dashboard', label: 'Dashboard' },
+      { key: 'companies', label: 'Companies & Branches' },
       { key: 'reports', label: 'Reports & Analytics' },
       { key: 'workforce', label: 'Workforce Plan' },
       { key: 'staff', label: 'Staff Directory' },
@@ -718,8 +927,29 @@ export default function AdminDashboard() {
       {toast && <Toast message={toast.message} type={toast.type} onClose={hideToast} />}
       <div>
         <div>
-          <div className="text-2xl font-bold text-slate-900">{sidebarItems.find((x) => x.key === section)?.label}</div>
-          <div className="mt-1 text-sm text-slate-600">Manage your company's attendance and workforce efficiently.</div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <div className="text-2xl font-bold text-slate-900">{sidebarItems.find((x) => x.key === section)?.label}</div>
+              <div className="mt-1 text-sm text-slate-600">Manage your company's attendance and workforce efficiently.</div>
+            </div>
+
+            {isOwnerAdmin && viewableCompanies.length > 1 ? (
+              <div className="flex items-center gap-2">
+                <div className="text-sm text-slate-600">Viewing company</div>
+                <select
+                  className="rounded-md border bg-white px-3 py-2 text-sm text-slate-900"
+                  value={effectiveCompanyId ?? ''}
+                  onChange={(e) => setCompanyContextId(Number(e.target.value))}
+                >
+                  {viewableCompanies.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} ({c.slug})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : null}
+          </div>
         </div>
 
         {section === 'dashboard' ? (
@@ -1111,7 +1341,6 @@ export default function AdminDashboard() {
 
                 <div className="lg:col-span-3 grid gap-4">
                   <div className="rounded-xl border bg-blue-50 p-4">
-                    <div className="text-sm text-slate-700">You have 18 licenses left. You can always purchase new licenses to assign to users.</div>
                     <button type="button" className="mt-3 rounded-md bg-blue-700 px-3 py-2 text-sm text-white hover:bg-blue-600">Buy more licenses</button>
                   </div>
                   <div className="rounded-xl border bg-white">
@@ -1217,6 +1446,260 @@ export default function AdminDashboard() {
           </div>
         ) : null}
 
+        {section === 'companies' ? (
+          <div className="mt-6 grid gap-4">
+            <div className="rounded-xl border bg-white p-4">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="font-medium text-slate-900">Current company</div>
+                  <div className="mt-1 text-sm text-slate-600">This section is scoped to your logged-in company.</div>
+                </div>
+                {currentCompany && canManageCompany(currentCompany) ? (
+                  <button
+                    type="button"
+                    className="rounded-md bg-slate-900 px-3 py-2 text-sm text-white hover:bg-slate-800"
+                    onClick={() => openEditCompany(currentCompany)}
+                  >
+                    Edit
+                  </button>
+                ) : null}
+              </div>
+
+              <div className="mt-4 flex items-center gap-4">
+                {companyLogoUrl ? (
+                  <img
+                    src={companyLogoUrl}
+                    alt={user?.companySlug || 'Company logo'}
+                    className="h-12 w-12 rounded-xl object-cover"
+                  />
+                ) : (
+                  <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-white font-bold text-xl">
+                    {companyLogoLetter}
+                  </div>
+                )}
+
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-slate-900 truncate">{currentCompany?.name || user?.companySlug || '—'}</div>
+                  <div className="mt-0.5 text-xs text-slate-500">Slug: {currentCompany?.slug || user?.companySlug || '—'}</div>
+                  <div className="mt-0.5 text-xs text-slate-500">Company ID: {user?.companyId ?? '—'}</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-xl border bg-white p-4">
+              <div className="font-medium text-slate-900">Create branch company</div>
+              <div className="mt-2 text-sm text-slate-600">
+                One parent company (e.g. PRI) can have multiple branch companies (e.g. PowerX, PowerM, PowerS). Create a new branch under your current company.
+              </div>
+              <form className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4" onSubmit={onCreateBranch}>
+                <input
+                  className="rounded-md border px-3 py-2"
+                  placeholder="Branch name (e.g. PowerX)"
+                  value={branchForm.name}
+                  onChange={(e) => setBranchForm((f) => ({ ...f, name: e.target.value }))}
+                />
+                <input
+                  className="rounded-md border px-3 py-2"
+                  placeholder="Slug (e.g. powerx)"
+                  value={branchForm.slug}
+                  onChange={(e) => setBranchForm((f) => ({ ...f, slug: e.target.value }))}
+                />
+                <input
+                  className="rounded-md border px-3 py-2"
+                  placeholder="Logo URL (optional)"
+                  value={branchForm.logoUrl}
+                  onChange={(e) => setBranchForm((f) => ({ ...f, logoUrl: e.target.value }))}
+                />
+                {user?.companyId ? (
+                  <label className="flex items-center gap-2 text-sm text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={branchForm.asBranch}
+                      onChange={(e) => setBranchForm((f) => ({ ...f, asBranch: e.target.checked }))}
+                    />
+                    Create as branch of current company
+                  </label>
+                ) : null}
+                <button type="submit" disabled={branchFormBusy || !branchForm.name.trim() || !branchForm.slug.trim()} className="rounded-md bg-slate-900 px-4 py-2 text-white hover:bg-slate-800 disabled:opacity-60 flex items-center gap-2">
+                  {branchFormBusy && <LoadingSpinner size="sm" />}
+                  {branchFormBusy ? 'Creating...' : branchForm.asBranch ? 'Create branch' : 'Create company'}
+                </button>
+              </form>
+            </div>
+            <div className="rounded-xl border bg-white overflow-x-auto">
+              <div className="px-4 py-3 border-b font-medium text-slate-900">All companies</div>
+              {companiesLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <LoadingSpinner size="lg" />
+                </div>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-50 text-slate-600">
+                    <tr>
+                      <th className="px-4 py-2 text-left">Name</th>
+                      <th className="px-4 py-2 text-left">Slug</th>
+                      <th className="px-4 py-2 text-left">Parent</th>
+                      <th className="px-4 py-2 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {companies.map((c) => {
+                      const parent = c.parentCompanyId ? companies.find((p) => p.id === c.parentCompanyId) : null;
+                      const canManage = canManageCompany(c);
+                      const isCurrent = user?.companyId === c.id;
+                      const isBranch = c.parentCompanyId != null;
+                      const logoLetter = (c.name || c.slug || 'A').trim().charAt(0).toUpperCase();
+                      return (
+                        <tr key={c.id} className={isCurrent ? 'border-t bg-blue-50/50' : 'border-t'}>
+                          <td className="px-4 py-2 font-medium text-slate-900">
+                            <div className="flex items-center gap-2">
+                              {c.logoUrl ? (
+                                <img src={c.logoUrl} alt={c.name} className="h-8 w-8 rounded-lg object-cover" />
+                              ) : (
+                                <div className="h-8 w-8 rounded-lg bg-slate-200 flex items-center justify-center text-slate-700 text-sm font-semibold">
+                                  {logoLetter}
+                                </div>
+                              )}
+                              <span>{c.name}</span>
+                              {isCurrent ? (
+                                <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">Current</span>
+                              ) : null}
+                              {isBranch ? (
+                                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">Branch</span>
+                              ) : null}
+                            </div>
+                          </td>
+                          <td className="px-4 py-2 text-slate-600">{c.slug}</td>
+                          <td className="px-4 py-2 text-slate-600">{parent ? `${parent.name} (${parent.slug})` : '—'}</td>
+                          <td className="px-4 py-2 text-right whitespace-nowrap">
+                            {canManage ? (
+                              <>
+                                <button
+                                  type="button"
+                                  className="rounded-md border border-slate-300 px-2 py-1 text-slate-700 hover:bg-slate-50 mr-1"
+                                  onClick={() => openEditCompany(c)}
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  type="button"
+                                  className="rounded-md border border-red-200 px-2 py-1 text-red-700 hover:bg-red-50"
+                                  onClick={() => setDeleteCompanyId(c.id)}
+                                >
+                                  Delete
+                                </button>
+                              </>
+                            ) : (
+                              <span className="text-slate-400 text-xs">—</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {companies.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="px-4 py-12">
+                          <EmptyState
+                            title="No companies"
+                            description="Register a company from the public registration page, or create a branch here when logged in as admin."
+                          />
+                        </td>
+                      </tr>
+                    ) : null}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            {editingCompany ? (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="edit-company-title">
+                <div className="w-full max-w-md rounded-xl border bg-white p-5 shadow-lg">
+                  <h2 id="edit-company-title" className="text-lg font-semibold text-slate-900">Edit company</h2>
+                  <p className="mt-1 text-sm text-slate-600">{editingCompany.name} ({editingCompany.slug})</p>
+                  <form className="mt-4 space-y-3" onSubmit={onSaveEditCompany}>
+                    <div>
+                      <label className="text-sm font-medium text-slate-700">Name</label>
+                      <input
+                        className="mt-1 w-full rounded-md border px-3 py-2"
+                        value={editCompanyForm.name}
+                        onChange={(e) => setEditCompanyForm((f) => ({ ...f, name: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-slate-700">Slug</label>
+                      <input
+                        className="mt-1 w-full rounded-md border px-3 py-2"
+                        value={editCompanyForm.slug}
+                        onChange={(e) => setEditCompanyForm((f) => ({ ...f, slug: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-slate-700">Logo URL (optional)</label>
+                      <input
+                        className="mt-1 w-full rounded-md border px-3 py-2"
+                        value={editCompanyForm.logoUrl}
+                        onChange={(e) => setEditCompanyForm((f) => ({ ...f, logoUrl: e.target.value }))}
+                        placeholder="https://..."
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-sm font-medium text-slate-700">Or upload logo (from PC)</label>
+                      <div className="mt-1 flex flex-col gap-2 sm:flex-row sm:items-center">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="w-full rounded-md border px-3 py-2 text-sm"
+                          onChange={(e) => setEditCompanyLogoFile(e.target.files && e.target.files[0] ? e.target.files[0] : null)}
+                        />
+                        <button
+                          type="button"
+                          disabled={!editCompanyLogoFile || editCompanyLogoBusy}
+                          className="rounded-md bg-slate-900 px-4 py-2 text-sm text-white hover:bg-slate-800 disabled:opacity-60 flex items-center gap-2"
+                          onClick={uploadEditCompanyLogo}
+                        >
+                          {editCompanyLogoBusy && <LoadingSpinner size="sm" />}
+                          {editCompanyLogoBusy ? 'Uploading...' : 'Upload'}
+                        </button>
+                      </div>
+                      <div className="mt-1 text-xs text-slate-500">Uploading will set Logo URL automatically.</div>
+                    </div>
+                    <div className="flex gap-2 justify-end mt-4">
+                      <button type="button" className="rounded-md border border-slate-300 px-4 py-2 text-slate-700 hover:bg-slate-50" onClick={() => setEditingCompany(null)}>
+                        Cancel
+                      </button>
+                      <button type="submit" disabled={editCompanyBusy || !editCompanyForm.name.trim() || !editCompanyForm.slug.trim()} className="rounded-md bg-slate-900 px-4 py-2 text-white hover:bg-slate-800 disabled:opacity-60 flex items-center gap-2">
+                        {editCompanyBusy && <LoadingSpinner size="sm" />}
+                        {editCompanyBusy ? 'Saving...' : 'Save'}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            ) : null}
+
+            {deleteCompanyId != null ? (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="delete-company-title">
+                <div className="w-full max-w-md rounded-xl border bg-white p-5 shadow-lg">
+                  <h2 id="delete-company-title" className="text-lg font-semibold text-slate-900">Delete company</h2>
+                  <p className="mt-2 text-sm text-slate-600">
+                    Are you sure you want to delete this company? This cannot be undone. The company must have no users.
+                  </p>
+                  <div className="mt-4 flex gap-2 justify-end">
+                    <button type="button" className="rounded-md border border-slate-300 px-4 py-2 text-slate-700 hover:bg-slate-50" onClick={() => setDeleteCompanyId(null)}>
+                      Cancel
+                    </button>
+                    <button type="button" disabled={deleteCompanyBusy} className="rounded-md bg-red-600 px-4 py-2 text-white hover:bg-red-700 disabled:opacity-60 flex items-center gap-2" onClick={onConfirmDeleteCompany}>
+                      {deleteCompanyBusy && <LoadingSpinner size="sm" />}
+                      {deleteCompanyBusy ? 'Deleting...' : 'Delete'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
         {section === 'reports' ? (
           <div className="mt-6 grid gap-4">
             <div className="rounded-xl border bg-white">
@@ -1303,6 +1786,19 @@ export default function AdminDashboard() {
               <form className="rounded-xl border bg-white p-4" onSubmit={onCreateEmployee}>
                 <div className="font-medium text-slate-900">Create employee</div>
                 <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  {isOwnerAdmin && viewableCompanies.length > 1 ? (
+                    <select
+                      className="rounded-md border px-3 py-2"
+                      value={newEmployeeCompanyId ?? ''}
+                      onChange={(e) => setNewEmployeeCompanyId(Number(e.target.value))}
+                    >
+                      {viewableCompanies.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name} ({c.slug})
+                        </option>
+                      ))}
+                    </select>
+                  ) : null}
                   <input className="rounded-md border px-3 py-2" placeholder="Employee code" value={newEmployee.employeeCode} onChange={(e) => setNewEmployee({ ...newEmployee, employeeCode: e.target.value })} />
                   <input className="rounded-md border px-3 py-2" placeholder="Department" value={newEmployee.department} onChange={(e) => setNewEmployee({ ...newEmployee, department: e.target.value })} />
                   <input className="rounded-md border px-3 py-2" placeholder="First name" value={newEmployee.firstName} onChange={(e) => setNewEmployee({ ...newEmployee, firstName: e.target.value })} />

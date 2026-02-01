@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import AppLayout from '../components/AppLayout';
 import { checkIn, checkOut, endBreak, myAttendance, startBreak, verifyFace } from '../api/attendance';
 import { enrollFace } from '../api/face';
@@ -9,6 +9,11 @@ import { useToast } from '../hooks/useToast';
 import Toast from '../components/Toast';
 
 import type { AttendanceResponse } from '../api/types';
+import { detectFaceInFile } from '../utils/faceDetection';
+
+function blobToFile(blob: Blob, filename: string): File {
+  return new File([blob], filename, { type: blob.type || 'image/jpeg' });
+}
 
 function getApiErrorMessage(err: unknown, fallback: string): string {
   const e = err as { response?: { data?: { message?: string } }; message?: string };
@@ -38,6 +43,18 @@ export default function EmployeeDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [enrollImage, setEnrollImage] = useState<File | null>(null);
   const [verifyImage, setVerifyImage] = useState<File | null>(null);
+  const [checkInImage, setCheckInImage] = useState<File | null>(null);
+  const [checkOutImage, setCheckOutImage] = useState<File | null>(null);
+  const [showCheckInModal, setShowCheckInModal] = useState(false);
+  const [showCheckOutModal, setShowCheckOutModal] = useState(false);
+  const [enrollCameraOn, setEnrollCameraOn] = useState(false);
+  const enrollVideoRef = useRef<HTMLVideoElement>(null);
+  const enrollStreamRef = useRef<MediaStream | null>(null);
+  const enrollFileInputRef = useRef<HTMLInputElement>(null);
+  const [verifyCameraOn, setVerifyCameraOn] = useState(false);
+  const verifyVideoRef = useRef<HTMLVideoElement>(null);
+  const verifyStreamRef = useRef<MediaStream | null>(null);
+  const verifyFileInputRef = useRef<HTMLInputElement>(null);
 
   async function refresh() {
     try {
@@ -89,10 +106,56 @@ export default function EmployeeDashboard() {
     }
   }
 
+  async function startEnrollCamera() {
+    setError(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: { facingMode: 'user' },
+      });
+      enrollStreamRef.current = stream;
+      setEnrollCameraOn(true);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Camera not available';
+      setError(msg);
+      showToast(msg, 'error');
+    }
+  }
+
+  function stopEnrollCamera() {
+    if (enrollStreamRef.current) {
+      enrollStreamRef.current.getTracks().forEach((t) => t.stop());
+      enrollStreamRef.current = null;
+    }
+    if (enrollVideoRef.current) enrollVideoRef.current.srcObject = null;
+    setEnrollCameraOn(false);
+  }
+
+  function captureEnrollPhoto() {
+    const video = enrollVideoRef.current;
+    if (!video || !video.videoWidth) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.drawImage(video, 0, 0);
+    canvas.toBlob(
+      (blob) => {
+        if (blob) {
+          setEnrollImage(blobToFile(blob, 'enroll-capture.jpg'));
+          stopEnrollCamera();
+        }
+      },
+      'image/jpeg',
+      0.92
+    );
+  }
+
   async function doEnrollFace() {
     setError(null);
     if (!enrollImage) {
-      const errorMsg = 'Please choose an image to enroll';
+      const errorMsg = 'Please take a photo or upload an image to enroll';
       setError(errorMsg);
       showToast(errorMsg, 'warning');
       return;
@@ -111,6 +174,106 @@ export default function EmployeeDashboard() {
     }
   }
 
+  async function startVerifyCamera() {
+    setError(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: { facingMode: 'user' },
+      });
+      verifyStreamRef.current = stream;
+      setVerifyCameraOn(true);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Camera not available';
+      setError(msg);
+      showToast(msg, 'error');
+    }
+  }
+
+  function stopVerifyCamera() {
+    if (verifyStreamRef.current) {
+      verifyStreamRef.current.getTracks().forEach((t) => t.stop());
+      verifyStreamRef.current = null;
+    }
+    if (verifyVideoRef.current) verifyVideoRef.current.srcObject = null;
+    setVerifyCameraOn(false);
+  }
+
+  function captureVerifyPhoto() {
+    const video = verifyVideoRef.current;
+    if (!video || !video.videoWidth) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.drawImage(video, 0, 0);
+    canvas.toBlob(
+      (blob) => {
+        if (blob) {
+          setVerifyImage(blobToFile(blob, 'verify-capture.jpg'));
+          stopVerifyCamera();
+        }
+      },
+      'image/jpeg',
+      0.92
+    );
+  }
+
+  useEffect(() => {
+    if (!enrollCameraOn || !enrollStreamRef.current) return;
+    const stream = enrollStreamRef.current;
+    const video = enrollVideoRef.current;
+    if (!video) return;
+    video.srcObject = stream;
+    const onLoaded = () => {
+      video.play().catch(() => {});
+    };
+    video.addEventListener('loadedmetadata', onLoaded);
+    onLoaded();
+    return () => {
+      video.removeEventListener('loadedmetadata', onLoaded);
+    };
+  }, [enrollCameraOn]);
+
+  useEffect(() => {
+    if (!verifyCameraOn || !verifyStreamRef.current) return;
+    const stream = verifyStreamRef.current;
+    const video = verifyVideoRef.current;
+    if (!video) return;
+    video.srcObject = stream;
+    const onLoaded = () => {
+      video.play().catch(() => {});
+    };
+    video.addEventListener('loadedmetadata', onLoaded);
+    onLoaded();
+    return () => {
+      video.removeEventListener('loadedmetadata', onLoaded);
+    };
+  }, [verifyCameraOn]);
+
+  useEffect(() => {
+    return () => {
+      enrollStreamRef.current?.getTracks().forEach((t) => t.stop());
+      enrollStreamRef.current = null;
+      verifyStreamRef.current?.getTracks().forEach((t) => t.stop());
+      verifyStreamRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!verifyImage) return;
+    if (!activeRecord) {
+      const errorMsg = 'You must be checked in to verify face';
+      setError(errorMsg);
+      showToast(errorMsg, 'warning');
+      return;
+    }
+    if (loading) return;
+    doVerifyFace();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [verifyImage]);
+
   async function doVerifyFace() {
     setError(null);
     if (!activeRecord) {
@@ -127,7 +290,15 @@ export default function EmployeeDashboard() {
     }
     setLoading(true);
     try {
-      await verifyFace(verifyImage);
+      const faceResult = await detectFaceInFile(verifyImage);
+      if (!faceResult.face) {
+        setError('No face detected. Please use a clear front-facing photo.');
+        showToast('No face detected in image', 'error');
+        setLoading(false);
+        return;
+      }
+      const descriptorJson = faceResult.descriptor ? JSON.stringify(faceResult.descriptor) : undefined;
+      await verifyFace(verifyImage, descriptorJson);
       setVerifyImage(null);
       showToast('Face verified successfully', 'success');
       await refresh();
@@ -140,12 +311,30 @@ export default function EmployeeDashboard() {
     }
   }
 
+  function openCheckInModal() {
+    setError(null);
+    setCheckInImage(null);
+    setShowCheckInModal(true);
+  }
+
+  function openCheckOutModal() {
+    setError(null);
+    setCheckOutImage(null);
+    setShowCheckOutModal(true);
+  }
+
   async function doCheckIn() {
+    if (!checkInImage) {
+      showToast('Please take or choose a photo to verify your identity', 'warning');
+      return;
+    }
     setError(null);
     setLoading(true);
     try {
       const pos = await getCurrentPosition();
-      await checkIn(pos.coords.latitude, pos.coords.longitude);
+      await checkIn(checkInImage, pos.coords.latitude, pos.coords.longitude);
+      setShowCheckInModal(false);
+      setCheckInImage(null);
       showToast('Checked in successfully', 'success');
       await refresh();
     } catch (e: unknown) {
@@ -158,11 +347,17 @@ export default function EmployeeDashboard() {
   }
 
   async function doCheckOut() {
+    if (!checkOutImage) {
+      showToast('Please take or choose a photo to verify your identity', 'warning');
+      return;
+    }
     setError(null);
     setLoading(true);
     try {
       const pos = await getCurrentPosition();
-      await checkOut(pos.coords.latitude, pos.coords.longitude);
+      await checkOut(checkOutImage, pos.coords.latitude, pos.coords.longitude);
+      setShowCheckOutModal(false);
+      setCheckOutImage(null);
       showToast('Checked out successfully', 'success');
       await refresh();
     } catch (e: unknown) {
@@ -202,10 +397,89 @@ export default function EmployeeDashboard() {
       onSidebarChange={setSection}
     >
       {toast && <Toast message={toast.message} type={toast.type} onClose={hideToast} />}
+
+      {showCheckInModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="check-in-modal-title">
+          <div className="w-full max-w-md rounded-xl border bg-white p-5 shadow-lg">
+            <h2 id="check-in-modal-title" className="text-lg font-semibold text-slate-900">Check in – verify your identity</h2>
+            <p className="mt-1 text-sm text-slate-600">Take or upload a photo that matches your enrolled face. It will be verified before check-in.</p>
+            <div className="mt-4">
+              <input
+                type="file"
+                accept="image/*"
+                capture="user"
+                onChange={(e) => setCheckInImage(e.target.files?.[0] ?? null)}
+                className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-emerald-50 file:px-3 file:py-2 file:text-emerald-700"
+              />
+              {checkInImage && (
+                <p className="mt-2 text-sm text-emerald-600">Photo selected: {checkInImage.name}</p>
+              )}
+            </div>
+            <div className="mt-5 flex flex-wrap gap-2 justify-end">
+              <button
+                type="button"
+                onClick={() => { setShowCheckInModal(false); setCheckInImage(null); }}
+                className="rounded-md border border-slate-300 bg-white px-4 py-2 text-slate-700 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={doCheckIn}
+                disabled={loading || !checkInImage}
+                className="rounded-md bg-emerald-600 px-4 py-2 text-white hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {loading && <LoadingSpinner size="sm" className="text-white" />}
+                Check in
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCheckOutModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="check-out-modal-title">
+          <div className="w-full max-w-md rounded-xl border bg-white p-5 shadow-lg">
+            <h2 id="check-out-modal-title" className="text-lg font-semibold text-slate-900">Check out – verify your identity</h2>
+            <p className="mt-1 text-sm text-slate-600">Take or upload a photo that matches your enrolled face. It will be verified before check-out.</p>
+            <div className="mt-4">
+              <input
+                type="file"
+                accept="image/*"
+                capture="user"
+                onChange={(e) => setCheckOutImage(e.target.files?.[0] ?? null)}
+                className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-indigo-50 file:px-3 file:py-2 file:text-indigo-700"
+              />
+              {checkOutImage && (
+                <p className="mt-2 text-sm text-indigo-600">Photo selected: {checkOutImage.name}</p>
+              )}
+            </div>
+            <div className="mt-5 flex flex-wrap gap-2 justify-end">
+              <button
+                type="button"
+                onClick={() => { setShowCheckOutModal(false); setCheckOutImage(null); }}
+                className="rounded-md border border-slate-300 bg-white px-4 py-2 text-slate-700 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={doCheckOut}
+                disabled={loading || !checkOutImage}
+                className="rounded-md bg-indigo-600 px-4 py-2 text-white hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {loading && <LoadingSpinner size="sm" className="text-white" />}
+                Check out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <div className="text-2xl font-bold text-slate-900">Employee Dashboard</div>
-          <div className="mt-1 text-sm text-slate-600">Check in/out with GPS and face verification.</div>
+          <div className="mt-1 text-sm text-slate-600">Check in/out with GPS and required photo verification (must match enrolled face).</div>
           {activeRecord && (
             <div className="mt-3 inline-flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2">
               <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
@@ -216,7 +490,7 @@ export default function EmployeeDashboard() {
         <div className="flex flex-wrap gap-2 justify-end">
           <button
             type="button"
-            onClick={doCheckIn}
+            onClick={openCheckInModal}
             disabled={loading || !!activeRecord}
             className="rounded-md bg-emerald-600 px-4 py-2 text-white hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2 transition-colors shadow-sm"
           >
@@ -228,7 +502,7 @@ export default function EmployeeDashboard() {
           </button>
           <button
             type="button"
-            onClick={doCheckOut}
+            onClick={openCheckOutModal}
             disabled={loading || !activeRecord}
             className="rounded-md bg-indigo-600 px-4 py-2 text-white hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2 transition-colors shadow-sm"
           >
@@ -264,13 +538,65 @@ export default function EmployeeDashboard() {
           <div className="mt-4 grid gap-4 md:grid-cols-2">
             <div className="rounded-xl border bg-white p-4">
               <div className="font-medium text-slate-900">Face enrollment</div>
-              <div className="mt-2 text-sm text-slate-600">Upload one reference image (employee only).</div>
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => setEnrollImage(e.target.files && e.target.files[0] ? e.target.files[0] : null)}
-                />
+              <div className="mt-2 text-sm text-slate-600">Take a photo or upload an image. Use a clear front-facing photo.</div>
+              <div className="mt-3 space-y-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={enrollCameraOn ? stopEnrollCamera : startEnrollCamera}
+                    className="rounded-md border border-slate-300 bg-white px-4 py-2 text-slate-700 hover:bg-slate-50"
+                  >
+                    {enrollCameraOn ? 'Cancel camera' : 'Take photo'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => enrollFileInputRef.current?.click()}
+                    className="rounded-md border border-slate-300 bg-white px-4 py-2 text-slate-700 hover:bg-slate-50"
+                  >
+                    Upload image
+                  </button>
+                  <input
+                    ref={enrollFileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) setEnrollImage(f);
+                      e.target.value = '';
+                    }}
+                  />
+                </div>
+                {enrollCameraOn ? (
+                  <div className="space-y-2">
+                    <video
+                      ref={enrollVideoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      className="max-h-48 w-full rounded-lg border bg-slate-900 object-cover"
+                    />
+                    <button
+                      type="button"
+                      onClick={captureEnrollPhoto}
+                      className="rounded-md bg-slate-900 px-4 py-2 text-white hover:bg-slate-800"
+                    >
+                      Capture
+                    </button>
+                  </div>
+                ) : null}
+                {enrollImage && !enrollCameraOn ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-slate-600">{enrollImage.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => setEnrollImage(null)}
+                      className="text-sm text-slate-500 underline hover:text-slate-700"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                ) : null}
                 <button
                   type="button"
                   onClick={doEnrollFace}
@@ -284,13 +610,65 @@ export default function EmployeeDashboard() {
 
             <div className="rounded-xl border bg-white p-4">
               <div className="font-medium text-slate-900">Face verification</div>
-              <div className="mt-2 text-sm text-slate-600">Verify during an active check-in session.</div>
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => setVerifyImage(e.target.files && e.target.files[0] ? e.target.files[0] : null)}
-                />
+              <div className="mt-2 text-sm text-slate-600">Take a photo or upload an image during an active check-in.</div>
+              <div className="mt-3 space-y-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={verifyCameraOn ? stopVerifyCamera : startVerifyCamera}
+                    className="rounded-md border border-slate-300 bg-white px-4 py-2 text-slate-700 hover:bg-slate-50"
+                  >
+                    {verifyCameraOn ? 'Cancel camera' : 'Take photo'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => verifyFileInputRef.current?.click()}
+                    className="rounded-md border border-slate-300 bg-white px-4 py-2 text-slate-700 hover:bg-slate-50"
+                  >
+                    Upload image
+                  </button>
+                  <input
+                    ref={verifyFileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) setVerifyImage(f);
+                      e.target.value = '';
+                    }}
+                  />
+                </div>
+                {verifyCameraOn ? (
+                  <div className="space-y-2">
+                    <video
+                      ref={verifyVideoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      className="max-h-48 w-full rounded-lg border bg-slate-900 object-cover"
+                    />
+                    <button
+                      type="button"
+                      onClick={captureVerifyPhoto}
+                      className="rounded-md bg-slate-900 px-4 py-2 text-white hover:bg-slate-800"
+                    >
+                      Capture
+                    </button>
+                  </div>
+                ) : null}
+                {verifyImage && !verifyCameraOn ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-slate-600">{verifyImage.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => setVerifyImage(null)}
+                      className="text-sm text-slate-500 underline hover:text-slate-700"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                ) : null}
                 <button
                   type="button"
                   onClick={doVerifyFace}
@@ -299,7 +677,13 @@ export default function EmployeeDashboard() {
                 >
                   Verify face
                 </button>
-
+                {!activeRecord ? (
+                  <div className="text-sm text-slate-500">Check in first to verify.</div>
+                ) : !verifyImage ? (
+                  <div className="text-sm text-slate-500">Take or upload a photo to verify.</div>
+                ) : loading ? (
+                  <div className="text-sm text-slate-500">Verifying…</div>
+                ) : null}
                 {activeRecord ? (
                   activeRecord.faceVerified ? (
                     <StatusBadge status="verified">Face verified</StatusBadge>

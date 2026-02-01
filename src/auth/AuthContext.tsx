@@ -72,6 +72,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       },
       logout: () => {
         localStorage.removeItem('token');
+        localStorage.removeItem('companyContextId');
+        localStorage.removeItem('companyContextLabel');
         setToken(null);
         setUser(null);
       },

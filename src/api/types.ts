@@ -17,6 +17,7 @@ export type MeResponse = {
   role: Role;
   companyId: number | null;
   companySlug: string | null;
+  companyLogoUrl?: string | null;
 };
 
 export type RegisterCompanyRequest = {
@@ -30,6 +31,27 @@ export type RegisterCompanyResponse = {
   companyId: number;
   companySlug: string;
   adminUsername: string;
+};
+
+export type Company = {
+  id: number;
+  name: string;
+  slug: string;
+  parentCompanyId?: number | null;
+  logoUrl?: string | null;
+};
+
+export type CreateCompanyRequest = {
+  name: string;
+  slug: string;
+  parentCompanyId?: number | null;
+  logoUrl?: string | null;
+};
+
+export type UpdateCompanyRequest = {
+  name?: string;
+  slug?: string;
+  logoUrl?: string | null;
 };
 
 export type EmployeeResponse = {
