@@ -162,7 +162,15 @@ export default function EmployeeDashboard() {
     }
     setLoading(true);
     try {
-      await enrollFace(enrollImage);
+      const faceResult = await detectFaceInFile(enrollImage);
+      if (!faceResult.face) {
+        setError('No face detected. Please use a clear front-facing photo.');
+        showToast('No face detected in image', 'error');
+        setLoading(false);
+        return;
+      }
+      const descriptorJson = faceResult.descriptor ? JSON.stringify(faceResult.descriptor) : undefined;
+      await enrollFace(enrollImage, descriptorJson);
       setEnrollImage(null);
       showToast('Face enrolled successfully', 'success');
     } catch (e: unknown) {
@@ -331,8 +339,16 @@ export default function EmployeeDashboard() {
     setError(null);
     setLoading(true);
     try {
+      const faceResult = await detectFaceInFile(checkInImage);
+      if (!faceResult.face) {
+        setError('No face detected. Please use a clear front-facing photo.');
+        showToast('No face detected in image', 'error');
+        setLoading(false);
+        return;
+      }
+      const descriptorJson = faceResult.descriptor ? JSON.stringify(faceResult.descriptor) : undefined;
       const pos = await getCurrentPosition();
-      await checkIn(checkInImage, pos.coords.latitude, pos.coords.longitude);
+      await checkIn(checkInImage, pos.coords.latitude, pos.coords.longitude, descriptorJson);
       setShowCheckInModal(false);
       setCheckInImage(null);
       showToast('Checked in successfully', 'success');
@@ -354,8 +370,16 @@ export default function EmployeeDashboard() {
     setError(null);
     setLoading(true);
     try {
+      const faceResult = await detectFaceInFile(checkOutImage);
+      if (!faceResult.face) {
+        setError('No face detected. Please use a clear front-facing photo.');
+        showToast('No face detected in image', 'error');
+        setLoading(false);
+        return;
+      }
+      const descriptorJson = faceResult.descriptor ? JSON.stringify(faceResult.descriptor) : undefined;
       const pos = await getCurrentPosition();
-      await checkOut(checkOutImage, pos.coords.latitude, pos.coords.longitude);
+      await checkOut(checkOutImage, pos.coords.latitude, pos.coords.longitude, descriptorJson);
       setShowCheckOutModal(false);
       setCheckOutImage(null);
       showToast('Checked out successfully', 'success');

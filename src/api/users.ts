@@ -16,3 +16,7 @@ export async function updateUser(id: number, payload: UpdateUserRequest): Promis
   const res = await http.patch<UserResponse>(`/api/users/${id}`, payload);
   return res.data;
 }
+
+export async function deleteUser(id: number): Promise<void> {
+  await http.delete(`/api/users/${id}`);
+}

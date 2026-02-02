@@ -4,8 +4,8 @@ import { createCompany, deleteCompany, listCompanies, updateCompany, uploadCompa
 import { createEmployee, deleteEmployee, listEmployees, updateEmployee } from '../api/employees';
 import { createLocation, deleteLocation, listLocations, updateLocation } from '../api/locations';
 import { adminCreateAttendance, adminDeleteAttendance, adminUpdateAttendance, listAttendanceByEmployee, todayAttendance } from '../api/attendance';
-import { createUser, listUsers, updateUser } from '../api/users';
-import { getHomeAnalytics } from '../api/analytics';
+import { createUser, deleteUser, listUsers, updateUser } from '../api/users';
+import { getDayAnalytics, getHomeAnalytics, getTimesheet } from '../api/analytics';
 import { downloadDailyAttendanceCsv } from '../api/reports';
 import { useAuth } from '../auth/AuthContext';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -23,8 +23,10 @@ import type {
   CreateEmployeeRequest,
   CreateUserRequest,
   EmployeeResponse,
+  DayAttendanceResponse,
   HomeAnalyticsResponse,
   Role,
+  TimesheetResponse,
   UpdateCompanyRequest,
   UpdateEmployeeRequest,
   UpdateUserRequest,
@@ -44,6 +46,17 @@ function getMonthRangeLabel(year: number, month1Based: number): string {
   const to = new Date(Date.UTC(year, month1Based, 0));
   const fmt = new Intl.DateTimeFormat(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
   return `${fmt.format(from)} - ${fmt.format(to)}`;
+}
+
+function minutesToHourMinute(mins: number): { h: number; m: number } {
+  const n = Number(mins || 0);
+  const h = Math.floor(n / 60);
+  const m = n % 60;
+  return { h, m };
+}
+
+function utcDateString(d: Date): string {
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())).toISOString().slice(0, 10);
 }
 
 function getApiErrorMessage(err: unknown, fallback: string): string {
@@ -87,14 +100,98 @@ export default function AdminDashboard() {
   const [selectedDepartment, setSelectedDepartment] = useState<string>('ALL');
   const [selectedRoleScope, setSelectedRoleScope] = useState<'ALL' | 'MANAGERS'>('ALL');
 
+  const [dayDate, setDayDate] = useState<string>(() => utcDateString(new Date()));
+  const [dayAnalytics, setDayAnalytics] = useState<DayAttendanceResponse | null>(null);
+  const [dayAnalyticsLoading, setDayAnalyticsLoading] = useState(false);
+
+  const [timesheet, setTimesheet] = useState<TimesheetResponse | null>(null);
+  const [timesheetLoading, setTimesheetLoading] = useState(false);
+
   const [expandedReportKey, setExpandedReportKey] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [attendanceStatusFilter, setAttendanceStatusFilter] = useState<'ALL' | 'IN' | 'OUT' | 'NOT_IN'>('ALL');
+  const [staffSearch, setStaffSearch] = useState('');
+
+  type ChatMessage = {
+    id: string;
+    from: 'user' | 'support';
+    text: string;
+    ts: number;
+  };
+
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatInput, setChatInput] = useState('');
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>(() => [
+    {
+      id: 'welcome',
+      from: 'support',
+      text: 'Hi! How can we help you today?',
+      ts: Date.now(),
+    },
+  ]);
+
+  const sendChatMessage = () => {
+    const text = chatInput.trim();
+    if (!text) return;
+
+    const now = Date.now();
+    setChatMessages((prev) => [
+      ...prev,
+      {
+        id: `u_${now}`,
+        from: 'user',
+        text,
+        ts: now,
+      },
+    ]);
+    setChatInput('');
+
+    window.setTimeout(() => {
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          id: `s_${Date.now()}`,
+          from: 'support',
+          text: 'Thanks — we received your message. A support agent will reply soon.',
+          ts: Date.now(),
+        },
+      ]);
+    }, 600);
+  };
 
   const [employees, setEmployees] = useState<EmployeeResponse[]>([]);
   const [locations, setLocations] = useState<WorkLocation[]>([]);
   const [attendance, setAttendance] = useState<AttendanceResponse[]>([]);
   const [users, setUsers] = useState<(UserResponse & { newPassword?: string })[]>([]);
+
+  const filteredEmployees = useMemo(() => {
+    const q = staffSearch.trim().toLowerCase();
+    if (!q) return employees;
+
+    return employees.filter((emp) => {
+      const haystack = [
+        emp.employeeCode,
+        emp.firstName,
+        emp.lastName,
+        emp.mobile,
+        emp.designation,
+        emp.department,
+        emp.category,
+        emp.username,
+        emp.role,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+
+      return haystack.includes(q);
+    });
+  }, [employees, staffSearch]);
+
+  const [employeeModalOpen, setEmployeeModalOpen] = useState(false);
+  const [employeeModalMode, setEmployeeModalMode] = useState<'create' | 'edit'>('create');
+  const [employeeEditTarget, setEmployeeEditTarget] = useState<EmployeeResponse | null>(null);
+  const [employeeModalPassword, setEmployeeModalPassword] = useState('');
 
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<number | null>(null);
   const [selectedEmployeeAttendance, setSelectedEmployeeAttendance] = useState<AttendanceResponse[]>([]);
@@ -109,6 +206,67 @@ export default function AdminDashboard() {
   const [error, setError] = useState<string | null>(null);
 
   const [homeAnalytics, setHomeAnalytics] = useState<HomeAnalyticsResponse | null>(null);
+
+  useEffect(() => {
+    if (section !== 'dashboard') return;
+    if (dashboardTab !== 'day') return;
+
+    let cancelled = false;
+    setDayAnalyticsLoading(true);
+    getDayAnalytics({
+      date: dayDate,
+      department: selectedDepartment,
+      roleScope: selectedRoleScope,
+      search,
+    })
+      .then((data) => {
+        if (!cancelled) setDayAnalytics(data);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          showToast(getApiErrorMessage(err, 'Failed to load day analytics'), 'error');
+          setDayAnalytics(null);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setDayAnalyticsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [dashboardTab, dayDate, search, section, selectedDepartment, selectedRoleScope, showToast]);
+
+  useEffect(() => {
+    if (section !== 'dashboard') return;
+    if (dashboardTab !== 'timesheet') return;
+
+    let cancelled = false;
+    setTimesheetLoading(true);
+    getTimesheet({
+      year: selectedYear,
+      month: selectedMonth,
+      department: selectedDepartment,
+      roleScope: selectedRoleScope,
+      search,
+    })
+      .then((data) => {
+        if (!cancelled) setTimesheet(data);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          showToast(getApiErrorMessage(err, 'Failed to load timesheet'), 'error');
+          setTimesheet(null);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setTimesheetLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [dashboardTab, search, section, selectedDepartment, selectedMonth, selectedRoleScope, selectedYear, showToast]);
 
   const [companies, setCompanies] = useState<Company[]>([]);
   const [companiesLoading, setCompaniesLoading] = useState(false);
@@ -577,6 +735,19 @@ export default function AdminDashboard() {
   async function onCreateEmployee(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
+    const employeeUsername = (newEmployee.username || '').trim();
+    if (employeeUsername) {
+      const uname = employeeUsername.toLowerCase();
+      const existsInEmployees = employees.some((x) => (x.username || '').trim().toLowerCase() === uname);
+      const existsInUsers = users.some((x) => (x.username || '').trim().toLowerCase() === uname);
+      if (existsInEmployees || existsInUsers) {
+        const msg = 'Username already exists';
+        setError(msg);
+        showToast(msg, 'error');
+        return;
+      }
+    }
+
     setBusy(true);
     try {
       await createEmployee(newEmployee, isOwnerAdmin ? newEmployeeCompanyId : undefined);
@@ -596,6 +767,132 @@ export default function AdminDashboard() {
       await refreshAll();
     } catch (err: unknown) {
       const errorMsg = getApiErrorMessage(err, 'Failed to create employee');
+      setError(errorMsg);
+      showToast(errorMsg, 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function openCreateEmployeeModal() {
+    setEmployeeModalMode('create');
+    setEmployeeEditTarget(null);
+    setEmployeeModalPassword('');
+    setNewEmployee({
+      employeeCode: '',
+      firstName: '',
+      lastName: '',
+      department: '',
+      mobile: '',
+      designation: '',
+      category: '',
+      username: '',
+      password: '',
+      role: 'EMPLOYEE',
+    });
+    setEmployeeModalOpen(true);
+  }
+
+  function openEditEmployeeModal(emp: EmployeeResponse) {
+    setEmployeeModalMode('edit');
+    setEmployeeEditTarget(emp);
+    setEmployeeModalPassword('');
+    setNewEmployee({
+      employeeCode: emp.employeeCode,
+      firstName: emp.firstName,
+      lastName: emp.lastName,
+      department: emp.department || '',
+      mobile: emp.mobile || '',
+      designation: emp.designation || '',
+      category: emp.category || '',
+      username: emp.username,
+      password: '',
+      role: emp.role,
+    });
+    setEmployeeModalOpen(true);
+  }
+
+  async function submitEmployeeModal(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(null);
+    setBusy(true);
+    try {
+      if (employeeModalMode === 'create') {
+        const employeeUsername = (newEmployee.username || '').trim();
+        if (employeeUsername) {
+          const uname = employeeUsername.toLowerCase();
+          const existsInEmployees = employees.some((x) => (x.username || '').trim().toLowerCase() === uname);
+          const existsInUsers = users.some((x) => (x.username || '').trim().toLowerCase() === uname);
+          if (existsInEmployees || existsInUsers) {
+            const msg = 'Username already exists';
+            setError(msg);
+            showToast(msg, 'error');
+            return;
+          }
+        }
+
+        await createEmployee(newEmployee, isOwnerAdmin ? newEmployeeCompanyId : undefined);
+        showToast('Employee created successfully', 'success');
+        setEmployeeModalOpen(false);
+        await refreshAll();
+        return;
+      }
+
+      if (!employeeEditTarget) {
+        showToast('No employee selected', 'error');
+        return;
+      }
+
+      const employeeUsername = (newEmployee.username || '').trim();
+      if (employeeUsername) {
+        const uname = employeeUsername.toLowerCase();
+        const otherEmployees = employees.filter((x) => x.id !== employeeEditTarget.id);
+        const existsInEmployees = otherEmployees.some((x) => (x.username || '').trim().toLowerCase() === uname);
+        const existsInUsers = users.some((x) => (x.username || '').trim().toLowerCase() === uname);
+        if (existsInEmployees || existsInUsers) {
+          const msg = 'Username already exists';
+          setError(msg);
+          showToast(msg, 'error');
+          return;
+        }
+      }
+
+      const payload: UpdateEmployeeRequest = {
+        firstName: newEmployee.firstName,
+        lastName: newEmployee.lastName,
+        department: newEmployee.department || undefined,
+        mobile: newEmployee.mobile || undefined,
+        designation: newEmployee.designation || undefined,
+        category: newEmployee.category || undefined,
+        username: employeeUsername || undefined,
+        role: newEmployee.role,
+        password: employeeModalPassword.trim() ? employeeModalPassword : undefined,
+      };
+      await updateEmployee(employeeEditTarget.id, payload);
+      showToast('Employee updated successfully', 'success');
+      setEmployeeModalOpen(false);
+      await refreshAll();
+    } catch (err: unknown) {
+      const errorMsg = getApiErrorMessage(err, employeeModalMode === 'create' ? 'Failed to create employee' : 'Failed to update employee');
+      setError(errorMsg);
+      showToast(errorMsg, 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onDeleteUser(id: number) {
+    if (!window.confirm('Are you sure you want to delete this user?')) {
+      return;
+    }
+    setError(null);
+    setBusy(true);
+    try {
+      await deleteUser(id);
+      showToast('User deleted successfully', 'success');
+      await refreshUsers();
+    } catch (err: unknown) {
+      const errorMsg = getApiErrorMessage(err, 'Failed to delete user');
       setError(errorMsg);
       showToast(errorMsg, 'error');
     } finally {
@@ -703,10 +1000,24 @@ export default function AdminDashboard() {
   async function onCreateUser(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
+
+    const username = (newUser.username || '').trim();
+    if (username) {
+      const uname = username.toLowerCase();
+      const existsInUsers = users.some((x) => (x.username || '').trim().toLowerCase() === uname);
+      const existsInEmployees = employees.some((x) => (x.username || '').trim().toLowerCase() === uname);
+      if (existsInUsers || existsInEmployees) {
+        const msg = 'Username already exists';
+        setError(msg);
+        showToast(msg, 'error');
+        return;
+      }
+    }
+
     setBusy(true);
     try {
       await createUser({
-        username: newUser.username,
+        username: username,
         password: newUser.password,
         role: newUser.role,
         enabled: !!newUser.enabled,
@@ -714,7 +1025,9 @@ export default function AdminDashboard() {
       setNewUser({ username: '', password: '', role: 'EMPLOYEE', enabled: true });
       await refreshUsers();
     } catch (err: unknown) {
-      setError(getApiErrorMessage(err, 'Failed to create user'));
+      const errorMsg = getApiErrorMessage(err, 'Failed to create user');
+      setError(errorMsg);
+      showToast(errorMsg, 'error');
     } finally {
       setBusy(false);
     }
@@ -962,6 +1275,7 @@ export default function AdminDashboard() {
             </div>
 
             {dashboardTab === 'home' ? (
+              <>
               <div className="mt-4 grid gap-4 lg:grid-cols-12">
                 <div className="lg:col-span-9 grid gap-4">
                   <div className="rounded-xl border bg-white">
@@ -1089,14 +1403,21 @@ export default function AdminDashboard() {
                         </div>
                       </div>
                       <div className="lg:col-span-9">
-                        <div className="h-48 w-full rounded-lg border bg-slate-50 p-3">
+                        <div className="h-48 w-full rounded-lg border bg-white p-3">
                           <div className="h-full flex items-end gap-2">
-                            {(effectiveHome.monthClockIns.length ? effectiveHome.monthClockIns : [{ day: 'n/a', count: 0 }]).slice(-18).map((x, idx) => (
-                              <div key={idx} className="flex-1">
-                                <div className="w-full rounded-sm bg-blue-600" style={{ height: `${Math.min(120, Number(x.count || 0) * 10)}px` }} />
-                              </div>
-                            ))}
+                            {(effectiveHome.monthClockIns.length ? effectiveHome.monthClockIns : [{ day: 'n/a', count: 0 }]).slice(-18).map((x, idx) => {
+                              const label = String(x.day || '').slice(5);
+                              return (
+                                <div key={idx} className="flex-1 flex flex-col justify-end">
+                                  <div className="w-full rounded-sm bg-blue-600" style={{ height: `${Math.min(120, Number(x.count || 0) * 10)}px` }} />
+                                  <div className="mt-1 text-[10px] text-slate-400 text-center whitespace-nowrap" style={{ transform: 'rotate(-35deg)', transformOrigin: 'center' }}>
+                                    {label}
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </div>
+                          <div className="mt-2 text-xs text-slate-500">Date</div>
                         </div>
                       </div>
                     </div>
@@ -1340,106 +1661,375 @@ export default function AdminDashboard() {
                 </div>
 
                 <div className="lg:col-span-3 grid gap-4">
-                  <div className="rounded-xl border bg-blue-50 p-4">
-                    <button type="button" className="mt-3 rounded-md bg-blue-700 px-3 py-2 text-sm text-white hover:bg-blue-600">Buy more licenses</button>
-                  </div>
-                  <div className="rounded-xl border bg-white">
-                    <div className="px-4 py-3 border-b font-medium text-slate-900">Pending Actions</div>
-                    <button type="button" className="w-full px-4 py-3 text-left text-sm hover:bg-slate-50">
-                      <div className="font-medium text-slate-900">Complete your onboarding</div>
-                      <div className="mt-0.5 text-xs text-slate-500">Set up locations, users, and policies</div>
-                    </button>
-                  </div>
                   <div className="rounded-xl border bg-white">
                     <div className="px-4 py-3 border-b font-medium text-slate-900">Quick Links</div>
                     <div className="divide-y">
                       {['Scheduler', 'Add Contractor Agency', 'Geofencing', 'Kiosk Settings'].map((x) => (
-                        <button key={x} type="button" className="w-full px-4 py-3 text-left text-sm text-slate-700 hover:bg-slate-50">{x}</button>
+                        <button key={x} type="button" className="w-full px-4 py-3 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center justify-between">
+                          <span>{x}</span>
+                          <span className="text-slate-400">›</span>
+                        </button>
                       ))}
                     </div>
                   </div>
                 </div>
               </div>
+
+              {chatOpen ? (
+                <>
+                  <button
+                    type="button"
+                    className="fixed inset-0 z-50 bg-black/30 sm:hidden"
+                    onClick={() => setChatOpen(false)}
+                    aria-label="Close chat"
+                  />
+                  <div className="fixed inset-x-0 bottom-0 z-50 sm:inset-auto sm:bottom-24 sm:right-6 sm:w-96">
+                    <div className="bg-white shadow-2xl border sm:rounded-xl rounded-t-2xl overflow-hidden">
+                      <div className="px-4 py-3 border-b flex items-center justify-between">
+                        <div>
+                          <div className="text-sm font-semibold text-slate-900">Support</div>
+                          <div className="text-xs text-slate-500">We typically reply within a few minutes</div>
+                        </div>
+                        <button
+                          type="button"
+                          className="h-9 w-9 rounded-md hover:bg-slate-100 text-slate-600"
+                          onClick={() => setChatOpen(false)}
+                          aria-label="Close"
+                          title="Close"
+                        >
+                          ×
+                        </button>
+                      </div>
+
+                      <div className="h-[52vh] sm:h-80 overflow-auto p-4 bg-slate-50">
+                        <div className="space-y-3">
+                          {chatMessages.map((m) => (
+                            <div key={m.id} className={m.from === 'user' ? 'flex justify-end' : 'flex justify-start'}>
+                              <div
+                                className={
+                                  m.from === 'user'
+                                    ? 'max-w-[80%] rounded-2xl rounded-br-md bg-blue-600 px-3 py-2 text-sm text-white shadow'
+                                    : 'max-w-[80%] rounded-2xl rounded-bl-md bg-white px-3 py-2 text-sm text-slate-800 border shadow-sm'
+                                }
+                              >
+                                {m.text}
+                                <div className={m.from === 'user' ? 'mt-1 text-[10px] text-blue-100' : 'mt-1 text-[10px] text-slate-400'}>
+                                  {new Date(m.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="p-3 border-t bg-white">
+                        <div className="flex items-end gap-2">
+                          <textarea
+                            className="min-h-[40px] max-h-24 flex-1 resize-none rounded-md border bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none"
+                            placeholder="Type your message..."
+                            value={chatInput}
+                            onChange={(e) => setChatInput(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault();
+                                sendChatMessage();
+                              }
+                            }}
+                          />
+                          <button
+                            type="button"
+                            className="h-10 rounded-md bg-blue-600 px-4 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+                            onClick={sendChatMessage}
+                            disabled={!chatInput.trim()}
+                          >
+                            Send
+                          </button>
+                        </div>
+                        <div className="mt-2 text-[11px] text-slate-500">Press Enter to send, Shift+Enter for new line.</div>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              ) : null}
+
+              <button
+                type="button"
+                className="fixed bottom-6 right-6 z-40 h-12 w-12 rounded-full bg-blue-600 text-white shadow-lg hover:bg-blue-700"
+                onClick={() => setChatOpen((v) => !v)}
+                aria-label="Chat"
+                title="Chat"
+              >
+                💬
+              </button>
+              </>
             ) : dashboardTab === 'day' ? (
               <div className="mt-4 grid gap-4">
-                <div className="grid gap-3 lg:grid-cols-12">
-                  <div className="lg:col-span-9 rounded-xl border bg-white">
-                    <div className="px-4 py-3">
-                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-                        <div className="rounded-md bg-slate-50 px-3 py-2">
-                          <div className="text-lg font-semibold text-slate-900">{dashboardStats.totalStaff}</div>
-                          <div className="text-xs text-slate-500">Staff</div>
-                        </div>
-                        <div className="rounded-md bg-slate-50 px-3 py-2">
-                          <div className="text-lg font-semibold text-slate-900">{dashboardStats.present}</div>
-                          <div className="text-xs text-slate-500">Present</div>
-                          <div className="text-[11px] text-slate-400">{Math.max(0, dashboardStats.present - 1)} In | 1 Out</div>
-                        </div>
-                        <div className="rounded-md bg-slate-50 px-3 py-2">
-                          <div className="text-lg font-semibold text-slate-900">{dashboardStats.notIn}</div>
-                          <div className="text-xs text-slate-500">Not In</div>
-                        </div>
-                        <div className="rounded-md bg-slate-50 px-3 py-2">
-                          <div className="text-lg font-semibold text-slate-900">{dashboardStats.holidays}</div>
-                          <div className="text-xs text-slate-500">Holidays</div>
-                        </div>
-                        <div className="rounded-md bg-slate-50 px-3 py-2">
-                          <div className="text-lg font-semibold text-slate-900">{dashboardStats.weeklyOff}</div>
-                          <div className="text-xs text-slate-500">Weekly-Off</div>
-                        </div>
+                <div className="rounded-xl border bg-white">
+                  <div className="px-4 py-3">
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-8">
+                      <div className="rounded-md bg-slate-50 px-3 py-2">
+                        <div className="text-lg font-semibold text-slate-900">{dayAnalytics?.totalStaff ?? dashboardStats.totalStaff}</div>
+                        <div className="text-xs text-slate-500">Staff</div>
+                      </div>
+                      <div className="rounded-md bg-slate-50 px-3 py-2">
+                        <div className="text-lg font-semibold text-slate-900">{dayAnalytics?.present ?? dashboardStats.present}</div>
+                        <div className="text-xs text-slate-500">Present</div>
+                      </div>
+                      <div className="rounded-md bg-slate-50 px-3 py-2">
+                        <div className="text-lg font-semibold text-slate-900">{dayAnalytics?.notIn ?? dashboardStats.notIn}</div>
+                        <div className="text-xs text-slate-500">Not In</div>
+                      </div>
+                      <div className="rounded-md bg-slate-50 px-3 py-2">
+                        <div className="text-lg font-semibold text-slate-900">{dayAnalytics?.holidays ?? 0}</div>
+                        <div className="text-xs text-slate-500">Holidays</div>
+                      </div>
+                      <div className="rounded-md bg-slate-50 px-3 py-2">
+                        <div className="text-lg font-semibold text-slate-900">{dayAnalytics?.weeklyOff ?? 0}</div>
+                        <div className="text-xs text-slate-500">Weekly-Off</div>
+                      </div>
+                      <div className="rounded-md bg-slate-50 px-3 py-2">
+                        {(() => {
+                          const x = minutesToHourMinute(dayAnalytics?.workedMinutes ?? dashboardStats.totalWorkedMinutesDay);
+                          return (
+                            <>
+                              <div className="text-lg font-semibold text-slate-900">{x.h}.{String(x.m).padStart(2, '0')}</div>
+                              <div className="text-xs text-slate-500">Worked Hrs</div>
+                            </>
+                          );
+                        })()}
+                      </div>
+                      <div className="rounded-md bg-slate-50 px-3 py-2">
+                        {(() => {
+                          const x = minutesToHourMinute(dayAnalytics?.overtimeMinutes ?? dashboardStats.totalOvertimeMinutesDay);
+                          return (
+                            <>
+                              <div className="text-lg font-semibold text-slate-900">{x.h}.{String(x.m).padStart(2, '0')}</div>
+                              <div className="text-xs text-slate-500">Overtime Hrs</div>
+                            </>
+                          );
+                        })()}
+                      </div>
+                      <div className="rounded-md bg-slate-50 px-3 py-2">
+                        <div className="text-lg font-semibold text-slate-900">{dayAnalytics?.rows?.length ?? 0}</div>
+                        <div className="text-xs text-slate-500">Records</div>
                       </div>
                     </div>
                   </div>
+                </div>
 
-                  <div className="lg:col-span-3 rounded-xl border bg-white">
-                    <div className="px-4 py-3">
-                      <div className="grid grid-cols-3 gap-2">
-                        <div className="rounded-md bg-slate-50 px-3 py-2">
-                          <div className="text-sm font-semibold text-slate-900">
-                            {Math.floor((dashboardStats.totalWorkedMinutesDay || 0) / 60)}h{' '}
-                            {(dashboardStats.totalWorkedMinutesDay || 0) % 60}m
-                          </div>
-                          <div className="text-xs text-slate-500">Worked Hrs (Today)</div>
-                        </div>
-                        <div className="rounded-md bg-slate-50 px-3 py-2">
-                          <div className="text-sm font-semibold text-slate-900">
-                            {Math.floor((dashboardStats.totalOvertimeMinutesDay || 0) / 60)}h{' '}
-                            {(dashboardStats.totalOvertimeMinutesDay || 0) % 60}m
-                          </div>
-                          <div className="text-xs text-slate-500">Overtime (Today)</div>
-                        </div>
-                        <div className="rounded-md bg-slate-50 px-3 py-2">
-                          <div className="text-sm font-semibold text-slate-900">
-                            {attendance.length}
-                          </div>
-                          <div className="text-xs text-slate-500">Records</div>
-                        </div>
-                      </div>
-                    </div>
+                <div className="rounded-xl border bg-white px-4 py-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <select className="rounded-md border bg-white px-3 py-2 text-sm text-slate-700" value={dayDate} onChange={(e) => setDayDate(e.target.value)}>
+                      <option value={utcDateString(new Date())}>Today</option>
+                      <option value={dayDate}>{dayDate}</option>
+                    </select>
+                    <input
+                      type="date"
+                      className="rounded-md border bg-white px-3 py-2 text-sm text-slate-700"
+                      value={dayDate}
+                      onChange={(e) => setDayDate(e.target.value)}
+                    />
+                    <select
+                      className="rounded-md border bg-white px-3 py-2 text-sm text-slate-700"
+                      value={selectedDepartment}
+                      onChange={(e) => setSelectedDepartment(e.target.value)}
+                    >
+                      <option value="ALL">All Departments</option>
+                      {departmentOptions.map((d) => (
+                        <option key={d} value={d}>
+                          {d}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      className="rounded-md border bg-white px-3 py-2 text-sm text-slate-700"
+                      value={selectedRoleScope}
+                      onChange={(e) => setSelectedRoleScope(e.target.value as 'ALL' | 'MANAGERS')}
+                    >
+                      <option value="ALL">All Roles</option>
+                      <option value="MANAGERS">Managers</option>
+                    </select>
+                    <div className="flex-1" />
+                    <input
+                      className="rounded-md border px-3 py-2 text-sm"
+                      placeholder="Search"
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                    />
                   </div>
+                </div>
+
+                <div className="rounded-xl border bg-white overflow-x-auto">
+                  <div className="px-4 py-3 border-b flex items-center justify-between gap-3">
+                    <div className="font-medium text-slate-900">Day attendance</div>
+                    {dayAnalyticsLoading ? <div className="text-sm text-slate-500">Loading…</div> : null}
+                  </div>
+                  <table className="w-full text-sm">
+                    <thead className="bg-slate-50 text-slate-600">
+                      <tr>
+                        <th className="px-4 py-2 text-left">Name</th>
+                        <th className="px-4 py-2 text-left">In-Time</th>
+                        <th className="px-4 py-2 text-left">Out-Time</th>
+                        <th className="px-4 py-2 text-left">Worked Hrs</th>
+                        <th className="px-4 py-2 text-left">Overtime</th>
+                        <th className="px-4 py-2 text-left">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(dayAnalytics?.rows || []).map((r) => {
+                        const worked = minutesToHourMinute(r.workedMinutes);
+                        const overtime = minutesToHourMinute(r.overtimeMinutes);
+                        return (
+                          <tr key={r.employeeId} className="border-t hover:bg-slate-50 transition-colors">
+                            <td className="px-4 py-3 font-medium text-slate-900">{r.firstName} {r.lastName}</td>
+                            <td className="px-4 py-3 text-slate-700">{r.inTime ? new Date(r.inTime).toLocaleTimeString() : <span className="text-slate-400">-</span>}</td>
+                            <td className="px-4 py-3 text-slate-700">{r.outTime ? new Date(r.outTime).toLocaleTimeString() : <span className="text-slate-400">-</span>}</td>
+                            <td className="px-4 py-3 text-slate-700">{r.workedMinutes ? `${worked.h}h ${worked.m}m` : <span className="text-slate-400">-</span>}</td>
+                            <td className="px-4 py-3 text-slate-700">{r.overtimeMinutes ? `${overtime.h}h ${overtime.m}m` : <span className="text-slate-400">-</span>}</td>
+                            <td className="px-4 py-3">
+                              <StatusBadge status={r.status.toLowerCase()}>{r.status === 'NOT_IN' ? 'Not In' : r.status}</StatusBadge>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {!dayAnalyticsLoading && (dayAnalytics?.rows?.length ?? 0) === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="px-4 py-12">
+                            <EmptyState title="No employees" description="No employees found for the selected filters." />
+                          </td>
+                        </tr>
+                      ) : null}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             ) : (
-              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-                <div className="rounded-lg border bg-white p-4">
-                  <div className="text-xs text-slate-500">Staff</div>
-                  <div className="mt-1 text-2xl font-semibold text-slate-900">{dashboardStats.totalStaff}</div>
+              <div className="mt-4 grid gap-4">
+                <div className="rounded-xl border bg-white px-4 py-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="rounded-md border bg-white px-3 py-2 text-sm text-slate-600">Monthly</div>
+                    <select
+                      className="rounded-md border bg-white px-3 py-2 text-sm text-slate-700"
+                      value={selectedYear}
+                      onChange={(e) => setSelectedYear(Number(e.target.value))}
+                    >
+                      {Array.from({ length: 6 }).map((_, i) => {
+                        const y = new Date().getUTCFullYear() - 2 + i;
+                        return (
+                          <option key={y} value={y}>
+                            {y}
+                          </option>
+                        );
+                      })}
+                    </select>
+                    <select
+                      className="rounded-md border bg-white px-3 py-2 text-sm text-slate-700"
+                      value={selectedMonth}
+                      onChange={(e) => setSelectedMonth(Number(e.target.value))}
+                    >
+                      {Array.from({ length: 12 }).map((_, i) => {
+                        const m = i + 1;
+                        const label = new Intl.DateTimeFormat(undefined, { month: 'short' }).format(new Date(Date.UTC(2000, i, 1)));
+                        return (
+                          <option key={m} value={m}>
+                            {label}
+                          </option>
+                        );
+                      })}
+                    </select>
+                    <div className="rounded-md border bg-white px-3 py-2 text-sm text-slate-600">{getMonthRangeLabel(selectedYear, selectedMonth)}</div>
+                    <select
+                      className="rounded-md border bg-white px-3 py-2 text-sm text-slate-700"
+                      value={selectedDepartment}
+                      onChange={(e) => setSelectedDepartment(e.target.value)}
+                    >
+                      <option value="ALL">All Departments</option>
+                      {departmentOptions.map((d) => (
+                        <option key={d} value={d}>
+                          {d}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      className="rounded-md border bg-white px-3 py-2 text-sm text-slate-700"
+                      value={selectedRoleScope}
+                      onChange={(e) => setSelectedRoleScope(e.target.value as 'ALL' | 'MANAGERS')}
+                    >
+                      <option value="ALL">All Roles</option>
+                      <option value="MANAGERS">Managers</option>
+                    </select>
+                    <div className="flex-1" />
+                    <input
+                      className="rounded-md border px-3 py-2 text-sm"
+                      placeholder="Search"
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                    />
+                  </div>
                 </div>
-                <div className="rounded-lg border bg-white p-4">
-                  <div className="text-xs text-slate-500">Present</div>
-                  <div className="mt-1 text-2xl font-semibold text-slate-900">{dashboardStats.present}</div>
-                </div>
-                <div className="rounded-lg border bg-white p-4">
-                  <div className="text-xs text-slate-500">Not In</div>
-                  <div className="mt-1 text-2xl font-semibold text-slate-900">{dashboardStats.notIn}</div>
-                </div>
-                <div className="rounded-lg border bg-white p-4">
-                  <div className="text-xs text-slate-500">Holidays</div>
-                  <div className="mt-1 text-2xl font-semibold text-slate-900">{dashboardStats.holidays}</div>
-                </div>
-                <div className="rounded-lg border bg-white p-4">
-                  <div className="text-xs text-slate-500">Weekly Off</div>
-                  <div className="mt-1 text-2xl font-semibold text-slate-900">{dashboardStats.weeklyOff}</div>
+
+                <div className="rounded-xl border bg-white overflow-x-auto">
+                  <div className="px-4 py-3 border-b flex items-center justify-between gap-3">
+                    <div className="font-medium text-slate-900">Timesheet</div>
+                    {timesheetLoading ? <div className="text-sm text-slate-500">Loading…</div> : null}
+                  </div>
+
+                  <table className="w-full text-sm">
+                    <thead className="bg-slate-50 text-slate-600">
+                      <tr>
+                        <th className="px-4 py-2 text-left">Name</th>
+                        {(timesheet?.days || []).map((d) => {
+                          const dt = new Date(`${d}T00:00:00Z`);
+                          const dayNum = dt.getUTCDate();
+                          const wk = new Intl.DateTimeFormat(undefined, { weekday: 'short' }).format(dt);
+                          const isSun = dt.getUTCDay() === 0;
+                          return (
+                            <th key={d} className={isSun ? 'px-2 py-2 text-center text-xs text-red-600' : 'px-2 py-2 text-center text-xs'}>
+                              <div>{dayNum}</div>
+                              <div className="text-[10px]">{wk}</div>
+                            </th>
+                          );
+                        })}
+                        <th className="px-3 py-2 text-right">Present</th>
+                        <th className="px-3 py-2 text-right">Off</th>
+                        <th className="px-3 py-2 text-right">Worked Hrs</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(timesheet?.rows || []).map((r) => {
+                        const worked = minutesToHourMinute(r.workedMinutes);
+                        return (
+                          <tr key={r.employeeId} className="border-t">
+                            <td className="px-4 py-2 font-medium text-slate-900 whitespace-nowrap">{r.firstName} {r.lastName}</td>
+                            {r.days.map((c, idx) => {
+                              const bg = c.state === 'PRESENT' ? 'bg-emerald-50' : 'bg-rose-50';
+                              const text = c.state === 'PRESENT'
+                                ? c.workedMinutes
+                                  ? `${minutesToHourMinute(c.workedMinutes).h}h ${minutesToHourMinute(c.workedMinutes).m}m`
+                                  : 'P'
+                                : '-';
+                              return (
+                                <td key={idx} className={`px-2 py-2 text-center text-xs ${bg} border-l`}>
+                                  {text}
+                                </td>
+                              );
+                            })}
+                            <td className="px-3 py-2 text-right">{r.presentDays}</td>
+                            <td className="px-3 py-2 text-right">{r.offDays}</td>
+                            <td className="px-3 py-2 text-right whitespace-nowrap">{r.workedMinutes ? `${worked.h}h ${worked.m}m` : '-'}</td>
+                          </tr>
+                        );
+                      })}
+
+                      {!timesheetLoading && (timesheet?.rows?.length ?? 0) === 0 ? (
+                        <tr>
+                          <td colSpan={(timesheet?.days?.length || 0) + 4} className="px-4 py-12">
+                            <EmptyState title="No employees" description="No employees found for the selected filters." />
+                          </td>
+                        </tr>
+                      ) : null}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             )}
@@ -1782,118 +2372,203 @@ export default function AdminDashboard() {
 
         {section === 'staff' ? (
           <div className="mt-6 grid gap-4">
-            {canManage ? (
-              <form className="rounded-xl border bg-white p-4" onSubmit={onCreateEmployee}>
-                <div className="font-medium text-slate-900">Create employee</div>
-                <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  {isOwnerAdmin && viewableCompanies.length > 1 ? (
-                    <select
-                      className="rounded-md border px-3 py-2"
-                      value={newEmployeeCompanyId ?? ''}
-                      onChange={(e) => setNewEmployeeCompanyId(Number(e.target.value))}
+            <div className="rounded-xl border bg-white">
+              <div className="px-4 py-3 border-b">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <div className="font-medium text-slate-900">Staff Directory</div>
+                    <div className="mt-0.5 text-sm text-slate-600">Create, update, and manage employees.</div>
+                  </div>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+                    <input
+                      className="w-full sm:w-72 rounded-md border bg-white px-3 py-2 text-sm"
+                      placeholder="Search staff..."
+                      value={staffSearch}
+                      onChange={(e) => setStaffSearch(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      disabled={!canManage}
+                      className="rounded-md bg-slate-900 px-3 py-2 text-sm text-white hover:bg-slate-800 disabled:opacity-60"
+                      onClick={openCreateEmployeeModal}
                     >
-                      {viewableCompanies.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.name} ({c.slug})
-                        </option>
+                      Add employee
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-50 text-slate-600">
+                    <tr>
+                      <th className="px-4 py-2 text-left">Code</th>
+                      <th className="px-4 py-2 text-left">Name</th>
+                      <th className="px-4 py-2 text-left">Mobile</th>
+                      <th className="px-4 py-2 text-left">Designation</th>
+                      <th className="px-4 py-2 text-left">Department</th>
+                      <th className="px-4 py-2 text-left">Category</th>
+                      <th className="px-4 py-2 text-left">Username</th>
+                      <th className="px-4 py-2 text-left">Role</th>
+                      <th className="px-4 py-2 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredEmployees.map((emp) => (
+                      <tr key={emp.id} className="border-t">
+                        <td className="px-4 py-2">{emp.employeeCode}</td>
+                        <td className="px-4 py-2">{emp.firstName} {emp.lastName}</td>
+                        <td className="px-4 py-2">{emp.mobile || '-'}</td>
+                        <td className="px-4 py-2">{emp.designation || '-'}</td>
+                        <td className="px-4 py-2">{emp.department || '-'}</td>
+                        <td className="px-4 py-2">{emp.category || '-'}</td>
+                        <td className="px-4 py-2">{emp.username}</td>
+                        <td className="px-4 py-2">{emp.role}</td>
+                        <td className="px-4 py-2 text-right whitespace-nowrap">
+                          {canManage ? (
+                            <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:justify-end">
+                              <button
+                                type="button"
+                                disabled={busy}
+                                className="rounded-md border px-3 py-1.5 hover:bg-slate-50 disabled:opacity-60"
+                                onClick={() => openEditEmployeeModal(emp)}
+                              >
+                                Edit
+                              </button>
+                              <button
+                                type="button"
+                                disabled={busy}
+                                className="rounded-md bg-red-600 px-3 py-1.5 text-white hover:bg-red-500 disabled:opacity-60"
+                                onClick={() => onDeleteEmployee(emp.id)}
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-slate-400">Read-only</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+
+                    {filteredEmployees.length === 0 ? (
+                      <tr>
+                        <td colSpan={9} className="px-4 py-12">
+                          <EmptyState title="No employees" description={staffSearch.trim() ? 'No employees match your search.' : 'Create your first employee to get started.'} />
+                        </td>
+                      </tr>
+                    ) : null}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {employeeModalOpen ? (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-0 sm:p-4" role="dialog" aria-modal="true">
+            <div className="w-full sm:max-w-2xl rounded-t-2xl sm:rounded-xl bg-white shadow-lg border">
+              <div className="px-4 py-3 border-b flex items-center justify-between">
+                <div>
+                  <div className="text-base font-semibold text-slate-900">{employeeModalMode === 'create' ? 'Add employee' : 'Edit employee'}</div>
+                  <div className="mt-0.5 text-sm text-slate-600">Fill employee details and save changes.</div>
+                </div>
+                <button
+                  type="button"
+                  className="h-9 w-9 rounded-md hover:bg-slate-100 text-slate-600"
+                  onClick={() => setEmployeeModalOpen(false)}
+                  aria-label="Close"
+                  title="Close"
+                >
+                  ×
+                </button>
+              </div>
+
+              <form className="p-4" onSubmit={submitEmployeeModal}>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  {isOwnerAdmin && viewableCompanies.length > 1 ? (
+                    <label className="block">
+                      <div className="text-xs font-medium text-slate-600">Company</div>
+                      <select
+                        className="mt-1 w-full rounded-md border bg-white px-3 py-2 text-sm"
+                        value={newEmployeeCompanyId ?? ''}
+                        disabled={employeeModalMode === 'edit'}
+                        onChange={(e) => setNewEmployeeCompanyId(Number(e.target.value))}
+                      >
+                        {viewableCompanies.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name} ({c.slug})
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : null}
+
+                  <label className="block">
+                    <div className="text-xs font-medium text-slate-600">Employee code</div>
+                    <input className="mt-1 w-full rounded-md border px-3 py-2 text-sm" value={newEmployee.employeeCode} onChange={(e) => setNewEmployee({ ...newEmployee, employeeCode: e.target.value })} required />
+                  </label>
+                  <label className="block">
+                    <div className="text-xs font-medium text-slate-600">Department</div>
+                    <input className="mt-1 w-full rounded-md border px-3 py-2 text-sm" value={newEmployee.department} onChange={(e) => setNewEmployee({ ...newEmployee, department: e.target.value })} />
+                  </label>
+                  <label className="block">
+                    <div className="text-xs font-medium text-slate-600">First name</div>
+                    <input className="mt-1 w-full rounded-md border px-3 py-2 text-sm" value={newEmployee.firstName} onChange={(e) => setNewEmployee({ ...newEmployee, firstName: e.target.value })} required />
+                  </label>
+                  <label className="block">
+                    <div className="text-xs font-medium text-slate-600">Last name</div>
+                    <input className="mt-1 w-full rounded-md border px-3 py-2 text-sm" value={newEmployee.lastName} onChange={(e) => setNewEmployee({ ...newEmployee, lastName: e.target.value })} required />
+                  </label>
+                  <label className="block">
+                    <div className="text-xs font-medium text-slate-600">Mobile</div>
+                    <input className="mt-1 w-full rounded-md border px-3 py-2 text-sm" value={newEmployee.mobile} onChange={(e) => setNewEmployee({ ...newEmployee, mobile: e.target.value })} />
+                  </label>
+                  <label className="block">
+                    <div className="text-xs font-medium text-slate-600">Designation</div>
+                    <input className="mt-1 w-full rounded-md border px-3 py-2 text-sm" value={newEmployee.designation} onChange={(e) => setNewEmployee({ ...newEmployee, designation: e.target.value })} />
+                  </label>
+                  <label className="block">
+                    <div className="text-xs font-medium text-slate-600">Category</div>
+                    <input className="mt-1 w-full rounded-md border px-3 py-2 text-sm" value={newEmployee.category} onChange={(e) => setNewEmployee({ ...newEmployee, category: e.target.value })} />
+                  </label>
+                  <label className="block">
+                    <div className="text-xs font-medium text-slate-600">Username</div>
+                    <input className="mt-1 w-full rounded-md border px-3 py-2 text-sm" value={newEmployee.username} onChange={(e) => setNewEmployee({ ...newEmployee, username: e.target.value })} required />
+                  </label>
+
+                  {employeeModalMode === 'create' ? (
+                    <label className="block">
+                      <div className="text-xs font-medium text-slate-600">Password</div>
+                      <input className="mt-1 w-full rounded-md border px-3 py-2 text-sm" type="password" value={newEmployee.password} onChange={(e) => setNewEmployee({ ...newEmployee, password: e.target.value })} required />
+                    </label>
+                  ) : (
+                    <label className="block">
+                      <div className="text-xs font-medium text-slate-600">Reset password (optional)</div>
+                      <input className="mt-1 w-full rounded-md border px-3 py-2 text-sm" type="password" value={employeeModalPassword} onChange={(e) => setEmployeeModalPassword(e.target.value)} />
+                    </label>
+                  )}
+
+                  <label className="block">
+                    <div className="text-xs font-medium text-slate-600">Role</div>
+                    <select className="mt-1 w-full rounded-md border bg-white px-3 py-2 text-sm" value={newEmployee.role} onChange={(e) => setNewEmployee({ ...newEmployee, role: e.target.value as Role })}>
+                      {roleOptions.map((r) => (
+                        <option key={r} value={r}>{r}</option>
                       ))}
                     </select>
-                  ) : null}
-                  <input className="rounded-md border px-3 py-2" placeholder="Employee code" value={newEmployee.employeeCode} onChange={(e) => setNewEmployee({ ...newEmployee, employeeCode: e.target.value })} />
-                  <input className="rounded-md border px-3 py-2" placeholder="Department" value={newEmployee.department} onChange={(e) => setNewEmployee({ ...newEmployee, department: e.target.value })} />
-                  <input className="rounded-md border px-3 py-2" placeholder="First name" value={newEmployee.firstName} onChange={(e) => setNewEmployee({ ...newEmployee, firstName: e.target.value })} />
-                  <input className="rounded-md border px-3 py-2" placeholder="Last name" value={newEmployee.lastName} onChange={(e) => setNewEmployee({ ...newEmployee, lastName: e.target.value })} />
-                  <input className="rounded-md border px-3 py-2" placeholder="Mobile" value={newEmployee.mobile} onChange={(e) => setNewEmployee({ ...newEmployee, mobile: e.target.value })} />
-                  <input className="rounded-md border px-3 py-2" placeholder="Designation" value={newEmployee.designation} onChange={(e) => setNewEmployee({ ...newEmployee, designation: e.target.value })} />
-                  <input className="rounded-md border px-3 py-2" placeholder="Category" value={newEmployee.category} onChange={(e) => setNewEmployee({ ...newEmployee, category: e.target.value })} />
-                  <input className="rounded-md border px-3 py-2" placeholder="Username" value={newEmployee.username} onChange={(e) => setNewEmployee({ ...newEmployee, username: e.target.value })} />
-                  <input className="rounded-md border px-3 py-2" placeholder="Password" type="password" value={newEmployee.password} onChange={(e) => setNewEmployee({ ...newEmployee, password: e.target.value })} />
-                  <select className="rounded-md border px-3 py-2" value={newEmployee.role} onChange={(e) => setNewEmployee({ ...newEmployee, role: e.target.value as Role })}>
-                    {roleOptions.map((r) => (
-                      <option key={r} value={r}>{r}</option>
-                    ))}
-                  </select>
+                  </label>
                 </div>
-                <button type="submit" disabled={busy} className="mt-4 rounded-md bg-slate-900 px-4 py-2 text-white hover:bg-slate-800 disabled:opacity-60 flex items-center gap-2">
-                  {busy && <LoadingSpinner size="sm" />}
-                  {busy ? 'Creating...' : 'Create Employee'}
-                </button>
-              </form>
-            ) : (
-              <div className="rounded-xl border bg-white p-4 text-sm text-slate-600">
-                You have read-only access.
-              </div>
-            )}
 
-            <div className="rounded-xl border bg-white overflow-x-auto">
-              <div className="px-4 py-3 border-b font-medium text-slate-900">Employees</div>
-              <table className="w-full text-sm">
-                <thead className="bg-slate-50 text-slate-600">
-                  <tr>
-                    <th className="px-4 py-2 text-left">Code</th>
-                    <th className="px-4 py-2 text-left">Name</th>
-                    <th className="px-4 py-2 text-left">Mobile</th>
-                    <th className="px-4 py-2 text-left">Designation</th>
-                    <th className="px-4 py-2 text-left">Department</th>
-                    <th className="px-4 py-2 text-left">Category</th>
-                    <th className="px-4 py-2 text-left">Username</th>
-                    <th className="px-4 py-2 text-left">Role</th>
-                    <th className="px-4 py-2"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {employees.map((emp) => (
-                    <tr key={emp.id} className="border-t">
-                      <td className="px-4 py-2">{emp.employeeCode}</td>
-                      <td className="px-4 py-2">{emp.firstName} {emp.lastName}</td>
-                      <td className="px-4 py-2">
-                        <input className="w-full rounded-md border px-2 py-1" value={emp.mobile || ''} onChange={(e) => setEmployees((prev) => prev.map((x) => (x.id === emp.id ? { ...x, mobile: e.target.value } : x)))} />
-                      </td>
-                      <td className="px-4 py-2">
-                        <input className="w-full rounded-md border px-2 py-1" value={emp.designation || ''} onChange={(e) => setEmployees((prev) => prev.map((x) => (x.id === emp.id ? { ...x, designation: e.target.value } : x)))} />
-                      </td>
-                      <td className="px-4 py-2">
-                        <input className="w-full rounded-md border px-2 py-1" value={emp.department || ''} onChange={(e) => setEmployees((prev) => prev.map((x) => (x.id === emp.id ? { ...x, department: e.target.value || undefined } : x)))} />
-                      </td>
-                      <td className="px-4 py-2">
-                        <input className="w-full rounded-md border px-2 py-1" value={emp.category || ''} onChange={(e) => setEmployees((prev) => prev.map((x) => (x.id === emp.id ? { ...x, category: e.target.value || undefined } : x)))} />
-                      </td>
-                      <td className="px-4 py-2">{emp.username}</td>
-                      <td className="px-4 py-2">
-                        <select className="rounded-md border px-2 py-1" value={emp.role} onChange={(e) => setEmployees((prev) => prev.map((x) => (x.id === emp.id ? { ...x, role: e.target.value as Role } : x)))}>
-                          {roleOptions.map((r) => (
-                            <option key={r} value={r}>{r}</option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="px-4 py-2 text-right whitespace-nowrap">
-                        {canManage ? (
-                          <>
-                            <button type="button" disabled={busy} className="rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50 disabled:opacity-60 transition-colors" onClick={() => onQuickUpdateEmployee(emp)}>
-                              {busy ? 'Saving...' : 'Save'}
-                            </button>
-                            <button type="button" disabled={busy} className="ml-2 rounded-md bg-red-600 px-3 py-1.5 text-sm text-white hover:bg-red-700 disabled:opacity-60 transition-colors" onClick={() => onDeleteEmployee(emp.id)}>
-                              Delete
-                            </button>
-                          </>
-                        ) : (
-                          <span className="text-slate-400">Read-only</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                  {employees.length === 0 ? (
-                    <tr>
-                      <td colSpan={9} className="px-4 py-12">
-                        <EmptyState
-                          title="No employees"
-                          description="Get started by creating your first employee. Employees can then check in and track their attendance."
-                        />
-                      </td>
-                    </tr>
-                  ) : null}
-                </tbody>
-              </table>
+                <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end">
+                  <button type="button" className="rounded-md border border-slate-300 px-4 py-2 text-slate-700 hover:bg-slate-50" onClick={() => setEmployeeModalOpen(false)}>
+                    Cancel
+                  </button>
+                  <button type="submit" disabled={busy} className="rounded-md bg-slate-900 px-4 py-2 text-white hover:bg-slate-800 disabled:opacity-60 flex items-center gap-2">
+                    {busy && <LoadingSpinner size="sm" />}
+                    {busy ? 'Saving...' : 'Save'}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         ) : null}
@@ -2090,22 +2765,61 @@ export default function AdminDashboard() {
         {section === 'settings' ? (
           <div className="mt-6 grid gap-4">
             {canManageUsers ? (
-              <form className="rounded-xl border bg-white p-4" onSubmit={onCreateUser}>
-                <div className="font-medium text-slate-900">Create user</div>
-                <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <input className="rounded-md border px-3 py-2" placeholder="Username" value={newUser.username} onChange={(e) => setNewUser({ ...newUser, username: e.target.value })} />
-                  <input className="rounded-md border px-3 py-2" placeholder="Password" type="password" value={newUser.password} onChange={(e) => setNewUser({ ...newUser, password: e.target.value })} />
-                  <select className="rounded-md border px-3 py-2" value={newUser.role} onChange={(e) => setNewUser({ ...newUser, role: e.target.value as Role })}>
-                    {userRoleOptions.map((r) => (
-                      <option key={r} value={r}>{r}</option>
-                    ))}
-                  </select>
-                  <label className="flex items-center gap-2 text-sm text-slate-700">
+              <form className="rounded-xl border bg-white p-5" onSubmit={onCreateUser}>
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <div className="text-base font-semibold text-slate-900">Create user</div>
+                    <div className="mt-1 text-sm text-slate-600">Create a login account for your organization. Usernames must be unique.</div>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <label className="block">
+                    <div className="text-xs font-medium text-slate-600">Username</div>
+                    <input
+                      className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+                      placeholder="e.g. john"
+                      value={newUser.username}
+                      onChange={(e) => setNewUser({ ...newUser, username: e.target.value })}
+                    />
+                  </label>
+                  <label className="block">
+                    <div className="text-xs font-medium text-slate-600">Password</div>
+                    <input
+                      className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+                      placeholder="Set a strong password"
+                      type="password"
+                      value={newUser.password}
+                      onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+                    />
+                  </label>
+
+                  <label className="block">
+                    <div className="text-xs font-medium text-slate-600">Role</div>
+                    <select
+                      className="mt-1 w-full rounded-md border bg-white px-3 py-2 text-sm"
+                      value={newUser.role}
+                      onChange={(e) => setNewUser({ ...newUser, role: e.target.value as Role })}
+                    >
+                      {userRoleOptions.map((r) => (
+                        <option key={r} value={r}>
+                          {r}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="flex items-center gap-2 rounded-md border bg-slate-50 px-3 py-2">
                     <input type="checkbox" checked={!!newUser.enabled} onChange={(e) => setNewUser({ ...newUser, enabled: e.target.checked })} />
-                    Enabled
+                    <span className="text-sm text-slate-700">Enabled</span>
                   </label>
                 </div>
-                <button type="submit" disabled={busy} className="mt-4 rounded-md bg-slate-900 px-4 py-2 text-white hover:bg-slate-800 disabled:opacity-60 flex items-center gap-2">
+
+                <button
+                  type="submit"
+                  disabled={busy || !newUser.username.trim() || !newUser.password.trim()}
+                  className="mt-5 rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60 flex items-center gap-2"
+                >
                   {busy && <LoadingSpinner size="sm" />}
                   {busy ? 'Creating...' : 'Create User'}
                 </button>
@@ -2133,23 +2847,47 @@ export default function AdminDashboard() {
                     <tr key={u.id} className="border-t">
                       <td className="px-4 py-2">{u.username}</td>
                       <td className="px-4 py-2">
-                        <select className="rounded-md border px-2 py-1" value={u.role} onChange={(e) => setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, role: e.target.value as Role } : x)))}>
+                        <select
+                          className="w-full sm:w-auto rounded-md border px-2 py-1 bg-white"
+                          value={u.role}
+                          disabled={!canManageUsers}
+                          onChange={(e) => setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, role: e.target.value as Role } : x)))}
+                        >
                           {userRoleOptions.map((r) => (
                             <option key={r} value={r}>{r}</option>
                           ))}
                         </select>
                       </td>
                       <td className="px-4 py-2">
-                        <input type="checkbox" checked={!!u.enabled} onChange={(e) => setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, enabled: e.target.checked } : x)))} />
+                        <input
+                          type="checkbox"
+                          checked={!!u.enabled}
+                          disabled={!canManageUsers}
+                          onChange={(e) => setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, enabled: e.target.checked } : x)))}
+                        />
                       </td>
                       <td className="px-4 py-2">
-                        <input className="w-full rounded-md border px-2 py-1" placeholder="New password (optional)" type="password" value={u.newPassword || ''} onChange={(e) => setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, newPassword: e.target.value } : x)))} />
+                        <input
+                          className="w-full min-w-[180px] rounded-md border px-2 py-1"
+                          placeholder="New password (optional)"
+                          type="password"
+                          disabled={!canManageUsers}
+                          value={u.newPassword || ''}
+                          onChange={(e) => setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, newPassword: e.target.value } : x)))}
+                        />
                       </td>
-                      <td className="px-4 py-2 text-right whitespace-nowrap">
+                      <td className="px-4 py-2 text-right">
                         {canManageUsers ? (
-                          <button type="button" disabled={busy} className="rounded-md border px-3 py-1.5 hover:bg-slate-50 disabled:opacity-60" onClick={() => onQuickUpdateUser(u)}>
-                            Save
-                          </button>
+                          <>
+                            <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:justify-end">
+                              <button type="button" disabled={busy} className="rounded-md border px-3 py-1.5 hover:bg-slate-50 disabled:opacity-60" onClick={() => onQuickUpdateUser(u)}>
+                                Save
+                              </button>
+                              <button type="button" disabled={busy} className="rounded-md bg-red-600 px-3 py-1.5 text-white hover:bg-red-500 disabled:opacity-60" onClick={() => onDeleteUser(u.id)}>
+                                Delete
+                              </button>
+                            </div>
+                          </>
                         ) : (
                           <span className="text-slate-400">Read-only</span>
                         )}

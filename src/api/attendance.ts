@@ -10,12 +10,14 @@ import type {
 export async function checkIn(
   imageFile: File,
   latitude: number,
-  longitude: number
+  longitude: number,
+  descriptorJson?: string
 ): Promise<AttendanceResponse> {
   const form = new FormData();
   form.append('image', imageFile);
   form.append('latitude', String(latitude));
   form.append('longitude', String(longitude));
+  if (descriptorJson) form.append('descriptor', descriptorJson);
   const res = await http.post<AttendanceResponse>('/api/attendance/check-in', form, {
     headers: { 'Content-Type': 'multipart/form-data' },
   });
@@ -25,12 +27,14 @@ export async function checkIn(
 export async function checkOut(
   imageFile: File,
   latitude: number,
-  longitude: number
+  longitude: number,
+  descriptorJson?: string
 ): Promise<AttendanceResponse> {
   const form = new FormData();
   form.append('image', imageFile);
   form.append('latitude', String(latitude));
   form.append('longitude', String(longitude));
+  if (descriptorJson) form.append('descriptor', descriptorJson);
   const res = await http.post<AttendanceResponse>('/api/attendance/check-out', form, {
     headers: { 'Content-Type': 'multipart/form-data' },
   });

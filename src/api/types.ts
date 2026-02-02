@@ -87,6 +87,7 @@ export type UpdateEmployeeRequest = {
   mobile?: string;
   designation?: string;
   category?: string;
+  username?: string;
   password?: string;
   role?: Role;
   enabled?: boolean;
@@ -178,6 +179,61 @@ export type HomeAnalyticsResponse = {
   workedMinutesMonth: number;
   overtimeMinutesMonth: number;
   monthClockIns: DailyCount[];
+};
+
+export type DayEmployeeRow = {
+  employeeId: number;
+  employeeCode: string;
+  firstName: string;
+  lastName: string;
+  department?: string | null;
+  role?: Role | null;
+  inTime: string | null;
+  outTime: string | null;
+  workedMinutes: number;
+  overtimeMinutes: number;
+  status: 'IN' | 'OUT' | 'NOT_IN';
+};
+
+export type DayAttendanceResponse = {
+  date: string;
+  totalStaff: number;
+  present: number;
+  notIn: number;
+  holidays: number;
+  weeklyOff: number;
+  workedMinutes: number;
+  overtimeMinutes: number;
+  rows: DayEmployeeRow[];
+};
+
+export type TimesheetCell = {
+  state: 'PRESENT' | 'OFF';
+  workedMinutes: number;
+  overtimeMinutes: number;
+};
+
+export type TimesheetEmployeeRow = {
+  employeeId: number;
+  employeeCode: string;
+  firstName: string;
+  lastName: string;
+  department?: string | null;
+  role?: Role | null;
+  days: TimesheetCell[];
+  presentDays: number;
+  offDays: number;
+  workedMinutes: number;
+  overtimeMinutes: number;
+};
+
+export type TimesheetResponse = {
+  year: number;
+  month: number;
+  from: string;
+  to: string;
+  days: string[];
+  rows: TimesheetEmployeeRow[];
 };
 
 export type UserResponse = {
