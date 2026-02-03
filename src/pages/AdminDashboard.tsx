@@ -273,7 +273,7 @@ export default function AdminDashboard() {
   const [branchForm, setBranchForm] = useState<{ name: string; slug: string; logoUrl: string; asBranch: boolean }>({ name: '', slug: '', logoUrl: '', asBranch: true });
   const [branchFormBusy, setBranchFormBusy] = useState(false);
   const [editingCompany, setEditingCompany] = useState<Company | null>(null);
-  const [editCompanyForm, setEditCompanyForm] = useState<{ name: string; slug: string; logoUrl: string }>({ name: '', slug: '', logoUrl: '' });
+  const [editCompanyForm, setEditCompanyForm] = useState<{ name: string; slug: string; logoUrl: string; hourlyRateDefault: string }>({ name: '', slug: '', logoUrl: '', hourlyRateDefault: '' });
   const [editCompanyBusy, setEditCompanyBusy] = useState(false);
   const [editCompanyLogoFile, setEditCompanyLogoFile] = useState<File | null>(null);
   const [editCompanyLogoBusy, setEditCompanyLogoBusy] = useState(false);
@@ -336,6 +336,7 @@ export default function AdminDashboard() {
     username: '',
     password: '',
     role: 'EMPLOYEE',
+    hourlyRateOverride: null,
   });
 
   const [newEmployeeCompanyId, setNewEmployeeCompanyId] = useState<number | null>(null);
@@ -762,6 +763,7 @@ export default function AdminDashboard() {
         username: '',
         password: '',
         role: 'EMPLOYEE',
+        hourlyRateOverride: null,
       });
       showToast('Employee created successfully', 'success');
       await refreshAll();
@@ -789,6 +791,7 @@ export default function AdminDashboard() {
       username: '',
       password: '',
       role: 'EMPLOYEE',
+      hourlyRateOverride: null,
     });
     setEmployeeModalOpen(true);
   }
@@ -808,6 +811,7 @@ export default function AdminDashboard() {
       username: emp.username,
       password: '',
       role: emp.role,
+      hourlyRateOverride: emp.hourlyRateOverride != null ? emp.hourlyRateOverride : null,
     });
     setEmployeeModalOpen(true);
   }
@@ -867,6 +871,7 @@ export default function AdminDashboard() {
         username: employeeUsername || undefined,
         role: newEmployee.role,
         password: employeeModalPassword.trim() ? employeeModalPassword : undefined,
+        hourlyRateOverride: newEmployee.hourlyRateOverride != null ? newEmployee.hourlyRateOverride : undefined,
       };
       await updateEmployee(employeeEditTarget.id, payload);
       showToast('Employee updated successfully', 'success');
@@ -909,7 +914,12 @@ export default function AdminDashboard() {
 
   function openEditCompany(c: Company) {
     setEditingCompany(c);
-    setEditCompanyForm({ name: c.name, slug: c.slug, logoUrl: (c.logoUrl || '').trim() });
+    setEditCompanyForm({
+      name: c.name,
+      slug: c.slug,
+      logoUrl: (c.logoUrl || '').trim(),
+      hourlyRateDefault: c.hourlyRateDefault != null ? String(c.hourlyRateDefault) : '',
+    });
     setEditCompanyLogoFile(null);
   }
 
@@ -940,6 +950,14 @@ export default function AdminDashboard() {
       if (editCompanyForm.name.trim()) payload.name = editCompanyForm.name.trim();
       if (editCompanyForm.slug.trim()) payload.slug = editCompanyForm.slug.trim().toLowerCase().replace(/\s+/g, '-');
       payload.logoUrl = editCompanyForm.logoUrl.trim() ? editCompanyForm.logoUrl.trim() : null;
+      if (editCompanyForm.hourlyRateDefault.trim()) {
+        const n = Number(editCompanyForm.hourlyRateDefault);
+        if (!Number.isNaN(n) && n >= 0) {
+          payload.hourlyRateDefault = n;
+        }
+      } else {
+        payload.hourlyRateDefault = null;
+      }
       await updateCompany(editingCompany.id, payload);
       setEditingCompany(null);
       showToast('Company updated successfully', 'success');
@@ -1443,7 +1461,7 @@ export default function AdminDashboard() {
                     </div>
                     <div className="grid gap-4 lg:grid-cols-12">
                       <div className={selectedEmployeeId ? 'lg:col-span-8 overflow-x-auto' : 'lg:col-span-12 overflow-x-auto'}>
-                        <table className="w-full text-sm">
+                        <table className="w-full min-w-[720px] text-sm">
                           <thead className="bg-slate-50 text-slate-600">
                             <tr>
                               <th className="px-4 py-2 text-left">Name</th>
@@ -1860,11 +1878,11 @@ export default function AdminDashboard() {
                 </div>
 
                 <div className="rounded-xl border bg-white overflow-x-auto">
-                  <div className="px-4 py-3 border-b flex items-center justify-between gap-3">
+                  <div className="px-4 py-3 border-b flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                     <div className="font-medium text-slate-900">Day attendance</div>
                     {dayAnalyticsLoading ? <div className="text-sm text-slate-500">Loading…</div> : null}
                   </div>
-                  <table className="w-full text-sm">
+                  <table className="w-full min-w-[720px] text-sm">
                     <thead className="bg-slate-50 text-slate-600">
                       <tr>
                         <th className="px-4 py-2 text-left">Name</th>
@@ -1969,12 +1987,12 @@ export default function AdminDashboard() {
                 </div>
 
                 <div className="rounded-xl border bg-white overflow-x-auto">
-                  <div className="px-4 py-3 border-b flex items-center justify-between gap-3">
+                  <div className="px-4 py-3 border-b flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                     <div className="font-medium text-slate-900">Timesheet</div>
                     {timesheetLoading ? <div className="text-sm text-slate-500">Loading…</div> : null}
                   </div>
 
-                  <table className="w-full text-sm">
+                  <table className="w-full min-w-[980px] text-sm">
                     <thead className="bg-slate-50 text-slate-600">
                       <tr>
                         <th className="px-4 py-2 text-left">Name</th>
@@ -2123,7 +2141,7 @@ export default function AdminDashboard() {
                   <LoadingSpinner size="lg" />
                 </div>
               ) : (
-                <table className="w-full text-sm">
+                <table className="w-full min-w-[720px] text-sm">
                   <thead className="bg-slate-50 text-slate-600">
                     <tr>
                       <th className="px-4 py-2 text-left">Name</th>
@@ -2231,6 +2249,20 @@ export default function AdminDashboard() {
                         onChange={(e) => setEditCompanyForm((f) => ({ ...f, logoUrl: e.target.value }))}
                         placeholder="https://..."
                       />
+                    </div>
+
+                    <div>
+                      <label className="text-sm font-medium text-slate-700">Hourly rate default (per hour)</label>
+                      <input
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        className="mt-1 w-full rounded-md border px-3 py-2"
+                        value={editCompanyForm.hourlyRateDefault}
+                        onChange={(e) => setEditCompanyForm((f) => ({ ...f, hourlyRateDefault: e.target.value }))}
+                        placeholder="e.g. 10"
+                      />
+                      <div className="mt-1 text-xs text-slate-500">Used for payroll if employee override is not set.</div>
                     </div>
 
                     <div>
@@ -2557,6 +2589,27 @@ export default function AdminDashboard() {
                       ))}
                     </select>
                   </label>
+
+                  <label className="block">
+                    <div className="text-xs font-medium text-slate-600">Hourly rate override (optional)</div>
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+                      value={newEmployee.hourlyRateOverride ?? ''}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        if (!v.trim()) {
+                          setNewEmployee({ ...newEmployee, hourlyRateOverride: null });
+                          return;
+                        }
+                        const n = Number(v);
+                        setNewEmployee({ ...newEmployee, hourlyRateOverride: Number.isNaN(n) ? null : n });
+                      }}
+                      placeholder="Leave empty to use company default"
+                    />
+                  </label>
                 </div>
 
                 <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end">
@@ -2699,7 +2752,7 @@ export default function AdminDashboard() {
               ) : null}
 
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="w-full min-w-[980px] text-sm">
                   <thead className="bg-slate-50 text-slate-600">
                     <tr>
                       <th className="px-4 py-2 text-left">Location Name</th>
@@ -2832,7 +2885,7 @@ export default function AdminDashboard() {
 
             <div className="rounded-xl border bg-white overflow-x-auto">
               <div className="px-4 py-3 border-b font-medium text-slate-900">Users</div>
-              <table className="w-full text-sm">
+              <table className="w-full min-w-[980px] text-sm">
                 <thead className="bg-slate-50 text-slate-600">
                   <tr>
                     <th className="px-4 py-2 text-left">Username</th>

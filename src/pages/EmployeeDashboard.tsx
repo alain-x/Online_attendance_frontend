@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import AppLayout from '../components/AppLayout';
-import { checkIn, checkOut, endBreak, myAttendance, startBreak, verifyFace } from '../api/attendance';
+import { checkIn, checkOut, checkOutCompanyPurpose, endBreak, myAttendance, startBreak, verifyFace } from '../api/attendance';
 import { enrollFace } from '../api/face';
 import LoadingSpinner from '../components/LoadingSpinner';
 import StatusBadge from '../components/StatusBadge';
@@ -40,13 +40,18 @@ export default function EmployeeDashboard() {
   const [history, setHistory] = useState<AttendanceResponse[]>([]);
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
+  const [locationLoading, setLocationLoading] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
+  const [lastCoords, setLastCoords] = useState<{ latitude: number; longitude: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [enrollImage, setEnrollImage] = useState<File | null>(null);
   const [verifyImage, setVerifyImage] = useState<File | null>(null);
   const [checkInImage, setCheckInImage] = useState<File | null>(null);
   const [checkOutImage, setCheckOutImage] = useState<File | null>(null);
+  const [companyPurposeNote, setCompanyPurposeNote] = useState('');
   const [showCheckInModal, setShowCheckInModal] = useState(false);
   const [showCheckOutModal, setShowCheckOutModal] = useState(false);
+  const [showCompanyPurposeModal, setShowCompanyPurposeModal] = useState(false);
   const [enrollCameraOn, setEnrollCameraOn] = useState(false);
   const enrollVideoRef = useRef<HTMLVideoElement>(null);
   const enrollStreamRef = useRef<MediaStream | null>(null);
@@ -73,6 +78,25 @@ export default function EmployeeDashboard() {
   }, []);
 
   const activeRecord: AttendanceResponse | null = history.find((r) => !r.checkOutTime) || null;
+
+  async function requestLocation(): Promise<{ latitude: number; longitude: number } | null> {
+    setLocationError(null);
+    setLocationLoading(true);
+    try {
+      const pos = await getCurrentPosition();
+      const coords = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+      setLastCoords(coords);
+      return coords;
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Location permission is required';
+      setLastCoords(null);
+      setLocationError(msg);
+      showToast('Please allow location permission to continue', 'warning');
+      return null;
+    } finally {
+      setLocationLoading(false);
+    }
+  }
 
   async function doStartBreak() {
     setError(null);
@@ -166,6 +190,13 @@ export default function EmployeeDashboard() {
       if (!faceResult.face) {
         setError('No face detected. Please use a clear front-facing photo.');
         showToast('No face detected in image', 'error');
+        setLoading(false);
+        return;
+      }
+      if (!faceResult.descriptor) {
+        const msg = 'AI face models are not installed (public/models). Please install them and try enrolling again.';
+        setError(msg);
+        showToast(msg, 'error');
         setLoading(false);
         return;
       }
@@ -305,6 +336,13 @@ export default function EmployeeDashboard() {
         setLoading(false);
         return;
       }
+      if (!faceResult.descriptor) {
+        const msg = 'AI face models are not installed (public/models). Face verification requires the models.';
+        setError(msg);
+        showToast(msg, 'error');
+        setLoading(false);
+        return;
+      }
       const descriptorJson = faceResult.descriptor ? JSON.stringify(faceResult.descriptor) : undefined;
       await verifyFace(verifyImage, descriptorJson);
       setVerifyImage(null);
@@ -321,19 +359,38 @@ export default function EmployeeDashboard() {
 
   function openCheckInModal() {
     setError(null);
+    setLocationError(null);
     setCheckInImage(null);
     setShowCheckInModal(true);
+    requestLocation().catch(() => {});
   }
 
   function openCheckOutModal() {
     setError(null);
+    setLocationError(null);
     setCheckOutImage(null);
     setShowCheckOutModal(true);
+    requestLocation().catch(() => {});
+  }
+
+  function openCompanyPurposeModal() {
+    setError(null);
+    setLocationError(null);
+    setCheckOutImage(null);
+    setCompanyPurposeNote('');
+    setShowCompanyPurposeModal(true);
+    requestLocation().catch(() => {});
   }
 
   async function doCheckIn() {
     if (!checkInImage) {
       showToast('Please take or choose a photo to verify your identity', 'warning');
+      return;
+    }
+    if (locationLoading) return;
+    const coords = lastCoords || (await requestLocation());
+    if (!coords) {
+      setError('Location permission is required to check in');
       return;
     }
     setError(null);
@@ -347,8 +404,10 @@ export default function EmployeeDashboard() {
         return;
       }
       const descriptorJson = faceResult.descriptor ? JSON.stringify(faceResult.descriptor) : undefined;
-      const pos = await getCurrentPosition();
-      await checkIn(checkInImage, pos.coords.latitude, pos.coords.longitude, descriptorJson);
+      if (!descriptorJson) {
+        showToast('AI face models are not installed (public/models). Check-in will continue without face verification.', 'warning');
+      }
+      await checkIn(checkInImage, coords.latitude, coords.longitude, descriptorJson);
       setShowCheckInModal(false);
       setCheckInImage(null);
       showToast('Checked in successfully', 'success');
@@ -367,6 +426,12 @@ export default function EmployeeDashboard() {
       showToast('Please take or choose a photo to verify your identity', 'warning');
       return;
     }
+    if (locationLoading) return;
+    const coords = lastCoords || (await requestLocation());
+    if (!coords) {
+      setError('Location permission is required to check out');
+      return;
+    }
     setError(null);
     setLoading(true);
     try {
@@ -378,14 +443,60 @@ export default function EmployeeDashboard() {
         return;
       }
       const descriptorJson = faceResult.descriptor ? JSON.stringify(faceResult.descriptor) : undefined;
-      const pos = await getCurrentPosition();
-      await checkOut(checkOutImage, pos.coords.latitude, pos.coords.longitude, descriptorJson);
+      if (!descriptorJson) {
+        showToast('AI face models are not installed (public/models). Check-out will continue without face verification.', 'warning');
+      }
+      await checkOut(checkOutImage, coords.latitude, coords.longitude, descriptorJson);
       setShowCheckOutModal(false);
       setCheckOutImage(null);
       showToast('Checked out successfully', 'success');
       await refresh();
     } catch (e: unknown) {
       const errorMsg = getApiErrorMessage(e, 'Check-out failed');
+      setError(errorMsg);
+      showToast(errorMsg, 'error');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function doCompanyPurposeCheckOut() {
+    if (!checkOutImage) {
+      showToast('Please take or choose a photo to verify your identity', 'warning');
+      return;
+    }
+    if (!companyPurposeNote.trim()) {
+      showToast('Please add a note for company purpose clock-out', 'warning');
+      return;
+    }
+    if (locationLoading) return;
+    const coords = lastCoords || (await requestLocation());
+    if (!coords) {
+      setError('Location permission is required to check out');
+      return;
+    }
+    setError(null);
+    setLoading(true);
+    try {
+      const faceResult = await detectFaceInFile(checkOutImage);
+      if (!faceResult.face) {
+        setError('No face detected. Please use a clear front-facing photo.');
+        showToast('No face detected in image', 'error');
+        setLoading(false);
+        return;
+      }
+      const descriptorJson = faceResult.descriptor ? JSON.stringify(faceResult.descriptor) : undefined;
+      if (!descriptorJson) {
+        showToast('AI face models are not installed (public/models). Check-out will continue without face verification.', 'warning');
+      }
+      await checkOutCompanyPurpose(checkOutImage, coords.latitude, coords.longitude, companyPurposeNote.trim(), descriptorJson);
+      setShowCompanyPurposeModal(false);
+      setCheckOutImage(null);
+      setCompanyPurposeNote('');
+      showToast('Company purpose clock-out submitted. Waiting for approval.', 'info');
+      await refresh();
+    } catch (e: unknown) {
+      const errorMsg = getApiErrorMessage(e, 'Company purpose check-out failed');
       setError(errorMsg);
       showToast(errorMsg, 'error');
     } finally {
@@ -424,9 +535,19 @@ export default function EmployeeDashboard() {
 
       {showCheckInModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="check-in-modal-title">
-          <div className="w-full max-w-md rounded-xl border bg-white p-5 shadow-lg">
+          <div className="w-full max-w-md max-h-[85vh] overflow-y-auto rounded-xl border bg-white p-5 shadow-lg">
             <h2 id="check-in-modal-title" className="text-lg font-semibold text-slate-900">Check in – verify your identity</h2>
             <p className="mt-1 text-sm text-slate-600">Take or upload a photo that matches your enrolled face. It will be verified before check-in.</p>
+            <div className="mt-3 text-sm">
+              {locationLoading ? (
+                <div className="text-slate-500">Requesting location permission…</div>
+              ) : lastCoords ? (
+                <div className="text-emerald-700">Location ready</div>
+              ) : (
+                <div className="text-amber-700">Location permission required</div>
+              )}
+              {locationError ? <div className="mt-1 text-xs text-red-600">{locationError}</div> : null}
+            </div>
             <div className="mt-4">
               <input
                 type="file"
@@ -450,7 +571,7 @@ export default function EmployeeDashboard() {
               <button
                 type="button"
                 onClick={doCheckIn}
-                disabled={loading || !checkInImage}
+                disabled={loading || locationLoading || !lastCoords || !checkInImage}
                 className="rounded-md bg-emerald-600 px-4 py-2 text-white hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 {loading && <LoadingSpinner size="sm" className="text-white" />}
@@ -461,11 +582,86 @@ export default function EmployeeDashboard() {
         </div>
       )}
 
+      {showCompanyPurposeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="company-purpose-modal-title">
+          <div className="w-full max-w-md max-h-[85vh] overflow-y-auto rounded-xl border bg-white p-5 shadow-lg">
+            <h2 id="company-purpose-modal-title" className="text-lg font-semibold text-slate-900">Company purpose clock-out</h2>
+            <p className="mt-1 text-sm text-slate-600">Add a note explaining why you are leaving for company purpose. This request requires approval to count as paid hours.</p>
+
+            <div className="mt-3 text-sm">
+              {locationLoading ? (
+                <div className="text-slate-500">Requesting location permission…</div>
+              ) : lastCoords ? (
+                <div className="text-emerald-700">Location ready</div>
+              ) : (
+                <div className="text-amber-700">Location permission required</div>
+              )}
+              {locationError ? <div className="mt-1 text-xs text-red-600">{locationError}</div> : null}
+            </div>
+
+            <div className="mt-4">
+              <label className="text-sm font-medium text-slate-700">Note</label>
+              <textarea
+                value={companyPurposeNote}
+                onChange={(e) => setCompanyPurposeNote(e.target.value)}
+                rows={3}
+                className="mt-1 w-full rounded-md border px-3 py-2 text-slate-900"
+                placeholder="Example: Client visit / bank / delivery / offsite meeting"
+              />
+            </div>
+
+            <div className="mt-4">
+              <input
+                type="file"
+                accept="image/*"
+                capture="user"
+                onChange={(e) => setCheckOutImage(e.target.files?.[0] ?? null)}
+                className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-rose-50 file:px-3 file:py-2 file:text-rose-700"
+              />
+              {checkOutImage && <p className="mt-2 text-sm text-rose-700">Photo selected: {checkOutImage.name}</p>}
+            </div>
+
+            <div className="mt-5 flex flex-wrap gap-2 justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCompanyPurposeModal(false);
+                  setCheckOutImage(null);
+                  setCompanyPurposeNote('');
+                }}
+                className="rounded-md border border-slate-300 bg-white px-4 py-2 text-slate-700 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={doCompanyPurposeCheckOut}
+                disabled={loading || locationLoading || !lastCoords || !checkOutImage || !companyPurposeNote.trim()}
+                className="rounded-md bg-rose-600 px-4 py-2 text-white hover:bg-rose-700 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {loading && <LoadingSpinner size="sm" className="text-white" />}
+                Submit request
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showCheckOutModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="check-out-modal-title">
-          <div className="w-full max-w-md rounded-xl border bg-white p-5 shadow-lg">
+          <div className="w-full max-w-md max-h-[85vh] overflow-y-auto rounded-xl border bg-white p-5 shadow-lg">
             <h2 id="check-out-modal-title" className="text-lg font-semibold text-slate-900">Check out – verify your identity</h2>
             <p className="mt-1 text-sm text-slate-600">Take or upload a photo that matches your enrolled face. It will be verified before check-out.</p>
+            <div className="mt-3 text-sm">
+              {locationLoading ? (
+                <div className="text-slate-500">Requesting location permission…</div>
+              ) : lastCoords ? (
+                <div className="text-emerald-700">Location ready</div>
+              ) : (
+                <div className="text-amber-700">Location permission required</div>
+              )}
+              {locationError ? <div className="mt-1 text-xs text-red-600">{locationError}</div> : null}
+            </div>
             <div className="mt-4">
               <input
                 type="file"
@@ -489,7 +685,7 @@ export default function EmployeeDashboard() {
               <button
                 type="button"
                 onClick={doCheckOut}
-                disabled={loading || !checkOutImage}
+                disabled={loading || locationLoading || !lastCoords || !checkOutImage}
                 className="rounded-md bg-indigo-600 px-4 py-2 text-white hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 {loading && <LoadingSpinner size="sm" className="text-white" />}
@@ -535,6 +731,16 @@ export default function EmployeeDashboard() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
             Check out
+          </button>
+
+          <button
+            type="button"
+            onClick={openCompanyPurposeModal}
+            disabled={loading || !activeRecord}
+            className="rounded-md bg-rose-600 px-4 py-2 text-white hover:bg-rose-700 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2 transition-colors shadow-sm"
+          >
+            {loading && <LoadingSpinner size="sm" className="text-white" />}
+            Company purpose
           </button>
           <button
             type="button"
@@ -731,7 +937,7 @@ export default function EmployeeDashboard() {
             <div className="font-medium text-slate-900">My attendance</div>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full min-w-[720px] text-sm">
               <thead className="bg-slate-50 text-slate-600">
                 <tr>
                   <th className="px-4 py-2 text-left">Check in</th>

@@ -26,7 +26,7 @@ export default function Toast({ message, type = 'info', onClose, duration = 5000
 
   return (
     <div
-      className={`fixed top-4 right-4 z-50 rounded-lg border px-4 py-3 shadow-lg ${bgColors[type]} flex items-center gap-3 min-w-[300px] max-w-md`}
+      className={`fixed top-4 left-4 right-4 sm:left-auto sm:right-4 z-50 rounded-lg border px-4 py-3 shadow-lg ${bgColors[type]} flex items-center gap-3 w-auto sm:min-w-[300px] max-w-md`}
     >
       <div className="flex-1">{message}</div>
       {onClose && (

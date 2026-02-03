@@ -4,6 +4,8 @@ import LoginPage from './pages/LoginPage';
 import RegisterCompanyPage from './pages/RegisterCompanyPage';
 import EmployeeDashboard from './pages/EmployeeDashboard';
 import AdminDashboard from './pages/AdminDashboard';
+import PayrollDashboard from './pages/PayrollDashboard';
+import SystemAdminDashboard from './pages/SystemAdminDashboard';
 import ProtectedRoute from './routes/ProtectedRoute';
 
 function App() {
@@ -26,6 +28,24 @@ function App() {
         element={
           <ProtectedRoute roles={["SYSTEM_ADMIN", "ADMIN", "HR", "MANAGER"]}>
             <AdminDashboard />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/payroll"
+        element={
+          <ProtectedRoute roles={["SYSTEM_ADMIN", "ADMIN", "HR", "MANAGER", "PAYROLL", "AUDITOR"]}>
+            <PayrollDashboard />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/system-admin"
+        element={
+          <ProtectedRoute roles={["SYSTEM_ADMIN"]}>
+            <SystemAdminDashboard />
           </ProtectedRoute>
         }
       />

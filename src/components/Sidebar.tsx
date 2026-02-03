@@ -34,9 +34,11 @@ type SidebarProps = {
   items: SidebarItem[];
   activeKey: string;
   onChange: (key: string) => void;
+  className?: string;
+  showBranding?: boolean;
 };
 
-export default function Sidebar({ items, activeKey, onChange }: SidebarProps) {
+export default function Sidebar({ items, activeKey, onChange, className, showBranding = true }: SidebarProps) {
   const { user } = useAuth();
   const logoLetter = (user?.companySlug || 'A').trim().charAt(0).toUpperCase();
   const logoUrl = user?.companyLogoUrl || null;
@@ -51,27 +53,30 @@ export default function Sidebar({ items, activeKey, onChange }: SidebarProps) {
   };
 
   return (
-    <div className="w-64 shrink-0 border-r bg-white shadow-sm">
-      <div className="p-4 border-b">
-        <div className="flex items-center gap-3">
-          {logoUrl ? (
-            <img
-              src={logoUrl}
-              alt={user?.companySlug || 'Company logo'}
-              className="h-10 w-10 rounded-lg object-cover"
-            />
-          ) : (
-            <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-white font-bold text-lg">
-              {logoLetter}
+    <div className={className || 'w-64 shrink-0 border-r bg-white shadow-sm'}>
+      {showBranding ? (
+        <div className="p-4 border-b">
+          <div className="flex items-center gap-3">
+            {logoUrl ? (
+              <img
+                src={logoUrl}
+                alt={user?.companySlug || 'Company logo'}
+                className="h-10 w-10 rounded-lg object-cover"
+              />
+            ) : (
+              <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-white font-bold text-lg">
+                {logoLetter}
+              </div>
+            )}
+            <div>
+              <div className="text-sm font-semibold text-slate-900">Attendance</div>
+              <div className="text-xs text-slate-500">Management</div>
             </div>
-          )}
-          <div>
-            <div className="text-sm font-semibold text-slate-900">Attendance</div>
-            <div className="text-xs text-slate-500">Management</div>
           </div>
         </div>
-      </div>
-      <div className="px-3 py-4 space-y-1">
+      ) : null}
+
+      <div className="px-3 py-4 space-y-1 overflow-y-auto">
         {items.map((it) => (
           <Item
             key={it.key}

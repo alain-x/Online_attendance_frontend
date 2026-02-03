@@ -24,6 +24,44 @@ export async function checkIn(
   return res.data;
 }
 
+export async function checkOutCompanyPurpose(
+  imageFile: File,
+  latitude: number,
+  longitude: number,
+  note: string,
+  descriptorJson?: string
+): Promise<AttendanceResponse> {
+  const form = new FormData();
+  form.append('image', imageFile);
+  form.append('latitude', String(latitude));
+  form.append('longitude', String(longitude));
+  form.append('note', note);
+  if (descriptorJson) form.append('descriptor', descriptorJson);
+  const res = await http.post<AttendanceResponse>('/api/attendance/check-out/company-purpose', form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return res.data;
+}
+
+export async function listPendingCompanyPurpose(): Promise<AttendanceResponse[]> {
+  const res = await http.get<AttendanceResponse[]>('/api/attendance/company-purpose/pending');
+  return res.data;
+}
+
+export async function approveCompanyPurpose(attendanceId: number, note?: string): Promise<AttendanceResponse> {
+  const res = await http.post<AttendanceResponse>(`/api/attendance/${attendanceId}/company-purpose/approve`, {
+    note,
+  });
+  return res.data;
+}
+
+export async function rejectCompanyPurpose(attendanceId: number, note?: string): Promise<AttendanceResponse> {
+  const res = await http.post<AttendanceResponse>(`/api/attendance/${attendanceId}/company-purpose/reject`, {
+    note,
+  });
+  return res.data;
+}
+
 export async function checkOut(
   imageFile: File,
   latitude: number,

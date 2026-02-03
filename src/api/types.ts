@@ -2,6 +2,10 @@ export type Role = 'SYSTEM_ADMIN' | 'ADMIN' | 'HR' | 'MANAGER' | 'EMPLOYEE' | 'P
 
 export type AttendanceStatus = 'PRESENT' | 'LATE' | 'ABSENT' | 'EXCEPTION';
 
+export type ClockOutType = 'NORMAL' | 'COMPANY_PURPOSE';
+
+export type CompanyPurposeStatus = 'NONE' | 'PENDING' | 'APPROVED' | 'REJECTED';
+
 export type LoginRequest = {
   companySlug: string;
   username: string;
@@ -39,6 +43,8 @@ export type Company = {
   slug: string;
   parentCompanyId?: number | null;
   logoUrl?: string | null;
+  hourlyRateDefault?: number | null;
+  active?: boolean;
 };
 
 export type CreateCompanyRequest = {
@@ -52,6 +58,7 @@ export type UpdateCompanyRequest = {
   name?: string;
   slug?: string;
   logoUrl?: string | null;
+  hourlyRateDefault?: number | null;
 };
 
 export type EmployeeResponse = {
@@ -65,6 +72,7 @@ export type EmployeeResponse = {
   category?: string | null;
   username: string;
   role: Role;
+  hourlyRateOverride?: number | null;
 };
 
 export type CreateEmployeeRequest = {
@@ -78,6 +86,7 @@ export type CreateEmployeeRequest = {
   username: string;
   password: string;
   role: Role;
+  hourlyRateOverride?: number | null;
 };
 
 export type UpdateEmployeeRequest = {
@@ -91,6 +100,7 @@ export type UpdateEmployeeRequest = {
   password?: string;
   role?: Role;
   enabled?: boolean;
+  hourlyRateOverride?: number | null;
 };
 
 export type WorkLocation = {
@@ -128,8 +138,41 @@ export type AttendanceResponse = {
   locationVerified: boolean;
   faceVerified: boolean;
   status: AttendanceStatus | null;
+  clockOutType?: ClockOutType | null;
+  companyPurposeStatus?: CompanyPurposeStatus | null;
+  companyPurposeNote?: string | null;
   workedMinutes: number;
   breakMinutes: number;
+};
+
+export type PayrollRowResponse = {
+  employeeId: number;
+  employeeCode: string;
+  firstName: string;
+  lastName: string;
+  workedMinutes: number;
+  expectedMinutes: number;
+  regularMinutes: number;
+  overtimeMinutes: number;
+  deficitMinutes: number;
+  hourlyRate: number | null;
+  grossPay: number;
+  netPay: number;
+};
+
+export type PayrollSummaryResponse = {
+  from: string;
+  to: string;
+  companyId: number;
+  companyHourlyRateDefault: number | null;
+  totalWorkedMinutes: number;
+  totalGrossPay: number;
+  totalNetPay: number;
+  totalExpectedMinutes: number;
+  totalRegularMinutes: number;
+  totalOvertimeMinutes: number;
+  totalDeficitMinutes: number;
+  rows: PayrollRowResponse[];
 };
 
 export type AdminUpsertAttendanceRequest = {

@@ -38,6 +38,11 @@ export async function updateCompany(id: number, payload: UpdateCompanyRequest): 
   return res.data;
 }
 
+export async function setCompanyActive(id: number, active: boolean): Promise<Company> {
+  const res = await http.put<Company>(`/api/companies/${id}/active`, { active });
+  return res.data;
+}
+
 export async function deleteCompany(id: number): Promise<{ deleted: boolean }> {
   const res = await http.delete<{ deleted: boolean }>(`/api/companies/${id}`);
   return res.data;

@@ -34,15 +34,20 @@ export default function LoginPage() {
       if (user.companySlug) {
         localStorage.setItem('companySlug', user.companySlug);
       }
-      if (user.role === 'EMPLOYEE') {
+      if (user.role === 'SYSTEM_ADMIN') {
+        navigate('/system-admin', { replace: true });
+      } else if (user.role === 'EMPLOYEE') {
         navigate('/employee', { replace: true });
+      } else if (user.role === 'PAYROLL') {
+        navigate('/payroll', { replace: true });
       } else {
         navigate('/admin', { replace: true });
       }
     } catch (e2) {
       const status = axios.isAxiosError(e2) ? e2.response?.status : undefined;
+      const serverMessage = axios.isAxiosError(e2) ? (e2.response?.data as { message?: string } | undefined)?.message : undefined;
       if (status === 403) {
-        setError('Access denied (403). Restart the backend and ensure CORS is enabled, or try company slug "default".');
+        setError(serverMessage || 'Access denied (403).');
       } else if (status === 401) {
         setError('Invalid username or password.');
       } else if (status != null) {

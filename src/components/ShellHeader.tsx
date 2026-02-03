@@ -4,9 +4,10 @@ import { useNavigate } from 'react-router-dom';
 
 type ShellHeaderProps = {
   title?: string;
+  onMenuClick?: () => void;
 };
 
-export default function ShellHeader({ title }: ShellHeaderProps) {
+export default function ShellHeader({ title, onMenuClick }: ShellHeaderProps) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -25,8 +26,20 @@ export default function ShellHeader({ title }: ShellHeaderProps) {
 
   return (
     <div className="w-full bg-gradient-to-r from-blue-700 to-indigo-700 text-white shadow-md">
-      <div className="px-6 h-14 flex items-center justify-between">
-        <div className="flex items-center gap-3">
+      <div className="px-4 sm:px-6 h-14 flex items-center justify-between">
+        <div className="flex items-center gap-3 min-w-0">
+          {user ? (
+            <button
+              type="button"
+              onClick={onMenuClick}
+              className="inline-flex md:hidden items-center justify-center rounded-md bg-white/10 p-2 hover:bg-white/20 transition-colors"
+              aria-label="Open menu"
+            >
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+          ) : null}
           {logoUrl ? (
             <img
               src={logoUrl}
@@ -38,7 +51,7 @@ export default function ShellHeader({ title }: ShellHeaderProps) {
               {logoLetter}
             </div>
           )}
-          <div className="font-semibold text-lg">{title || 'Attendance Management System'}</div>
+          <div className="font-semibold text-base sm:text-lg truncate">{title || 'Attendance Management System'}</div>
         </div>
 
         <div className="flex items-center gap-4">
