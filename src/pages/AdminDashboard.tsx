@@ -2420,9 +2420,23 @@ export default function AdminDashboard() {
                   <div className="rounded-xl border bg-white">
                     <div className="px-4 py-3 border-b font-medium text-slate-900">Quick Links</div>
                     <div className="divide-y">
-                      {['Scheduler', 'Add Contractor Agency', 'Geofencing', 'Kiosk Settings'].map((x) => (
-                        <button key={x} type="button" className="w-full px-4 py-3 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center justify-between">
-                          <span>{x}</span>
+                      {[
+                        { label: 'Timesheet', onClick: () => (setDashboardTab('timesheet'), setSection('dashboard')) },
+                        { label: 'Import Timesheet (CSV)', onClick: () => (setDashboardTab('timesheet'), setSection('dashboard'), openImportTimesheetModal()) },
+                        { label: 'Download Timesheet Import Template', onClick: () => downloadTimesheetImportTemplate() },
+                        { label: 'Staff Directory', onClick: () => setSection('staff') },
+                        { label: 'Reports & Analytics', onClick: () => setSection('reports') },
+                        { label: 'Work Locations', onClick: () => (setSection('settings'), setSettingsTab('company')) },
+                        { label: 'Users & Roles', onClick: () => (setSection('settings'), setSettingsTab('users')) },
+                        { label: 'Holidays', onClick: () => (setSection('settings'), setSettingsTab('holidays')) },
+                      ].map((x) => (
+                        <button
+                          key={x.label}
+                          type="button"
+                          onClick={x.onClick}
+                          className="w-full px-4 py-3 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center justify-between"
+                        >
+                          <span>{x.label}</span>
                           <span className="text-slate-400">›</span>
                         </button>
                       ))}
