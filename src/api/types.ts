@@ -176,7 +176,7 @@ export type PayrollSummaryResponse = {
 };
 
 export type AdminUpsertAttendanceRequest = {
-  employeeId?: number;
+  employeeId?: number | null;
   checkInTime?: string | null;
   checkOutTime?: string | null;
   checkInLat?: number | null;
@@ -186,6 +186,32 @@ export type AdminUpsertAttendanceRequest = {
   locationVerified?: boolean | null;
   faceVerified?: boolean | null;
   status?: AttendanceStatus | null;
+};
+
+export type BulkTimesheetImportRow = {
+  employeeId: number;
+  checkInTime: string;
+  checkOutTime: string;
+  locationVerified?: boolean;
+  faceVerified?: boolean;
+};
+
+export type BulkTimesheetImportRequest = {
+  rows: BulkTimesheetImportRow[];
+};
+
+export type BulkTimesheetImportResult = {
+  index: number;
+  employeeId: number | null;
+  ok: boolean;
+  message: string | null;
+  attendanceId: number | null;
+};
+
+export type BulkTimesheetImportResponse = {
+  ok: number;
+  failed: number;
+  results: BulkTimesheetImportResult[];
 };
 
 export type CheckInRequest = {
@@ -251,9 +277,10 @@ export type DayAttendanceResponse = {
 };
 
 export type TimesheetCell = {
-  state: 'PRESENT' | 'OFF';
+  state: 'PRESENT' | 'OFF' | 'HOLIDAY' | 'LEAVE';
   workedMinutes: number;
   overtimeMinutes: number;
+  breakMinutes: number;
 };
 
 export type TimesheetEmployeeRow = {
@@ -268,6 +295,7 @@ export type TimesheetEmployeeRow = {
   offDays: number;
   workedMinutes: number;
   overtimeMinutes: number;
+  breakMinutes: number;
 };
 
 export type TimesheetResponse = {

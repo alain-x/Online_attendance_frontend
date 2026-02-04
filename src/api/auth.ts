@@ -1,4 +1,4 @@
-import http from './http';
+import http, { API_BASE_URL } from './http';
 
 import type { LoginResponse, MeResponse } from './types';
 
@@ -11,5 +11,9 @@ export async function login(username: string, password: string, companySlug?: st
 
 export async function me(): Promise<MeResponse> {
   const res = await http.get<MeResponse>('/api/auth/me');
+  const logoUrl = res.data.companyLogoUrl;
+  if (logoUrl && logoUrl.startsWith('/')) {
+    return { ...res.data, companyLogoUrl: `${API_BASE_URL}${logoUrl}` };
+  }
   return res.data;
 }

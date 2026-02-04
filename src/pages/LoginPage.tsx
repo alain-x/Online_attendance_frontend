@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { login as loginApi } from '../api/auth';
 import { useAuth } from '../auth/AuthContext';
+import { getSystemBranding } from '../api/system';
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -14,6 +15,22 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [systemLogoUrl, setSystemLogoUrl] = useState<string | null>(() => localStorage.getItem('systemLogoUrl'));
+
+  useEffect(() => {
+    let cancelled = false;
+    getSystemBranding()
+      .then((res) => {
+        if (cancelled) return;
+        localStorage.setItem('systemLogoUrl', res.logoUrl || '');
+        localStorage.setItem('systemName', res.systemName || '');
+        setSystemLogoUrl(res.logoUrl || null);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -64,9 +81,17 @@ export default function LoginPage() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center px-4">
       <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-8 shadow-xl">
         <div className="text-center mb-6">
-          <div className="inline-flex items-center justify-center h-16 w-16 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white text-2xl font-bold mb-4">
-            A
-          </div>
+          {systemLogoUrl ? (
+            <img
+              src={systemLogoUrl}
+              alt="System logo"
+              className="mx-auto h-16 w-16 rounded-xl object-cover mb-4"
+            />
+          ) : (
+            <div className="inline-flex items-center justify-center h-16 w-16 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white text-2xl font-bold mb-4">
+              A
+            </div>
+          )}
           <div className="text-2xl font-bold text-slate-900">Welcome Back</div>
           <div className="mt-2 text-sm text-slate-600">Sign in to access your attendance dashboard</div>
         </div>

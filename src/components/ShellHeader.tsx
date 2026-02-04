@@ -1,6 +1,6 @@
 import React from 'react';
 import { useAuth } from '../auth/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 type ShellHeaderProps = {
   title?: string;
@@ -10,9 +10,20 @@ type ShellHeaderProps = {
 export default function ShellHeader({ title, onMenuClick }: ShellHeaderProps) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const systemName = localStorage.getItem('systemName');
 
   const logoLetter = (user?.companySlug || 'A').trim().charAt(0).toUpperCase();
   const logoUrl = user?.companyLogoUrl || null;
+  const logoBust = localStorage.getItem('companyLogoBust');
+  const displayCompanyLogoUrl = logoUrl && logoBust ? `${logoUrl}${logoUrl.includes('?') ? '&' : '?'}v=${encodeURIComponent(logoBust)}` : logoUrl;
+
+  const systemLogoUrl = localStorage.getItem('systemLogoUrl');
+  const systemLogoBust = localStorage.getItem('systemLogoBust');
+  const displaySystemLogoUrl = systemLogoUrl && systemLogoBust
+    ? `${systemLogoUrl}${systemLogoUrl.includes('?') ? '&' : '?'}v=${encodeURIComponent(systemLogoBust)}`
+    : systemLogoUrl;
 
   const companyContextLabel = localStorage.getItem('companyContextLabel');
   const companyContextIdRaw = localStorage.getItem('companyContextId');
@@ -23,6 +34,8 @@ export default function ShellHeader({ title, onMenuClick }: ShellHeaderProps) {
     logout();
     navigate('/login');
   };
+
+  const showSystemAdminLink = user?.role === 'SYSTEM_ADMIN' && location.pathname !== '/system-admin';
 
   return (
     <div className="w-full bg-gradient-to-r from-blue-700 to-indigo-700 text-white shadow-md">
@@ -40,9 +53,9 @@ export default function ShellHeader({ title, onMenuClick }: ShellHeaderProps) {
               </svg>
             </button>
           ) : null}
-          {logoUrl ? (
+          {displaySystemLogoUrl || displayCompanyLogoUrl ? (
             <img
-              src={logoUrl}
+              src={displaySystemLogoUrl || displayCompanyLogoUrl || ''}
               alt={user?.companySlug || 'Company logo'}
               className="h-8 w-8 rounded-lg object-cover bg-white/20"
             />
@@ -51,7 +64,10 @@ export default function ShellHeader({ title, onMenuClick }: ShellHeaderProps) {
               {logoLetter}
             </div>
           )}
-          <div className="font-semibold text-base sm:text-lg truncate">{title || 'Attendance Management System'}</div>
+          <div className="font-semibold text-base sm:text-lg truncate">
+            {systemName || 'Attendance Management System'}
+            {title ? ` — ${title}` : ''}
+          </div>
         </div>
 
         <div className="flex items-center gap-4">
@@ -63,6 +79,15 @@ export default function ShellHeader({ title, onMenuClick }: ShellHeaderProps) {
                 <span className="rounded-full bg-white/20 px-2 py-0.5 text-xs font-medium text-white">Branch</span>
               ) : null}
             </div>
+          ) : null}
+          {showSystemAdminLink ? (
+            <button
+              type="button"
+              onClick={() => navigate('/system-admin')}
+              className="rounded-md bg-white/20 px-3 py-2 text-sm font-medium hover:bg-white/30 transition-colors"
+            >
+              System Admin
+            </button>
           ) : null}
           {user ? (
             <div className="hidden md:flex items-center gap-2 rounded-lg bg-white/10 px-3 py-1.5 text-sm">

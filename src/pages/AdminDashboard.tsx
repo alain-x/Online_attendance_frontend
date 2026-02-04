@@ -1,12 +1,13 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import AppLayout from '../components/AppLayout';
 import { createCompany, deleteCompany, listCompanies, updateCompany, uploadCompanyLogo } from '../api/companies';
 import { createEmployee, deleteEmployee, listEmployees, updateEmployee } from '../api/employees';
 import { createLocation, deleteLocation, listLocations, updateLocation } from '../api/locations';
-import { adminCreateAttendance, adminDeleteAttendance, adminUpdateAttendance, listAttendanceByEmployee, todayAttendance } from '../api/attendance';
+import { adminBulkImportTimesheet, adminCreateAttendance, adminDeleteAttendance, adminUpdateAttendance, listAttendanceByEmployee, todayAttendance } from '../api/attendance';
 import { createUser, deleteUser, listUsers, updateUser } from '../api/users';
 import { getDayAnalytics, getHomeAnalytics, getTimesheet } from '../api/analytics';
 import { downloadDailyAttendanceCsv } from '../api/reports';
+import { createHoliday, deleteHoliday, listHolidays, updateHoliday } from '../api/holidays';
 import { useAuth } from '../auth/AuthContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 import StatusBadge from '../components/StatusBadge';
@@ -41,11 +42,133 @@ type ReportItem = {
   format: string;
 };
 
+type ImportEmployeeRow = {
+  rowNumber: number;
+  employee: CreateEmployeeRequest;
+  companyId?: number | null;
+  errors: string[];
+};
+
 function getMonthRangeLabel(year: number, month1Based: number): string {
   const from = new Date(Date.UTC(year, month1Based - 1, 1));
   const to = new Date(Date.UTC(year, month1Based, 0));
   const fmt = new Intl.DateTimeFormat(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
   return `${fmt.format(from)} - ${fmt.format(to)}`;
+}
+
+function parseCsvText(text: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let cell = '';
+  let inQuotes = false;
+
+  const pushCell = () => {
+    row.push(cell);
+    cell = '';
+  };
+  const pushRow = () => {
+    if (row.length === 1 && !row[0]?.trim()) {
+      row = [];
+      return;
+    }
+
+    rows.push(row);
+    row = [];
+  };
+
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        const next = text[i + 1];
+        if (next === '"') {
+          cell += '"';
+          i += 1;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        cell += ch;
+      }
+      continue;
+    }
+
+    if (ch === '"') {
+      inQuotes = true;
+      continue;
+    }
+    if (ch === ',') {
+      pushCell();
+      continue;
+    }
+    if (ch === '\n') {
+      pushCell();
+      pushRow();
+      continue;
+    }
+    if (ch === '\r') {
+      continue;
+    }
+    cell += ch;
+  }
+
+  pushCell();
+  if (row.length) pushRow();
+
+  return rows;
+}
+
+function normalizeCsvHeaderKey(s: string): string {
+  return (s || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '')
+    .replace(/_/g, '')
+    .replace(/-/g, '');
+}
+
+function csvEscape(v: unknown): string {
+  const s = String(v ?? '');
+  if (/[\n\r,\"]/.test(s)) {
+    return `"${s.replace(/"/g, '""')}"`;
+  }
+  return s;
+}
+
+function minutesToDecimalHours(mins: number): number {
+  const n = Number(mins || 0);
+  return Math.round((n / 60) * 100) / 100;
+}
+
+function isWeeklyOffUtc(dateIso: string): boolean {
+  const dt = new Date(`${dateIso}T00:00:00Z`);
+  return dt.getUTCDay() === 0;
+}
+
+function isHolidayCell(cell: { state: string } | null | undefined): boolean {
+  return (cell?.state || '') === 'HOLIDAY';
+}
+
+function isLeaveCell(cell: { state: string } | null | undefined): boolean {
+  return (cell?.state || '') === 'LEAVE';
+}
+
+function parseUtcInstant(input: string): string | null {
+  const s = (input || '').trim();
+  if (!s) return null;
+  // Accept ISO directly
+  const d1 = new Date(s);
+  if (!Number.isNaN(d1.getTime())) {
+    return d1.toISOString();
+  }
+  // Accept: YYYY-MM-DD HH:mm or YYYY-MM-DDTHH:mm
+  const m = s.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}):(\d{2})$/);
+  if (m) {
+    const iso = `${m[1]}T${m[2]}:${m[3]}:00Z`;
+    const d2 = new Date(iso);
+    if (!Number.isNaN(d2.getTime())) return d2.toISOString();
+  }
+  return null;
 }
 
 function minutesToHourMinute(mins: number): { h: number; m: number } {
@@ -87,10 +210,11 @@ function TabButton({ active, children, onClick }: TabButtonProps) {
 }
 
 export default function AdminDashboard() {
-  const { user } = useAuth();
+  const { user, refreshMe } = useAuth();
   const { toast, showToast, hideToast } = useToast();
   const [section, setSection] = useState('dashboard');
   const [dashboardTab, setDashboardTab] = useState('home');
+  const [settingsTab, setSettingsTab] = useState<'company' | 'users' | 'holidays'>('company');
 
   const companyLogoLetter = (user?.companySlug || 'A').trim().charAt(0).toUpperCase();
   const companyLogoUrl = user?.companyLogoUrl || null;
@@ -107,10 +231,23 @@ export default function AdminDashboard() {
   const [timesheet, setTimesheet] = useState<TimesheetResponse | null>(null);
   const [timesheetLoading, setTimesheetLoading] = useState(false);
 
+  const [holidays, setHolidays] = useState<{ id: number; date: string; name: string }[]>([]);
+  const [holidaysLoading, setHolidaysLoading] = useState(false);
+  const [holidayForm, setHolidayForm] = useState<{ id?: number | null; date: string; name: string }>({ id: null, date: utcDateString(new Date()), name: '' });
+  const [holidayBusy, setHolidayBusy] = useState(false);
+
   const [expandedReportKey, setExpandedReportKey] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [attendanceStatusFilter, setAttendanceStatusFilter] = useState<'ALL' | 'IN' | 'OUT' | 'NOT_IN'>('ALL');
   const [staffSearch, setStaffSearch] = useState('');
+
+  const [importTimesheetOpen, setImportTimesheetOpen] = useState(false);
+  const [importTimesheetBusy, setImportTimesheetBusy] = useState(false);
+  const [importTimesheetRawError, setImportTimesheetRawError] = useState<string | null>(null);
+  const [importTimesheetRows, setImportTimesheetRows] = useState<
+    { rowNumber: number; employeeId: number | null; employeeCode: string; checkInTime: string | null; checkOutTime: string | null; errors: string[] }[]
+  >([]);
+  const [importTimesheetDone, setImportTimesheetDone] = useState<{ ok: number; failed: number } | null>(null);
 
   type ChatMessage = {
     id: string;
@@ -268,6 +405,27 @@ export default function AdminDashboard() {
     };
   }, [dashboardTab, search, section, selectedDepartment, selectedMonth, selectedRoleScope, selectedYear, showToast]);
 
+  const refreshHolidays = useCallback(async () => {
+    setHolidaysLoading(true);
+    try {
+      const from = new Date(Date.UTC(selectedYear, selectedMonth - 1, 1)).toISOString().slice(0, 10);
+      const to = new Date(Date.UTC(selectedYear, selectedMonth, 0)).toISOString().slice(0, 10);
+      const data = await listHolidays({ from, to });
+      setHolidays(data);
+    } catch (err: unknown) {
+      showToast(getApiErrorMessage(err, 'Failed to load holidays'), 'error');
+      setHolidays([]);
+    } finally {
+      setHolidaysLoading(false);
+    }
+  }, [selectedYear, selectedMonth, showToast]);
+
+  useEffect(() => {
+    if (section === 'settings' && settingsTab === 'holidays') {
+      refreshHolidays();
+    }
+  }, [refreshHolidays, section, settingsTab]);
+
   const [companies, setCompanies] = useState<Company[]>([]);
   const [companiesLoading, setCompaniesLoading] = useState(false);
   const [branchForm, setBranchForm] = useState<{ name: string; slug: string; logoUrl: string; asBranch: boolean }>({ name: '', slug: '', logoUrl: '', asBranch: true });
@@ -319,7 +477,111 @@ export default function AdminDashboard() {
         return;
       }
 
-      showToast('This report will be enabled next (API not connected yet).', 'info');
+      if (item.key === 'late_arrivals') {
+        const header = ['employeeCode', 'firstName', 'lastName', 'date', 'scheduledStart', 'actualCheckIn', 'lateMinutes'].join(',');
+        const example = ['EMP001', 'John', 'Doe', utcDateString(new Date()), '09:00', '', ''].join(',');
+        const csv = `${header}\n${example}\n`;
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `late_arrivals_template_${selectedYear}_${String(selectedMonth).padStart(2, '0')}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        showToast('Late arrivals template downloaded', 'success');
+        return;
+      }
+
+      if (item.key === 'overtime') {
+        const t = await getTimesheet({
+          year: selectedYear,
+          month: selectedMonth,
+          department: selectedDepartment,
+          roleScope: selectedRoleScope,
+          search,
+        });
+
+        const header = ['employeeCode', 'firstName', 'lastName', 'department', 'role', 'year', 'month', 'overtimeMinutes', 'overtimeHours', 'overtimeDays'].join(',');
+        const lines: string[] = [];
+        lines.push(header);
+        for (const r of t.rows) {
+          const overtimeHrs = minutesToDecimalHours(r.overtimeMinutes);
+          const overtimeDays = Math.round((overtimeHrs / 8) * 100) / 100;
+          const row = [
+            r.employeeCode,
+            r.firstName,
+            r.lastName,
+            r.department ?? '',
+            r.role ?? '',
+            t.year,
+            t.month,
+            r.overtimeMinutes,
+            overtimeHrs,
+            overtimeDays,
+          ];
+          lines.push(row.map(csvEscape).join(','));
+        }
+        const csv = lines.join('\n');
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `overtime_summary_${t.year}_${String(t.month).padStart(2, '0')}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        showToast('Overtime summary downloaded', 'success');
+        return;
+      }
+
+      if (item.key === 'absences') {
+        const t = await getTimesheet({
+          year: selectedYear,
+          month: selectedMonth,
+          department: selectedDepartment,
+          roleScope: selectedRoleScope,
+          search,
+        });
+
+        const header = ['date', 'employeeCode', 'firstName', 'lastName', 'department', 'role', 'status'].join(',');
+        const lines: string[] = [];
+        lines.push(header);
+        for (const r of t.rows) {
+          for (let i = 0; i < t.days.length; i += 1) {
+            const d = t.days[i];
+            const c = r.days[i];
+            const status = c?.state === 'PRESENT' ? 'PR' : (isHolidayCell(c) ? 'PH' : (isLeaveCell(c) ? 'LV' : (isWeeklyOffUtc(d) ? 'WO' : 'AB')));
+            if (status !== 'AB') continue;
+            const row = [
+              d,
+              r.employeeCode,
+              r.firstName,
+              r.lastName,
+              r.department ?? '',
+              r.role ?? '',
+              status,
+            ];
+            lines.push(row.map(csvEscape).join(','));
+          }
+        }
+        const csv = lines.join('\n');
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `absence_report_${t.year}_${String(t.month).padStart(2, '0')}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        showToast('Absence report downloaded', 'success');
+        return;
+      }
+
+      showToast('Unknown report type', 'info');
     } catch (err: unknown) {
       showToast(getApiErrorMessage(err, 'Failed to download report'), 'error');
     }
@@ -341,6 +603,13 @@ export default function AdminDashboard() {
 
   const [newEmployeeCompanyId, setNewEmployeeCompanyId] = useState<number | null>(null);
 
+  const [importEmployeesOpen, setImportEmployeesOpen] = useState(false);
+  const [importEmployeesBusy, setImportEmployeesBusy] = useState(false);
+  const [importEmployeesRows, setImportEmployeesRows] = useState<ImportEmployeeRow[]>([]);
+  const [importEmployeesRawError, setImportEmployeesRawError] = useState<string | null>(null);
+  const [importEmployeesDone, setImportEmployeesDone] = useState<{ ok: number; failed: number } | null>(null);
+  const [importEmployeesCompanyId, setImportEmployeesCompanyId] = useState<number | null>(null);
+
   const [newLocation, setNewLocation] = useState({
     name: '',
     latitude: 0,
@@ -361,7 +630,7 @@ export default function AdminDashboard() {
   });
 
   const roleOptions = useMemo<Role[]>(() => ['ADMIN', 'HR', 'MANAGER', 'EMPLOYEE'], []);
-  const userRoleOptions = useMemo<Role[]>(() => ['SYSTEM_ADMIN', 'ADMIN', 'HR', 'MANAGER', 'EMPLOYEE', 'PAYROLL', 'AUDITOR'], []);
+  const userRoleOptions = useMemo<Role[]>(() => ['ADMIN', 'HR', 'MANAGER', 'EMPLOYEE', 'PAYROLL', 'AUDITOR'], []);
   const canManage = user && (user.role === 'ADMIN' || user.role === 'HR');
   const canManageUsers = user && (user.role === 'SYSTEM_ADMIN' || user.role === 'ADMIN');
 
@@ -394,6 +663,13 @@ export default function AdminDashboard() {
     const allowed = viewableCompanies.some((c) => c.id === companyContextId);
     return allowed ? companyContextId : user.companyId;
   }, [companyContextId, user?.companyId, viewableCompanies]);
+
+  useEffect(() => {
+    if (!isOwnerAdmin) return;
+    if (!importEmployeesCompanyId && effectiveCompanyId) {
+      setImportEmployeesCompanyId(effectiveCompanyId);
+    }
+  }, [effectiveCompanyId, importEmployeesCompanyId, isOwnerAdmin]);
 
   const workforceDays = useMemo(() => ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], []);
   const workforcePeople = useMemo(
@@ -710,10 +986,10 @@ export default function AdminDashboard() {
   }, [selectedYear, selectedMonth]);
 
   useEffect(() => {
-    if (section === 'settings') {
+    if (section === 'settings' && settingsTab === 'users') {
       refreshUsers();
     }
-  }, [section]);
+  }, [section, settingsTab]);
 
   async function refreshCompanies() {
     setCompaniesLoading(true);
@@ -728,8 +1004,14 @@ export default function AdminDashboard() {
   }
 
   useEffect(() => {
-    if (section === 'companies') {
+    if (section === 'settings' && settingsTab === 'company') {
       refreshCompanies();
+    }
+  }, [section, settingsTab]);
+
+  useEffect(() => {
+    if (section === 'settings') {
+      setSettingsTab((t) => t || 'company');
     }
   }, [section]);
 
@@ -794,6 +1076,462 @@ export default function AdminDashboard() {
       hourlyRateOverride: null,
     });
     setEmployeeModalOpen(true);
+  }
+
+  function openImportEmployeesModal() {
+    setImportEmployeesRawError(null);
+    setImportEmployeesRows([]);
+    setImportEmployeesDone(null);
+    setImportEmployeesOpen(true);
+  }
+
+  function downloadTimesheetCsv(ts?: TimesheetResponse | null) {
+    const t = ts || timesheet;
+    if (!t) {
+      showToast('Timesheet not loaded', 'error');
+      return;
+    }
+
+    const header = [
+      'Employee Code',
+      'First Name',
+      'Last Name',
+      'Department',
+      'Role',
+      'Year',
+      'Month',
+      'Present Days',
+      'Weekly Off Days',
+      'Absent Days',
+      'Worked Hours',
+      'Regular Hours',
+      'Overtime Hours',
+      'Unpaid Break Hours',
+      'Payable Hours',
+      'Payable Days',
+      'Man Days',
+      'Overtime Days',
+      ...t.days.map((d) => d),
+    ];
+
+    const lines: string[] = [];
+    lines.push(header.map(csvEscape).join(','));
+
+    for (const r of t.rows) {
+      const weeklyOffDays = t.days.reduce((acc, d, idx) => {
+        const cell = r.days[idx];
+        if (cell?.state === 'PRESENT' || isHolidayCell(cell) || isLeaveCell(cell)) return acc;
+        return acc + (isWeeklyOffUtc(d) ? 1 : 0);
+      }, 0);
+      const absentDays = t.days.reduce((acc, d, idx) => {
+        const cell = r.days[idx];
+        if (cell?.state === 'PRESENT' || isHolidayCell(cell) || isLeaveCell(cell)) return acc;
+        return acc + (isWeeklyOffUtc(d) ? 0 : 1);
+      }, 0);
+
+      const workedHrs = minutesToDecimalHours(r.workedMinutes);
+      const overtimeHrs = minutesToDecimalHours(r.overtimeMinutes);
+      const regularHrs = Math.max(0, Math.round((workedHrs - overtimeHrs) * 100) / 100);
+      const unpaidBreakHrs = minutesToDecimalHours(r.breakMinutes);
+      const payableHrs = Math.round((regularHrs + overtimeHrs) * 100) / 100;
+      const payableDays = r.presentDays + weeklyOffDays;
+      const manDays = Math.round((workedHrs / 8) * 100) / 100;
+      const overtimeDays = Math.round((overtimeHrs / 8) * 100) / 100;
+
+      const dayStatuses = t.days.map((d, idx) => {
+        const c = r.days[idx];
+        if (c?.state === 'PRESENT') return 'PR';
+        if (isHolidayCell(c)) return 'PH';
+        if (isLeaveCell(c)) return 'LV';
+        return isWeeklyOffUtc(d) ? 'WO' : 'AB';
+      });
+
+      const row = [
+        r.employeeCode,
+        r.firstName,
+        r.lastName,
+        r.department ?? '',
+        r.role ?? '',
+        t.year,
+        t.month,
+        r.presentDays,
+        weeklyOffDays,
+        absentDays,
+        workedHrs,
+        regularHrs,
+        overtimeHrs,
+        unpaidBreakHrs,
+        payableHrs,
+        payableDays,
+        manDays,
+        overtimeDays,
+        ...dayStatuses,
+      ];
+      lines.push(row.map(csvEscape).join(','));
+    }
+
+    const csv = lines.join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `timesheet_${t.year}_${String(t.month).padStart(2, '0')}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  async function downloadTimesheetCsvFromApi() {
+    setTimesheetLoading(true);
+    try {
+      const data = await getTimesheet({
+        year: selectedYear,
+        month: selectedMonth,
+        department: selectedDepartment,
+        roleScope: selectedRoleScope,
+        search,
+      });
+      setTimesheet(data);
+      downloadTimesheetCsv(data);
+    } catch (err: unknown) {
+      showToast(getApiErrorMessage(err, 'Failed to load timesheet'), 'error');
+    } finally {
+      setTimesheetLoading(false);
+    }
+  }
+
+  function openImportTimesheetModal() {
+    setImportTimesheetRawError(null);
+    setImportTimesheetRows([]);
+    setImportTimesheetDone(null);
+    setImportTimesheetOpen(true);
+  }
+
+  function downloadTimesheetImportTemplate() {
+    const header = ['employeeCode', 'date', 'checkIn', 'checkOut'].join(',');
+    const example = ['EMP001', utcDateString(new Date()), '08:00', '17:00'].join(',');
+    const csv = `${header}\n${example}\n`;
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'timesheet_import_template.csv';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  function parseTimesheetImportCsv(text: string) {
+    const table = parseCsvText(text);
+    if (!table.length) return [];
+
+    const headerMap = new Map<string, number>();
+    table[0].forEach((h, idx) => {
+      const key = normalizeCsvHeaderKey(h);
+      if (key) headerMap.set(key, idx);
+    });
+
+    const aliases = {
+      employeeCode: ['employeecode', 'code', 'empcode', 'staffcode'],
+      date: ['date', 'day'],
+      checkIn: ['checkin', 'in', 'intime', 'checkintime', 'timein'],
+      checkOut: ['checkout', 'out', 'outtime', 'checkouttime', 'timeout'],
+    } as const;
+
+    const findIndex = (keys: readonly string[]) => {
+      for (const k of keys) {
+        const idx = headerMap.get(normalizeCsvHeaderKey(k));
+        if (idx != null) return idx;
+      }
+      return null;
+    };
+
+    const miss: string[] = [];
+    if (findIndex(aliases.employeeCode) == null) miss.push('employeeCode/Code');
+    if (findIndex(aliases.date) == null) miss.push('date');
+    if (findIndex(aliases.checkIn) == null) miss.push('checkIn');
+    if (findIndex(aliases.checkOut) == null) miss.push('checkOut');
+    if (miss.length) throw new Error(`Missing required columns: ${miss.join(', ')}`);
+
+    const pick = (row: string[], keys: readonly string[]) => {
+      const idx = findIndex(keys);
+      if (idx == null) return '';
+      return (row[idx] ?? '').trim();
+    };
+
+    const out: { rowNumber: number; employeeId: number | null; employeeCode: string; checkInTime: string | null; checkOutTime: string | null; errors: string[] }[] = [];
+    for (let i = 1; i < table.length; i += 1) {
+      const row = table[i];
+      if (!row.some((x) => (x || '').trim())) continue;
+      const rowNumber = i + 1;
+      const employeeCode = pick(row, aliases.employeeCode);
+      const date = pick(row, aliases.date);
+      const inRaw = pick(row, aliases.checkIn);
+      const outRaw = pick(row, aliases.checkOut);
+
+      const errors: string[] = [];
+      if (!employeeCode.trim()) errors.push('employeeCode is required');
+      if (!date.trim()) errors.push('date is required');
+      if (!inRaw.trim()) errors.push('checkIn is required');
+      if (!outRaw.trim()) errors.push('checkOut is required');
+
+      const emp = employees.find((e) => (e.employeeCode || '').trim().toLowerCase() === employeeCode.trim().toLowerCase()) || null;
+      const employeeId = emp?.id ?? null;
+      if (!employeeId) errors.push('Employee not found by employeeCode');
+
+      const checkInTime = parseUtcInstant(inRaw.includes('T') || inRaw.includes('-') ? inRaw : `${date} ${inRaw}`);
+      const checkOutTime = parseUtcInstant(outRaw.includes('T') || outRaw.includes('-') ? outRaw : `${date} ${outRaw}`);
+      if (!checkInTime) errors.push('Invalid checkIn time format');
+      if (!checkOutTime) errors.push('Invalid checkOut time format');
+
+      out.push({ rowNumber, employeeId, employeeCode, checkInTime, checkOutTime, errors });
+    }
+    return out;
+  }
+
+  async function startTimesheetImport() {
+    if (!importTimesheetRows.length) {
+      showToast('No rows to import', 'error');
+      return;
+    }
+    const invalid = importTimesheetRows.filter((r) => r.errors.length);
+    if (invalid.length) {
+      showToast(`Fix errors in ${invalid.length} row(s) before importing`, 'error');
+      return;
+    }
+
+    setImportTimesheetBusy(true);
+    setImportTimesheetDone(null);
+    try {
+      const res = await adminBulkImportTimesheet({
+        rows: importTimesheetRows.map((r) => ({
+          employeeId: r.employeeId as number,
+          checkInTime: r.checkInTime as string,
+          checkOutTime: r.checkOutTime as string,
+          locationVerified: false,
+          faceVerified: false,
+        })),
+      });
+
+      const nextRows = importTimesheetRows.map((r) => ({ ...r, errors: [...r.errors] }));
+      for (const rr of res.results || []) {
+        const target = nextRows[rr.index];
+        if (!target) continue;
+        if (!rr.ok) {
+          target.errors.push(rr.message || 'Failed');
+        }
+      }
+
+      setImportTimesheetRows(nextRows);
+      setImportTimesheetDone({ ok: res.ok, failed: res.failed });
+      await refreshAll();
+      showToast(`Imported ${res.ok} attendance row(s), ${res.failed} failed`, res.failed ? 'error' : 'success');
+    } finally {
+      setImportTimesheetBusy(false);
+    }
+  }
+
+  function downloadEmployeeImportTemplate() {
+    const header = [
+      'employeeCode',
+      'firstName',
+      'lastName',
+      'department',
+      'mobile',
+      'designation',
+      'category',
+      'username',
+      'password',
+      'role',
+      'hourlyRateOverride',
+      ...(isOwnerAdmin ? ['companyId'] : []),
+    ].join(',');
+    const example = [
+      'EMP001',
+      'John',
+      'Doe',
+      'IT',
+      '0780000000',
+      'Developer',
+      'Full-time',
+      'jdoe',
+      'Pass1234',
+      'EMPLOYEE',
+      '5.00',
+      ...(isOwnerAdmin ? [String(importEmployeesCompanyId ?? effectiveCompanyId ?? '')] : []),
+    ].join(',');
+    const csv = `${header}\n${example}\n`;
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'employees_import_template.csv';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  function toImportEmployeesRows(csvText: string): ImportEmployeeRow[] {
+    const table = parseCsvText(csvText);
+    if (!table.length) return [];
+    const headerRow = table[0].map((h) => (h || '').trim());
+    const headerMap = new Map<string, number>();
+    headerRow.forEach((h, idx) => {
+      const key = normalizeCsvHeaderKey(h);
+      if (key) headerMap.set(key, idx);
+    });
+
+    const col = {
+      employeeCode: ['employeecode', 'code', 'empcode', 'employeeid', 'staffcode'],
+      firstName: ['firstname', 'fname', 'givenname'],
+      lastName: ['lastname', 'lname', 'surname', 'familyname'],
+      fullName: ['name', 'fullname', 'employeename', 'staffname'],
+      department: ['department', 'dept', 'section'],
+      mobile: ['mobile', 'phone', 'phonenumber', 'tel', 'telephone'],
+      designation: ['designation', 'position', 'title', 'jobtitle'],
+      category: ['category', 'type', 'employmenttype'],
+      username: ['username', 'user', 'login', 'userid', 'username'],
+      password: ['password', 'pass', 'pwd'],
+      role: ['role', 'userrole'],
+      hourlyRateOverride: ['hourlyrateoverride', 'hourlyrate', 'rate', 'rateperhour', 'amountperhour'],
+      companyId: ['companyid', 'company', 'company_id'],
+    } as const;
+
+    const findIndex = (keys: readonly string[]) => {
+      for (const k of keys) {
+        const idx = headerMap.get(normalizeCsvHeaderKey(k));
+        if (idx != null) return idx;
+      }
+      return null;
+    };
+
+    const requiredMissing: string[] = [];
+    if (findIndex(col.employeeCode) == null) requiredMissing.push('employeeCode/Code');
+
+    const firstIdx = findIndex(col.firstName);
+    const lastIdx = findIndex(col.lastName);
+    const fullIdx = findIndex(col.fullName);
+    if (firstIdx == null && fullIdx == null) requiredMissing.push('firstName/Name');
+    if (lastIdx == null && fullIdx == null) requiredMissing.push('lastName/Name');
+
+    if (findIndex(col.username) == null) requiredMissing.push('username');
+    if (findIndex(col.password) == null) requiredMissing.push('password');
+
+    if (requiredMissing.length) {
+      throw new Error(`Missing required columns: ${requiredMissing.join(', ')}`);
+    }
+
+    const allowedRoles = new Set(roleOptions);
+
+    const rows: ImportEmployeeRow[] = [];
+    for (let i = 1; i < table.length; i += 1) {
+      const r = table[i];
+      if (!r.some((x) => (x || '').trim())) continue;
+      const rowNumber = i + 1;
+      const pickByAliases = (aliases: readonly string[]) => {
+        const idx = findIndex(aliases);
+        if (idx == null) return '';
+        return (r[idx] ?? '').trim();
+      };
+
+      const roleRaw = pickByAliases(col.role);
+      const role = (roleRaw || 'EMPLOYEE') as Role;
+      const hourlyRaw = pickByAliases(col.hourlyRateOverride);
+      const hourlyN = hourlyRaw ? Number(hourlyRaw) : null;
+      const companyIdRaw = pickByAliases(col.companyId);
+      const companyId = companyIdRaw ? Number(companyIdRaw) : null;
+
+      const employeeCode = pickByAliases(col.employeeCode);
+      let firstName = pickByAliases(col.firstName);
+      let lastName = pickByAliases(col.lastName);
+      const fullName = pickByAliases(col.fullName);
+      if ((!firstName || !lastName) && fullName) {
+        const parts = fullName.split(/\s+/).filter(Boolean);
+        if (!firstName && parts.length) firstName = parts[0] || '';
+        if (!lastName && parts.length > 1) lastName = parts.slice(1).join(' ');
+      }
+
+      const employee: CreateEmployeeRequest = {
+        employeeCode,
+        firstName,
+        lastName,
+        department: pickByAliases(col.department) || undefined,
+        mobile: pickByAliases(col.mobile) || undefined,
+        designation: pickByAliases(col.designation) || undefined,
+        category: pickByAliases(col.category) || undefined,
+        username: pickByAliases(col.username),
+        password: pickByAliases(col.password),
+        role,
+        hourlyRateOverride: hourlyRaw ? (Number.isNaN(hourlyN) ? null : hourlyN) : null,
+      };
+
+      const errors: string[] = [];
+      if (!employee.employeeCode.trim()) errors.push('employeeCode is required');
+      if (!employee.firstName.trim()) errors.push('firstName is required');
+      if (!employee.lastName.trim()) errors.push('lastName is required');
+      if (!employee.username.trim()) errors.push('username is required');
+      if (!employee.password.trim()) errors.push('password is required');
+      if (roleRaw && !allowedRoles.has(employee.role)) errors.push(`Invalid role: ${employee.role}`);
+      if (hourlyRaw && (hourlyN == null || Number.isNaN(hourlyN) || hourlyN < 0)) errors.push('hourlyRateOverride must be a number >= 0');
+      if (companyIdRaw && (companyId == null || Number.isNaN(companyId) || companyId <= 0)) errors.push('companyId must be a positive number');
+
+      const uname = employee.username.trim().toLowerCase();
+      if (uname) {
+        const existsInEmployees = employees.some((x) => (x.username || '').trim().toLowerCase() === uname);
+        const existsInUsers = users.some((x) => (x.username || '').trim().toLowerCase() === uname);
+        if (existsInEmployees || existsInUsers) errors.push('Username already exists');
+      }
+
+      rows.push({ rowNumber, employee, companyId: companyIdRaw ? companyId : undefined, errors });
+    }
+    return rows;
+  }
+
+  async function onImportEmployeesStart() {
+    if (!importEmployeesRows.length) {
+      showToast('No rows to import', 'error');
+      return;
+    }
+
+    const invalid = importEmployeesRows.filter((r) => r.errors.length);
+    if (invalid.length) {
+      showToast(`Fix errors in ${invalid.length} row(s) before importing`, 'error');
+      return;
+    }
+
+    setImportEmployeesBusy(true);
+    setImportEmployeesDone(null);
+    try {
+      let ok = 0;
+      let failed = 0;
+
+      for (const r of importEmployeesRows) {
+        try {
+          const targetCompanyId = isOwnerAdmin ? (r.companyId ?? importEmployeesCompanyId ?? null) : undefined;
+          await createEmployee(r.employee, targetCompanyId);
+          ok += 1;
+        } catch (err: unknown) {
+          failed += 1;
+          const msg = getApiErrorMessage(err, 'Failed');
+          r.errors.push(msg);
+        }
+      }
+
+      setImportEmployeesRows([...importEmployeesRows]);
+      setImportEmployeesDone({ ok, failed });
+      if (failed === 0) {
+        showToast(`Imported ${ok} employee(s)`, 'success');
+        await refreshAll();
+      } else {
+        showToast(`Imported ${ok} employee(s), ${failed} failed`, 'error');
+        await refreshAll();
+      }
+    } finally {
+      setImportEmployeesBusy(false);
+    }
   }
 
   function openEditEmployeeModal(emp: EmployeeResponse) {
@@ -931,6 +1669,8 @@ export default function AdminDashboard() {
       const updated = await uploadCompanyLogo(editingCompany.id, editCompanyLogoFile);
       setEditCompanyForm((f) => ({ ...f, logoUrl: (updated.logoUrl || '').trim() }));
       await refreshCompanies();
+      await refreshMe();
+      localStorage.setItem('companyLogoBust', String(Date.now()));
       showToast('Logo uploaded successfully', 'success');
       setEditCompanyLogoFile(null);
     } catch (err: unknown) {
@@ -1224,7 +1964,6 @@ export default function AdminDashboard() {
   const sidebarItems = useMemo(
     () => [
       { key: 'dashboard', label: 'Dashboard' },
-      { key: 'companies', label: 'Companies & Branches' },
       { key: 'reports', label: 'Reports & Analytics' },
       { key: 'workforce', label: 'Workforce Plan' },
       { key: 'staff', label: 'Staff Directory' },
@@ -1250,7 +1989,7 @@ export default function AdminDashboard() {
 
   return (
     <AppLayout
-      title="Attendance Management System"
+      title=""
       sidebarItems={sidebarItems}
       activeSidebarKey={section}
       onSidebarChange={setSection}
@@ -1288,8 +2027,7 @@ export default function AdminDashboard() {
             <div className="flex flex-wrap items-center gap-2">
               <TabButton active={dashboardTab === 'home'} onClick={() => setDashboardTab('home')}>Home</TabButton>
               <TabButton active={dashboardTab === 'day'} onClick={() => setDashboardTab('day')}>Day</TabButton>
-              <TabButton active={dashboardTab === 'timesheet'} onClick={() => setDashboardTab('timesheet')}>Timesheet</TabButton>
-              <TabButton active={dashboardTab === 'global'} onClick={() => setDashboardTab('global')}>Global Summary</TabButton>
+              <TabButton active={dashboardTab === 'timesheet'} onClick={() => setDashboardTab('timesheet')}>Timesheet</TabButton> 
             </div>
 
             {dashboardTab === 'home' ? (
@@ -1989,7 +2727,24 @@ export default function AdminDashboard() {
                 <div className="rounded-xl border bg-white overflow-x-auto">
                   <div className="px-4 py-3 border-b flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                     <div className="font-medium text-slate-900">Timesheet</div>
-                    {timesheetLoading ? <div className="text-sm text-slate-500">Loading…</div> : null}
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        className="rounded-md border px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+                        onClick={() => downloadTimesheetCsv()}
+                      >
+                        Download CSV
+                      </button>
+                      <button
+                        type="button"
+                        disabled={!canManage}
+                        className="rounded-md border px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                        onClick={openImportTimesheetModal}
+                      >
+                        Import CSV
+                      </button>
+                      {timesheetLoading ? <div className="text-sm text-slate-500">Loading…</div> : null}
+                    </div>
                   </div>
 
                   <table className="w-full min-w-[980px] text-sm">
@@ -2020,12 +2775,16 @@ export default function AdminDashboard() {
                           <tr key={r.employeeId} className="border-t">
                             <td className="px-4 py-2 font-medium text-slate-900 whitespace-nowrap">{r.firstName} {r.lastName}</td>
                             {r.days.map((c, idx) => {
-                              const bg = c.state === 'PRESENT' ? 'bg-emerald-50' : 'bg-rose-50';
+                              const bg = c.state === 'PRESENT' ? 'bg-emerald-50' : (c.state === 'HOLIDAY' ? 'bg-amber-50' : (c.state === 'LEAVE' ? 'bg-sky-50' : 'bg-rose-50'));
                               const text = c.state === 'PRESENT'
                                 ? c.workedMinutes
                                   ? `${minutesToHourMinute(c.workedMinutes).h}h ${minutesToHourMinute(c.workedMinutes).m}m`
                                   : 'P'
-                                : '-';
+                                : c.state === 'HOLIDAY'
+                                  ? 'PH'
+                                  : c.state === 'LEAVE'
+                                    ? 'LV'
+                                  : '-';
                               return (
                                 <td key={idx} className={`px-2 py-2 text-center text-xs ${bg} border-l`}>
                                   {text}
@@ -2054,7 +2813,169 @@ export default function AdminDashboard() {
           </div>
         ) : null}
 
-        {section === 'companies' ? (
+        {importEmployeesOpen ? (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-0 sm:p-4" role="dialog" aria-modal="true">
+            <div className="w-full sm:max-w-3xl rounded-t-2xl sm:rounded-xl bg-white shadow-lg border">
+              <div className="px-4 py-3 border-b flex items-center justify-between">
+                <div>
+                  <div className="text-base font-semibold text-slate-900">Import employees (CSV)</div>
+                  <div className="mt-0.5 text-sm text-slate-600">Tip: In Excel, use “Save As” and choose CSV.</div>
+                </div>
+                <button
+                  type="button"
+                  className="h-9 w-9 rounded-md hover:bg-slate-100 text-slate-600"
+                  onClick={() => setImportEmployeesOpen(false)}
+                  aria-label="Close"
+                  title="Close"
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                  <div className="grid gap-2">
+                    <div className="text-sm font-medium text-slate-900">Upload CSV</div>
+                    <input
+                      type="file"
+                      accept=".csv,text/csv"
+                      disabled={importEmployeesBusy}
+                      onChange={async (e) => {
+                        setImportEmployeesRawError(null);
+                        setImportEmployeesDone(null);
+                        const f = e.target.files && e.target.files[0] ? e.target.files[0] : null;
+                        if (!f) return;
+                        try {
+                          const text = await f.text();
+                          const rows = toImportEmployeesRows(text);
+                          setImportEmployeesRows(rows);
+                          showToast(`Loaded ${rows.length} row(s)`, 'success');
+                        } catch (err: unknown) {
+                          const msg = err instanceof Error ? err.message : 'Failed to read CSV';
+                          setImportEmployeesRows([]);
+                          setImportEmployeesRawError(msg);
+                          showToast(msg, 'error');
+                        }
+                      }}
+                    />
+                    {importEmployeesRawError ? (
+                      <div className="rounded-md border border-red-200 bg-red-50 p-2 text-sm text-red-700">{importEmployeesRawError}</div>
+                    ) : null}
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2 justify-end">
+                    <button
+                      type="button"
+                      disabled={importEmployeesBusy}
+                      className="rounded-md border px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                      onClick={downloadEmployeeImportTemplate}
+                    >
+                      Download template
+                    </button>
+                    <button
+                      type="button"
+                      disabled={importEmployeesBusy || !importEmployeesRows.length}
+                      className="rounded-md bg-slate-900 px-3 py-2 text-sm text-white hover:bg-slate-800 disabled:opacity-60 flex items-center gap-2"
+                      onClick={onImportEmployeesStart}
+                    >
+                      {importEmployeesBusy && <LoadingSpinner size="sm" />}
+                      {importEmployeesBusy ? 'Importing...' : 'Start import'}
+                    </button>
+                  </div>
+                </div>
+
+                {isOwnerAdmin && viewableCompanies.length > 1 ? (
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    <label className="block">
+                      <div className="text-xs font-medium text-slate-600">Default company for import</div>
+                      <select
+                        className="mt-1 w-full rounded-md border bg-white px-3 py-2 text-sm"
+                        value={importEmployeesCompanyId ?? ''}
+                        disabled={importEmployeesBusy}
+                        onChange={(e) => setImportEmployeesCompanyId(Number(e.target.value))}
+                      >
+                        {viewableCompanies.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name} ({c.slug})
+                          </option>
+                        ))}
+                      </select>
+                      <div className="mt-1 text-xs text-slate-500">If a row contains a “companyId” column, it overrides this selection.</div>
+                    </label>
+                  </div>
+                ) : null}
+
+                {importEmployeesDone ? (
+                  <div className="mt-3 rounded-md border bg-slate-50 p-3 text-sm text-slate-700">
+                    Imported: <span className="font-medium text-slate-900">{importEmployeesDone.ok}</span> OK,{' '}
+                    <span className="font-medium text-slate-900">{importEmployeesDone.failed}</span> failed
+                  </div>
+                ) : null}
+
+                {importEmployeesRows.length ? (
+                  <div className="mt-4 overflow-x-auto rounded-lg border">
+                    <table className="w-full text-sm">
+                      <thead className="bg-slate-50 text-slate-600">
+                        <tr>
+                          <th className="px-3 py-2 text-left">Row</th>
+                          <th className="px-3 py-2 text-left">Code</th>
+                          <th className="px-3 py-2 text-left">Name</th>
+                          <th className="px-3 py-2 text-left">Username</th>
+                          <th className="px-3 py-2 text-left">Role</th>
+                          <th className="px-3 py-2 text-left">Errors</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {importEmployeesRows.slice(0, 20).map((r) => (
+                          <tr key={r.rowNumber} className="border-t">
+                            <td className="px-3 py-2">{r.rowNumber}</td>
+                            <td className="px-3 py-2">{r.employee.employeeCode}</td>
+                            <td className="px-3 py-2">{r.employee.firstName} {r.employee.lastName}</td>
+                            <td className="px-3 py-2">{r.employee.username}</td>
+                            <td className="px-3 py-2">{r.employee.role}</td>
+                            <td className="px-3 py-2">
+                              {r.errors.length ? (
+                                <div className="text-red-700">
+                                  {r.errors.join(' | ')}
+                                </div>
+                              ) : (
+                                <div className="text-slate-500">OK</div>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                        {importEmployeesRows.length > 20 ? (
+                          <tr className="border-t">
+                            <td colSpan={6} className="px-3 py-2 text-xs text-slate-500">
+                              Showing first 20 rows (total: {importEmployeesRows.length}).
+                            </td>
+                          </tr>
+                        ) : null}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="mt-4 rounded-lg border bg-slate-50 p-3 text-sm text-slate-700">
+                    Required columns: <span className="font-medium">employeeCode, firstName, lastName, username, password</span>
+                  </div>
+                )}
+
+                <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end">
+                  <button
+                    type="button"
+                    disabled={importEmployeesBusy}
+                    className="rounded-md border border-slate-300 px-4 py-2 text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                    onClick={() => setImportEmployeesOpen(false)}
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {section === 'settings' && settingsTab === 'company' ? (
           <div className="mt-6 grid gap-4">
             <div className="rounded-xl border bg-white p-4">
               <div className="flex items-start justify-between gap-4">
@@ -2076,7 +2997,7 @@ export default function AdminDashboard() {
               <div className="mt-4 flex items-center gap-4">
                 {companyLogoUrl ? (
                   <img
-                    src={companyLogoUrl}
+                    src={`${companyLogoUrl}${localStorage.getItem('companyLogoBust') ? `${companyLogoUrl.includes('?') ? '&' : '?'}v=${encodeURIComponent(localStorage.getItem('companyLogoBust') || '')}` : ''}`}
                     alt={user?.companySlug || 'Company logo'}
                     className="h-12 w-12 rounded-xl object-cover"
                   />
@@ -2300,6 +3221,139 @@ export default function AdminDashboard() {
               </div>
             ) : null}
 
+            {importTimesheetOpen ? (
+              <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-0 sm:p-4" role="dialog" aria-modal="true">
+                <div className="w-full sm:max-w-3xl rounded-t-2xl sm:rounded-xl bg-white shadow-lg border">
+                  <div className="px-4 py-3 border-b flex items-center justify-between">
+                    <div>
+                      <div className="text-base font-semibold text-slate-900">Import timesheet (CSV)</div>
+                      <div className="mt-0.5 text-sm text-slate-600">Uploads attendance rows into the system so they appear in reports/analytics.</div>
+                    </div>
+                    <button
+                      type="button"
+                      className="h-9 w-9 rounded-md hover:bg-slate-100 text-slate-600"
+                      onClick={() => setImportTimesheetOpen(false)}
+                      aria-label="Close"
+                      title="Close"
+                    >
+                      ×
+                    </button>
+                  </div>
+
+                  <div className="p-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                      <div className="grid gap-2">
+                        <div className="text-sm font-medium text-slate-900">Upload CSV</div>
+                        <input
+                          type="file"
+                          accept=".csv,text/csv"
+                          disabled={importTimesheetBusy}
+                          onChange={async (e) => {
+                            setImportTimesheetRawError(null);
+                            setImportTimesheetDone(null);
+                            const f = e.target.files && e.target.files[0] ? e.target.files[0] : null;
+                            if (!f) return;
+                            try {
+                              const text = await f.text();
+                              const rows = parseTimesheetImportCsv(text);
+                              setImportTimesheetRows(rows);
+                              showToast(`Loaded ${rows.length} row(s)`, 'success');
+                            } catch (err: unknown) {
+                              const msg = err instanceof Error ? err.message : 'Failed to read CSV';
+                              setImportTimesheetRows([]);
+                              setImportTimesheetRawError(msg);
+                              showToast(msg, 'error');
+                            }
+                          }}
+                        />
+                        {importTimesheetRawError ? (
+                          <div className="rounded-md border border-red-200 bg-red-50 p-2 text-sm text-red-700">{importTimesheetRawError}</div>
+                        ) : null}
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2 justify-end">
+                        <button
+                          type="button"
+                          disabled={importTimesheetBusy}
+                          className="rounded-md border px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                          onClick={downloadTimesheetImportTemplate}
+                        >
+                          Download template
+                        </button>
+                        <button
+                          type="button"
+                          disabled={importTimesheetBusy || !importTimesheetRows.length}
+                          className="rounded-md bg-slate-900 px-3 py-2 text-sm text-white hover:bg-slate-800 disabled:opacity-60 flex items-center gap-2"
+                          onClick={startTimesheetImport}
+                        >
+                          {importTimesheetBusy && <LoadingSpinner size="sm" />}
+                          {importTimesheetBusy ? 'Importing...' : 'Start import'}
+                        </button>
+                      </div>
+                    </div>
+
+                    {importTimesheetDone ? (
+                      <div className="mt-3 rounded-md border bg-slate-50 p-3 text-sm text-slate-700">
+                        Imported: <span className="font-medium text-slate-900">{importTimesheetDone.ok}</span> OK,{' '}
+                        <span className="font-medium text-slate-900">{importTimesheetDone.failed}</span> failed
+                      </div>
+                    ) : null}
+
+                    {importTimesheetRows.length ? (
+                      <div className="mt-4 overflow-x-auto rounded-lg border">
+                        <table className="w-full text-sm">
+                          <thead className="bg-slate-50 text-slate-600">
+                            <tr>
+                              <th className="px-3 py-2 text-left">Row</th>
+                              <th className="px-3 py-2 text-left">Employee Code</th>
+                              <th className="px-3 py-2 text-left">Check In (UTC)</th>
+                              <th className="px-3 py-2 text-left">Check Out (UTC)</th>
+                              <th className="px-3 py-2 text-left">Errors</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {importTimesheetRows.slice(0, 20).map((r) => (
+                              <tr key={r.rowNumber} className="border-t">
+                                <td className="px-3 py-2">{r.rowNumber}</td>
+                                <td className="px-3 py-2">{r.employeeCode}</td>
+                                <td className="px-3 py-2">{r.checkInTime || '-'}</td>
+                                <td className="px-3 py-2">{r.checkOutTime || '-'}</td>
+                                <td className="px-3 py-2">
+                                  {r.errors.length ? <div className="text-red-700">{r.errors.join(' | ')}</div> : <div className="text-slate-500">OK</div>}
+                                </td>
+                              </tr>
+                            ))}
+                            {importTimesheetRows.length > 20 ? (
+                              <tr className="border-t">
+                                <td colSpan={5} className="px-3 py-2 text-xs text-slate-500">
+                                  Showing first 20 rows (total: {importTimesheetRows.length}).
+                                </td>
+                              </tr>
+                            ) : null}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div className="mt-4 rounded-lg border bg-slate-50 p-3 text-sm text-slate-700">
+                        Required columns: <span className="font-medium">employeeCode, date, checkIn, checkOut</span>
+                      </div>
+                    )}
+
+                    <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end">
+                      <button
+                        type="button"
+                        disabled={importTimesheetBusy}
+                        className="rounded-md border border-slate-300 px-4 py-2 text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                        onClick={() => setImportTimesheetOpen(false)}
+                      >
+                        Close
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
             {deleteCompanyId != null ? (
               <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="delete-company-title">
                 <div className="w-full max-w-md rounded-xl border bg-white p-5 shadow-lg">
@@ -2325,76 +3379,266 @@ export default function AdminDashboard() {
         {section === 'reports' ? (
           <div className="mt-6 grid gap-4">
             <div className="rounded-xl border bg-white">
-              <div className="px-4 py-3 border-b">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="px-4 py-4 border-b">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                   <div>
-                    <div className="font-medium text-slate-900">Reports & Analytics</div>
-                    <div className="mt-0.5 text-sm text-slate-600">Generate and download reports (placeholder data for now).</div>
+                    <div className="text-lg font-semibold text-slate-900">Reports & Analytics</div>
+                    <div className="mt-1 text-sm text-slate-600">Configure filters, then export or import timesheet data.</div>
                   </div>
+
                   <div className="flex flex-wrap items-center gap-2">
-                    <div className="rounded-md border bg-white px-3 py-2 text-sm text-slate-600">All locations</div>
-                    <div className="rounded-md border bg-white px-3 py-2 text-sm text-slate-600">This month</div>
+                    <button
+                      type="button"
+                      className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800"
+                      onClick={downloadTimesheetCsvFromApi}
+                    >
+                      Export Timesheet (CSV)
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!canManage}
+                      className="rounded-md border px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                      onClick={openImportTimesheetModal}
+                    >
+                      Import Timesheet
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mt-4 rounded-xl border bg-slate-50 p-3">
+                  <div className="grid gap-2 lg:grid-cols-12">
+                    <div className="lg:col-span-2">
+                      <div className="text-xs font-medium text-slate-600">Period</div>
+                      <div className="mt-1 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          className="rounded-md border bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                          onClick={() => {
+                            const now = new Date();
+                            setSelectedYear(now.getUTCFullYear());
+                            setSelectedMonth(now.getUTCMonth() + 1);
+                          }}
+                        >
+                          This month
+                        </button>
+                        <button
+                          type="button"
+                          className="rounded-md border bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                          onClick={() => {
+                            const now = new Date();
+                            const prev = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
+                            setSelectedYear(prev.getUTCFullYear());
+                            setSelectedMonth(prev.getUTCMonth() + 1);
+                          }}
+                        >
+                          Last month
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="lg:col-span-2">
+                      <label className="text-xs font-medium text-slate-600" htmlFor="reports-year">Year</label>
+                      <select
+                        id="reports-year"
+                        className="mt-1 w-full rounded-md border bg-white px-3 py-2 text-sm text-slate-700"
+                        value={selectedYear}
+                        onChange={(e) => setSelectedYear(Number(e.target.value))}
+                      >
+                        {Array.from({ length: 6 }).map((_, i) => {
+                          const y = new Date().getUTCFullYear() - 2 + i;
+                          return (
+                            <option key={y} value={y}>
+                              {y}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </div>
+
+                    <div className="lg:col-span-2">
+                      <label className="text-xs font-medium text-slate-600" htmlFor="reports-month">Month</label>
+                      <select
+                        id="reports-month"
+                        className="mt-1 w-full rounded-md border bg-white px-3 py-2 text-sm text-slate-700"
+                        value={selectedMonth}
+                        onChange={(e) => setSelectedMonth(Number(e.target.value))}
+                      >
+                        {Array.from({ length: 12 }).map((_, i) => {
+                          const m = i + 1;
+                          const label = new Intl.DateTimeFormat(undefined, { month: 'short' }).format(new Date(Date.UTC(2000, i, 1)));
+                          return (
+                            <option key={m} value={m}>
+                              {label}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </div>
+
+                    <div className="lg:col-span-3">
+                      <div className="text-xs font-medium text-slate-600">Date range</div>
+                      <div className="mt-1 rounded-md border bg-white px-3 py-2 text-sm text-slate-700">
+                        {getMonthRangeLabel(selectedYear, selectedMonth)}
+                      </div>
+                    </div>
+
+                    <div className="lg:col-span-3">
+                      <label className="text-xs font-medium text-slate-600" htmlFor="reports-department">Department</label>
+                      <select
+                        id="reports-department"
+                        className="mt-1 w-full rounded-md border bg-white px-3 py-2 text-sm text-slate-700"
+                        value={selectedDepartment}
+                        onChange={(e) => setSelectedDepartment(e.target.value)}
+                      >
+                        <option value="ALL">All Departments</option>
+                        {departmentOptions.map((d) => (
+                          <option key={d} value={d}>
+                            {d}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="lg:col-span-3">
+                      <label className="text-xs font-medium text-slate-600" htmlFor="reports-role-scope">Role scope</label>
+                      <select
+                        id="reports-role-scope"
+                        className="mt-1 w-full rounded-md border bg-white px-3 py-2 text-sm text-slate-700"
+                        value={selectedRoleScope}
+                        onChange={(e) => setSelectedRoleScope(e.target.value as 'ALL' | 'MANAGERS')}
+                      >
+                        <option value="ALL">All Roles</option>
+                        <option value="MANAGERS">Managers</option>
+                      </select>
+                    </div>
+
+                    <div className="lg:col-span-6">
+                      <label className="text-xs font-medium text-slate-600" htmlFor="reports-search">Search</label>
+                      <input
+                        id="reports-search"
+                        className="mt-1 w-full rounded-md border bg-white px-3 py-2 text-sm"
+                        placeholder="Employee code, name, department..."
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                      />
+                    </div>
+
+                    <div className="lg:col-span-6 flex items-end justify-between gap-2">
+                      <div className="text-xs text-slate-500">Filters apply to export and report previews.</div>
+                      <button
+                        type="button"
+                        className="rounded-md border bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                        onClick={() => {
+                          const now = new Date();
+                          setSelectedYear(now.getUTCFullYear());
+                          setSelectedMonth(now.getUTCMonth() + 1);
+                          setSelectedDepartment('ALL');
+                          setSelectedRoleScope('ALL');
+                          setSearch('');
+                        }}
+                      >
+                        Reset filters
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              <div className="divide-y">
-                {reportItems.map((item) => {
-                  const expanded = expandedReportKey === item.key;
-                  return (
-                    <div key={item.key} className="px-4 py-3">
-                      <button
-                        type="button"
-                        className="w-full text-left"
-                        onClick={() => setExpandedReportKey(expanded ? null : item.key)}
-                      >
-                        <div className="flex items-center justify-between gap-3">
+              <div className="p-4">
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                  {reportItems.map((item) => {
+                    const isCore = item.key === 'daily_attendance';
+                    return (
+                      <div key={item.key} className="rounded-xl border bg-white p-4 shadow-sm">
+                        <div className="flex items-start justify-between gap-3">
                           <div>
-                            <div className="font-medium text-slate-900">{item.title}</div>
-                            <div className="mt-0.5 text-sm text-slate-600">{item.description}</div>
+                            <div className="text-sm font-semibold text-slate-900">{item.title}</div>
+                            <div className="mt-1 text-sm text-slate-600">{item.description}</div>
                           </div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-col items-end gap-2">
                             <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">{item.format}</span>
-                            <span className="text-sm text-slate-500">{expanded ? 'Hide' : 'View'}</span>
+                            {isCore ? (
+                              <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">Available</span>
+                            ) : (
+                              <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">Available (Beta)</span>
+                            )}
                           </div>
                         </div>
-                      </button>
 
-                      {expanded ? (
-                        <div className="mt-3 rounded-lg border bg-slate-50 p-3">
-                          <div className="grid gap-3 sm:grid-cols-3">
-                            <div className="rounded-md border bg-white px-3 py-2 text-sm text-slate-700">Date range: This month</div>
-                            <div className="rounded-md border bg-white px-3 py-2 text-sm text-slate-700">Location: All</div>
-                            <div className="rounded-md border bg-white px-3 py-2 text-sm text-slate-700">Format: {item.format}</div>
+                        <div className="mt-4 grid gap-2">
+                          <div className="rounded-lg border bg-slate-50 p-3">
+                            <div className="text-xs font-medium text-slate-600">Applied filters</div>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              <span className="rounded-full bg-white px-2 py-0.5 text-xs text-slate-700">{getMonthRangeLabel(selectedYear, selectedMonth)}</span>
+                              <span className="rounded-full bg-white px-2 py-0.5 text-xs text-slate-700">{selectedDepartment === 'ALL' ? 'All departments' : selectedDepartment}</span>
+                              <span className="rounded-full bg-white px-2 py-0.5 text-xs text-slate-700">{selectedRoleScope === 'ALL' ? 'All roles' : 'Managers'}</span>
+                              {search.trim() ? (
+                                <span className="rounded-full bg-white px-2 py-0.5 text-xs text-slate-700">Search: {search.trim()}</span>
+                              ) : null}
+                            </div>
                           </div>
-                          <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
+
+                          <div className="flex items-center justify-between gap-2">
                             <button
                               type="button"
-                              className="rounded-md border px-3 py-1.5 hover:bg-white"
-                              onClick={() => setExpandedReportKey(null)}
+                              className="rounded-md border px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                              onClick={() => setExpandedReportKey(expandedReportKey === item.key ? null : item.key)}
                             >
-                              Close
+                              {expandedReportKey === item.key ? 'Hide details' : 'Details'}
                             </button>
                             <button
                               type="button"
-                              className="rounded-md bg-slate-900 px-3 py-1.5 text-white hover:bg-slate-800"
+                              className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
                               onClick={() => downloadReport(item)}
                             >
                               Download
                             </button>
                           </div>
+
+                          {expandedReportKey === item.key ? (
+                            <div className="rounded-lg border bg-white p-3 text-sm text-slate-700">
+                              <div className="grid gap-2 sm:grid-cols-2">
+                                <div className="rounded-md border bg-slate-50 px-3 py-2">Period: {getMonthRangeLabel(selectedYear, selectedMonth)}</div>
+                                <div className="rounded-md border bg-slate-50 px-3 py-2">Format: {item.format}</div>
+                                <div className="rounded-md border bg-slate-50 px-3 py-2">Department: {selectedDepartment === 'ALL' ? 'All' : selectedDepartment}</div>
+                                <div className="rounded-md border bg-slate-50 px-3 py-2">Role scope: {selectedRoleScope === 'ALL' ? 'All' : 'Managers'}</div>
+                              </div>
+                              {!isCore ? <div className="mt-2 text-xs text-slate-500">This report is in beta and will improve as more APIs are connected.</div> : null}
+                            </div>
+                          ) : null}
                         </div>
-                      ) : null}
-                    </div>
-                  );
-                })}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
 
             <div className="rounded-xl border bg-white p-4">
-              <div className="font-medium text-slate-900">Coming next</div>
-              <div className="mt-1 text-sm text-slate-600">
-                We will connect these to real company-scoped reporting APIs (daily/monthly, late/overtime/absence) and add PDF/Excel export.
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold text-slate-900">Coming next</div>
+                  <div className="mt-1 text-sm text-slate-600">Planned reporting improvements for the next iterations.</div>
+                </div>
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">Roadmap</span>
+              </div>
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <div className="rounded-lg border bg-slate-50 p-4">
+                  <div className="text-sm font-medium text-slate-900">Late arrivals</div>
+                  <div className="mt-1 text-sm text-slate-600">Shift-aware late threshold per employee and downloadable CSV.</div>
+                </div>
+                <div className="rounded-lg border bg-slate-50 p-4">
+                  <div className="text-sm font-medium text-slate-900">Overtime summary</div>
+                  <div className="mt-1 text-sm text-slate-600">Overtime policy rules, approval flow, and per-period export.</div>
+                </div>
+                <div className="rounded-lg border bg-slate-50 p-4">
+                  <div className="text-sm font-medium text-slate-900">Absence report</div>
+                  <div className="mt-1 text-sm text-slate-600">Leave/holiday integration (LV/PH/WO) with date-range filters.</div>
+                </div>
+                <div className="rounded-lg border bg-slate-50 p-4">
+                  <div className="text-sm font-medium text-slate-900">Exports</div>
+                  <div className="mt-1 text-sm text-slate-600">Excel/PDF exports and scheduled monthly email reports.</div>
+                </div>
               </div>
             </div>
           </div>
@@ -2418,6 +3662,14 @@ export default function AdminDashboard() {
                       value={staffSearch}
                       onChange={(e) => setStaffSearch(e.target.value)}
                     />
+                    <button
+                      type="button"
+                      disabled={!canManage}
+                      className="rounded-md border px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                      onClick={openImportEmployeesModal}
+                    >
+                      Import CSV
+                    </button>
                     <button
                       type="button"
                       disabled={!canManage}
@@ -2817,8 +4069,159 @@ export default function AdminDashboard() {
 
         {section === 'settings' ? (
           <div className="mt-6 grid gap-4">
-            {canManageUsers ? (
-              <form className="rounded-xl border bg-white p-5" onSubmit={onCreateUser}>
+            <div className="rounded-xl border bg-white p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <div className="font-medium text-slate-900">Settings</div>
+                  <div className="mt-1 text-sm text-slate-600">Manage company details and system users.</div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <TabButton active={settingsTab === 'company'} onClick={() => setSettingsTab('company')}>Company & Branches</TabButton>
+                  <TabButton active={settingsTab === 'users'} onClick={() => setSettingsTab('users')}>Users</TabButton>
+                  <TabButton active={settingsTab === 'holidays'} onClick={() => setSettingsTab('holidays')}>Holidays</TabButton>
+                </div>
+              </div>
+            </div>
+
+            {settingsTab === 'holidays' ? (
+              <div className="rounded-xl border bg-white p-5">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <div className="text-base font-semibold text-slate-900">Public Holidays</div>
+                    <div className="mt-1 text-sm text-slate-600">Manage holidays for {getMonthRangeLabel(selectedYear, selectedMonth)}. Timesheet will mark these days as PH.</div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {holidaysLoading ? <div className="text-sm text-slate-500">Loading…</div> : null}
+                    <button type="button" className="rounded-md border px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50" onClick={refreshHolidays}>
+                      Refresh
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  <label className="block">
+                    <div className="text-xs font-medium text-slate-600">Date</div>
+                    <input
+                      className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+                      type="date"
+                      value={holidayForm.date}
+                      onChange={(e) => setHolidayForm((p) => ({ ...p, date: e.target.value }))}
+                    />
+                  </label>
+                  <label className="block sm:col-span-2">
+                    <div className="text-xs font-medium text-slate-600">Holiday name</div>
+                    <input
+                      className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+                      placeholder="e.g. New Year's Day"
+                      value={holidayForm.name}
+                      onChange={(e) => setHolidayForm((p) => ({ ...p, name: e.target.value }))}
+                    />
+                  </label>
+                </div>
+
+                <div className="mt-4 flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={holidayBusy || !holidayForm.date || !holidayForm.name.trim()}
+                    className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60 flex items-center gap-2"
+                    onClick={async () => {
+                      try {
+                        setHolidayBusy(true);
+                        if (holidayForm.id) {
+                          await updateHoliday(holidayForm.id, { date: holidayForm.date, name: holidayForm.name });
+                        } else {
+                          await createHoliday({ date: holidayForm.date, name: holidayForm.name });
+                        }
+                        setHolidayForm({ id: null, date: holidayForm.date, name: '' });
+                        await refreshHolidays();
+                        showToast('Holiday saved', 'success');
+                      } catch (err: unknown) {
+                        showToast(getApiErrorMessage(err, 'Failed to save holiday'), 'error');
+                      } finally {
+                        setHolidayBusy(false);
+                      }
+                    }}
+                  >
+                    {holidayBusy && <LoadingSpinner size="sm" />}
+                    {holidayForm.id ? 'Update Holiday' : 'Add Holiday'}
+                  </button>
+                  {holidayForm.id ? (
+                    <button
+                      type="button"
+                      disabled={holidayBusy}
+                      className="rounded-md border px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                      onClick={() => setHolidayForm({ id: null, date: holidayForm.date, name: '' })}
+                    >
+                      Cancel edit
+                    </button>
+                  ) : null}
+                </div>
+
+                <div className="mt-5 rounded-xl border overflow-x-auto">
+                  <div className="px-4 py-3 border-b font-medium text-slate-900">Holidays</div>
+                  <table className="w-full min-w-[640px] text-sm">
+                    <thead className="bg-slate-50 text-slate-600">
+                      <tr>
+                        <th className="px-4 py-2 text-left">Date</th>
+                        <th className="px-4 py-2 text-left">Name</th>
+                        <th className="px-4 py-2"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {holidays.map((h) => (
+                        <tr key={h.id} className="border-t">
+                          <td className="px-4 py-2 whitespace-nowrap">{h.date}</td>
+                          <td className="px-4 py-2">{h.name}</td>
+                          <td className="px-4 py-2 text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                type="button"
+                                disabled={holidayBusy}
+                                className="rounded-md border px-3 py-1.5 hover:bg-slate-50 disabled:opacity-60"
+                                onClick={() => setHolidayForm({ id: h.id, date: h.date, name: h.name })}
+                              >
+                                Edit
+                              </button>
+                              <button
+                                type="button"
+                                disabled={holidayBusy}
+                                className="rounded-md bg-red-600 px-3 py-1.5 text-white hover:bg-red-500 disabled:opacity-60"
+                                onClick={async () => {
+                                  try {
+                                    setHolidayBusy(true);
+                                    await deleteHoliday(h.id);
+                                    await refreshHolidays();
+                                    showToast('Holiday deleted', 'success');
+                                  } catch (err: unknown) {
+                                    showToast(getApiErrorMessage(err, 'Failed to delete holiday'), 'error');
+                                  } finally {
+                                    setHolidayBusy(false);
+                                  }
+                                }}
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+
+                      {holidays.length === 0 && !holidaysLoading ? (
+                        <tr>
+                          <td colSpan={3} className="px-4 py-12">
+                            <EmptyState title="No holidays" description="Add public holidays so the timesheet marks those dates as PH." />
+                          </td>
+                        </tr>
+                      ) : null}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : null}
+
+            {settingsTab === 'users' ? (
+              canManageUsers ? (
+                <form className="rounded-xl border bg-white p-5" onSubmit={onCreateUser}>
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <div className="text-base font-semibold text-slate-900">Create user</div>
@@ -2877,89 +4280,92 @@ export default function AdminDashboard() {
                   {busy ? 'Creating...' : 'Create User'}
                 </button>
               </form>
-            ) : (
-              <div className="rounded-xl border bg-white p-4 text-sm text-slate-600">
-                You do not have permission to manage users.
-              </div>
-            )}
+              ) : (
+                <div className="rounded-xl border bg-white p-4 text-sm text-slate-600">
+                  You do not have permission to manage users.
+                </div>
+              )
+            ) : null}
 
-            <div className="rounded-xl border bg-white overflow-x-auto">
-              <div className="px-4 py-3 border-b font-medium text-slate-900">Users</div>
-              <table className="w-full min-w-[980px] text-sm">
-                <thead className="bg-slate-50 text-slate-600">
-                  <tr>
-                    <th className="px-4 py-2 text-left">Username</th>
-                    <th className="px-4 py-2 text-left">Role</th>
-                    <th className="px-4 py-2 text-left">Enabled</th>
-                    <th className="px-4 py-2 text-left">Reset password</th>
-                    <th className="px-4 py-2"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {users.map((u) => (
-                    <tr key={u.id} className="border-t">
-                      <td className="px-4 py-2">{u.username}</td>
-                      <td className="px-4 py-2">
-                        <select
-                          className="w-full sm:w-auto rounded-md border px-2 py-1 bg-white"
-                          value={u.role}
-                          disabled={!canManageUsers}
-                          onChange={(e) => setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, role: e.target.value as Role } : x)))}
-                        >
-                          {userRoleOptions.map((r) => (
-                            <option key={r} value={r}>{r}</option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="px-4 py-2">
-                        <input
-                          type="checkbox"
-                          checked={!!u.enabled}
-                          disabled={!canManageUsers}
-                          onChange={(e) => setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, enabled: e.target.checked } : x)))}
-                        />
-                      </td>
-                      <td className="px-4 py-2">
-                        <input
-                          className="w-full min-w-[180px] rounded-md border px-2 py-1"
-                          placeholder="New password (optional)"
-                          type="password"
-                          disabled={!canManageUsers}
-                          value={u.newPassword || ''}
-                          onChange={(e) => setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, newPassword: e.target.value } : x)))}
-                        />
-                      </td>
-                      <td className="px-4 py-2 text-right">
-                        {canManageUsers ? (
-                          <>
-                            <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:justify-end">
-                              <button type="button" disabled={busy} className="rounded-md border px-3 py-1.5 hover:bg-slate-50 disabled:opacity-60" onClick={() => onQuickUpdateUser(u)}>
-                                Save
-                              </button>
-                              <button type="button" disabled={busy} className="rounded-md bg-red-600 px-3 py-1.5 text-white hover:bg-red-500 disabled:opacity-60" onClick={() => onDeleteUser(u.id)}>
-                                Delete
-                              </button>
-                            </div>
-                          </>
-                        ) : (
-                          <span className="text-slate-400">Read-only</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                  {users.length === 0 ? (
+            {settingsTab === 'users' ? (
+              <div className="rounded-xl border bg-white overflow-x-auto">
+                <div className="px-4 py-3 border-b font-medium text-slate-900">Users</div>
+                <table className="w-full min-w-[980px] text-sm">
+                  <thead className="bg-slate-50 text-slate-600">
                     <tr>
-                      <td colSpan={5} className="px-4 py-12">
-                        <EmptyState
-                          title="No users"
-                          description="Create system users to manage access and permissions for your attendance system."
-                        />
-                      </td>
+                      <th className="px-4 py-2 text-left">Username</th>
+                      <th className="px-4 py-2 text-left">Role</th>
+                      <th className="px-4 py-2 text-left">Enabled</th>
+                      <th className="px-4 py-2 text-left">Reset password</th>
+                      <th className="px-4 py-2"></th>
                     </tr>
-                  ) : null}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {users.map((u) => (
+                      <tr key={u.id} className="border-t">
+                        <td className="px-4 py-2">{u.username}</td>
+                        <td className="px-4 py-2">
+                          <select
+                            className="w-full sm:w-auto rounded-md border px-2 py-1 bg-white"
+                            value={u.role}
+                            disabled={!canManageUsers}
+                            onChange={(e) => setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, role: e.target.value as Role } : x)))}
+                          >
+                            {userRoleOptions.map((r) => (
+                              <option key={r} value={r}>{r}</option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="px-4 py-2">
+                          <input
+                            type="checkbox"
+                            checked={!!u.enabled}
+                            disabled={!canManageUsers}
+                            onChange={(e) => setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, enabled: e.target.checked } : x)))}
+                          />
+                        </td>
+                        <td className="px-4 py-2">
+                          <input
+                            className="w-full min-w-[180px] rounded-md border px-2 py-1"
+                            placeholder="New password (optional)"
+                            type="password"
+                            disabled={!canManageUsers}
+                            value={u.newPassword || ''}
+                            onChange={(e) => setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, newPassword: e.target.value } : x)))}
+                          />
+                        </td>
+                        <td className="px-4 py-2 text-right">
+                          {canManageUsers ? (
+                            <>
+                              <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:justify-end">
+                                <button type="button" disabled={busy} className="rounded-md border px-3 py-1.5 hover:bg-slate-50 disabled:opacity-60" onClick={() => onQuickUpdateUser(u)}>
+                                  Save
+                                </button>
+                                <button type="button" disabled={busy} className="rounded-md bg-red-600 px-3 py-1.5 text-white hover:bg-red-500 disabled:opacity-60" onClick={() => onDeleteUser(u.id)}>
+                                  Delete
+                                </button>
+                              </div>
+                            </>
+                          ) : (
+                            <span className="text-slate-400">Read-only</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                    {users.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="px-4 py-12">
+                          <EmptyState
+                            title="No users"
+                            description="Create system users to manage access and permissions for your attendance system."
+                          />
+                        </td>
+                      </tr>
+                    ) : null}
+                  </tbody>
+                </table>
+              </div>
+            ) : null}
           </div>
         ) : null}
       </div>

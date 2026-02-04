@@ -3,6 +3,8 @@ import http from './http';
 import type {
   AdminUpsertAttendanceRequest,
   AttendanceResponse,
+  BulkTimesheetImportRequest,
+  BulkTimesheetImportResponse,
   MessageResponse,
   VerifyFaceResponse,
 } from './types';
@@ -96,6 +98,11 @@ export async function listAttendanceByEmployee(employeeId: number): Promise<Atte
 
 export async function adminCreateAttendance(payload: AdminUpsertAttendanceRequest): Promise<AttendanceResponse> {
   const res = await http.post<AttendanceResponse>('/api/attendance/admin', payload);
+  return res.data;
+}
+
+export async function adminBulkImportTimesheet(payload: BulkTimesheetImportRequest): Promise<BulkTimesheetImportResponse> {
+  const res = await http.post<BulkTimesheetImportResponse>('/api/attendance/admin/bulk', payload);
   return res.data;
 }
 

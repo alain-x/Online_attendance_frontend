@@ -1,10 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import AppLayout from '../components/AppLayout';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Toast from '../components/Toast';
 import { useToast } from '../hooks/useToast';
 
 import { listCompanies, setCompanyActive } from '../api/companies';
+import { getSystemBranding, updateSystemBranding, uploadSystemLogo } from '../api/system';
 
 import type { Company } from '../api/types';
 
@@ -136,7 +138,14 @@ function renderInvoiceHtml(d: InvoiceDraft): string {
 
 export default function SystemAdminDashboard() {
   const { toast, showToast, hideToast } = useToast();
+  const navigate = useNavigate();
   const [section, setSection] = useState<'companies' | 'billing'>('companies');
+
+  const [systemLogoUrl, setSystemLogoUrl] = useState<string | null>(() => localStorage.getItem('systemLogoUrl'));
+  const [systemName, setSystemName] = useState<string>(() => localStorage.getItem('systemName') || '');
+  const [systemNameBusy, setSystemNameBusy] = useState(false);
+  const [systemLogoFile, setSystemLogoFile] = useState<File | null>(null);
+  const [systemLogoBusy, setSystemLogoBusy] = useState(false);
 
   const sidebarItems = useMemo(
     () => [
@@ -149,6 +158,12 @@ export default function SystemAdminDashboard() {
   const [loading, setLoading] = useState(false);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [search, setSearch] = useState('');
+
+  const [companyContextId, setCompanyContextId] = useState<number | null>(() => {
+    const v = localStorage.getItem('companyContextId');
+    const n = v != null ? Number(v) : NaN;
+    return Number.isFinite(n) && n > 0 ? n : null;
+  });
 
   const [draft, setDraft] = useState<InvoiceDraft | null>(null);
 
@@ -166,8 +181,59 @@ export default function SystemAdminDashboard() {
 
   useEffect(() => {
     refreshCompanies().catch(() => {});
+    getSystemBranding()
+      .then((res) => {
+        localStorage.setItem('systemLogoUrl', res.logoUrl || '');
+        localStorage.setItem('systemName', res.systemName || '');
+        setSystemLogoUrl(res.logoUrl || null);
+        setSystemName(res.systemName || '');
+      })
+      .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  async function onSaveSystemName() {
+    setSystemNameBusy(true);
+    try {
+      await updateSystemBranding({ systemName: systemName.trim() });
+      localStorage.setItem('systemName', systemName.trim());
+      showToast('System name updated', 'success');
+    } catch (e: unknown) {
+      showToast(getApiErrorMessage(e, 'Failed to update system name'), 'error');
+    } finally {
+      setSystemNameBusy(false);
+    }
+  }
+
+  async function onUploadSystemLogo() {
+    if (!systemLogoFile) return;
+    setSystemLogoBusy(true);
+    try {
+      const res = await uploadSystemLogo(systemLogoFile);
+      localStorage.setItem('systemLogoUrl', res.logoUrl || '');
+      localStorage.setItem('systemLogoBust', String(Date.now()));
+      setSystemLogoUrl(res.logoUrl || null);
+      setSystemLogoFile(null);
+      showToast('System logo uploaded', 'success');
+    } catch (e: unknown) {
+      showToast(getApiErrorMessage(e, 'Failed to upload system logo'), 'error');
+    } finally {
+      setSystemLogoBusy(false);
+    }
+  }
+
+  function applyCompanyContext(nextCompanyId: number | null) {
+    if (nextCompanyId == null) {
+      localStorage.removeItem('companyContextId');
+      setCompanyContextId(null);
+      showToast('Company context cleared', 'success');
+      return;
+    }
+    localStorage.setItem('companyContextId', String(nextCompanyId));
+    setCompanyContextId(nextCompanyId);
+    const c = companies.find((x) => x.id === nextCompanyId);
+    showToast(c ? `Company context set: ${c.name}` : 'Company context updated', 'success');
+  }
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -220,7 +286,7 @@ export default function SystemAdminDashboard() {
   }
 
   return (
-    <AppLayout title="System Admin" sidebarItems={sidebarItems} activeSidebarKey={section} onSidebarChange={(k) => setSection(k as any)}>
+    <AppLayout title="" sidebarItems={sidebarItems} activeSidebarKey={section} onSidebarChange={(k) => setSection(k as any)}>
       {toast && <Toast message={toast.message} type={toast.type} onClose={hideToast} />}
 
       <div className="space-y-4">
@@ -237,6 +303,137 @@ export default function SystemAdminDashboard() {
           >
             {loading ? 'Loading…' : 'Refresh'}
           </button>
+        </div>
+
+        {section === 'companies' ? (
+          <div className="rounded-xl border bg-white p-4">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="text-sm font-semibold text-slate-900">System logo</div>
+                <div className="mt-1 text-sm text-slate-600">Global logo shown in header, sidebar, and login.</div>
+              </div>
+              {systemLogoUrl ? (
+                <img src={systemLogoUrl} alt="System logo" className="h-12 w-12 rounded-xl object-cover" />
+              ) : (
+                <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-white font-bold text-xl">A</div>
+              )}
+            </div>
+
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+              <input
+                type="file"
+                accept="image/*"
+                className="w-full rounded-md border px-3 py-2 text-sm"
+                onChange={(e) => setSystemLogoFile(e.target.files && e.target.files[0] ? e.target.files[0] : null)}
+              />
+              <button
+                type="button"
+                disabled={!systemLogoFile || systemLogoBusy}
+                className="rounded-md bg-slate-900 px-4 py-2 text-sm text-white hover:bg-slate-800 disabled:opacity-60 flex items-center gap-2"
+                onClick={onUploadSystemLogo}
+              >
+                {systemLogoBusy && <LoadingSpinner size="sm" />}
+                {systemLogoBusy ? 'Uploading...' : 'Upload system logo'}
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {section === 'companies' ? (
+          <div className="rounded-xl border bg-white p-4">
+            <div className="text-sm font-semibold text-slate-900">System name</div>
+            <div className="mt-1 text-sm text-slate-600">This is the global name shown in the top header.</div>
+
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+              <input
+                value={systemName}
+                onChange={(e) => setSystemName(e.target.value)}
+                className="w-full rounded-md border px-3 py-2 text-sm"
+                placeholder="Enter system name"
+              />
+              <button
+                type="button"
+                disabled={systemNameBusy}
+                className="rounded-md bg-slate-900 px-4 py-2 text-sm text-white hover:bg-slate-800 disabled:opacity-60 flex items-center gap-2"
+                onClick={onSaveSystemName}
+              >
+                {systemNameBusy && <LoadingSpinner size="sm" />}
+                {systemNameBusy ? 'Saving...' : 'Save'}
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        <div className="rounded-xl border bg-white p-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <div className="text-sm font-semibold text-slate-900">Company context</div>
+              <div className="mt-1 text-sm text-slate-600">
+                Select a company to manage its data across the app (Admin, Payroll, Employees, Attendance, Reports).
+              </div>
+              <div className="mt-2">
+                {companyContextId ? (
+                  <span className="inline-flex items-center rounded-full bg-slate-900 px-2.5 py-1 text-xs font-medium text-white">
+                    Active context: ID {companyContextId}
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">
+                    No context selected
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 w-full lg:w-auto">
+              <div>
+                <label className="text-xs font-medium text-slate-700">Company</label>
+                <select
+                  className="mt-1 w-full rounded-md border bg-white px-3 py-2 text-sm"
+                  value={companyContextId ?? ''}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    applyCompanyContext(v ? Number(v) : null);
+                  }}
+                >
+                  <option value="">-- Select company --</option>
+                  {companies
+                    .filter((c) => c.active !== false)
+                    .sort((a, b) => a.name.localeCompare(b.name))
+                    .map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} ({c.slug})
+                      </option>
+                    ))}
+                </select>
+              </div>
+              <button
+                type="button"
+                className="mt-5 rounded-md border px-3 py-2 text-sm hover:bg-slate-50 disabled:opacity-60"
+                onClick={() => applyCompanyContext(null)}
+                disabled={!companyContextId}
+              >
+                Clear
+              </button>
+              <div className="mt-5 flex gap-2">
+                <button
+                  type="button"
+                  className="w-full rounded-md bg-slate-900 px-3 py-2 text-sm text-white hover:bg-slate-800 disabled:opacity-60"
+                  disabled={!companyContextId}
+                  onClick={() => navigate('/admin')}
+                >
+                  Open Admin
+                </button>
+                <button
+                  type="button"
+                  className="w-full rounded-md border px-3 py-2 text-sm hover:bg-slate-50 disabled:opacity-60"
+                  disabled={!companyContextId}
+                  onClick={() => navigate('/payroll')}
+                >
+                  Open Payroll
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
