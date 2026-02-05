@@ -54,7 +54,7 @@ export default function LoginPage() {
       if (user.role === 'SYSTEM_ADMIN') {
         navigate('/system-admin', { replace: true });
       } else if (user.role === 'RECORDER') {
-        navigate('/recorder', { replace: true });
+        navigate('/employee', { replace: true });
       } else if (user.role === 'EMPLOYEE') {
         navigate('/employee', { replace: true });
       } else if (user.role === 'PAYROLL') {

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import AppLayout from '../components/AppLayout';
 import { checkIn, checkOut, checkOutCompanyPurpose, endBreak, myAttendance, startBreak, verifyFace } from '../api/attendance';
 import { enrollFace } from '../api/face';
@@ -7,6 +8,7 @@ import StatusBadge from '../components/StatusBadge';
 import EmptyState from '../components/EmptyState';
 import { useToast } from '../hooks/useToast';
 import Toast from '../components/Toast';
+import { useAuth } from '../auth/AuthContext';
 
 import type { AttendanceResponse } from '../api/types';
 import { detectFaceInFile, detectFaceInImage } from '../utils/faceDetection';
@@ -35,6 +37,8 @@ function getCurrentPosition(): Promise<GeolocationPosition> {
 }
 
 export default function EmployeeDashboard() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
   const { toast, showToast, hideToast } = useToast();
   const [section, setSection] = useState('day');
   const [history, setHistory] = useState<AttendanceResponse[]>([]);
@@ -652,6 +656,24 @@ export default function EmployeeDashboard() {
       onSidebarChange={setSection}
     >
       {toast && <Toast message={toast.message} type={toast.type} onClose={hideToast} />}
+
+      {user?.role === 'RECORDER' ? (
+        <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="text-sm font-semibold text-emerald-900">Recorder access enabled</div>
+              <div className="mt-1 text-sm text-emerald-800">You can record your own attendance here, or record other employees one-by-one.</div>
+            </div>
+            <button
+              type="button"
+              onClick={() => navigate('/recorder')}
+              className="rounded-md bg-emerald-700 px-4 py-2 text-sm text-white hover:bg-emerald-800"
+            >
+              Open Recorder
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       {showCheckInModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="check-in-modal-title">

@@ -629,8 +629,8 @@ export default function AdminDashboard() {
     enabled: true,
   });
 
-  const roleOptions = useMemo<Role[]>(() => ['ADMIN', 'HR', 'MANAGER', 'EMPLOYEE'], []);
-  const userRoleOptions = useMemo<Role[]>(() => ['ADMIN', 'HR', 'MANAGER', 'EMPLOYEE', 'PAYROLL', 'AUDITOR'], []);
+  const roleOptions = useMemo<Role[]>(() => ['ADMIN', 'HR', 'MANAGER', 'RECORDER', 'EMPLOYEE'], []);
+  const userRoleOptions = useMemo<Role[]>(() => ['ADMIN', 'HR', 'MANAGER', 'RECORDER', 'EMPLOYEE', 'PAYROLL', 'AUDITOR'], []);
   const canManage = user && (user.role === 'ADMIN' || user.role === 'HR');
   const canManageUsers = user && (user.role === 'SYSTEM_ADMIN' || user.role === 'ADMIN');
 
@@ -1590,7 +1590,9 @@ export default function AdminDashboard() {
         const uname = employeeUsername.toLowerCase();
         const otherEmployees = employees.filter((x) => x.id !== employeeEditTarget.id);
         const existsInEmployees = otherEmployees.some((x) => (x.username || '').trim().toLowerCase() === uname);
-        const existsInUsers = users.some((x) => (x.username || '').trim().toLowerCase() === uname);
+        const existsInUsers = users.some(
+          (x) => (x.username || '').trim().toLowerCase() === uname && (employeeEditTarget.username || '').trim().toLowerCase() !== uname
+        );
         if (existsInEmployees || existsInUsers) {
           const msg = 'Username already exists';
           setError(msg);
@@ -3884,7 +3886,13 @@ export default function AdminDashboard() {
                   </button>
                   <button type="submit" disabled={busy} className="rounded-md bg-slate-900 px-4 py-2 text-white hover:bg-slate-800 disabled:opacity-60 flex items-center gap-2">
                     {busy && <LoadingSpinner size="sm" />}
-                    {busy ? 'Saving...' : 'Save'}
+                    {busy
+                      ? employeeModalMode === 'create'
+                        ? 'Creating...'
+                        : 'Updating...'
+                      : employeeModalMode === 'create'
+                        ? 'Create'
+                        : 'Update'}
                   </button>
                 </div>
               </form>
