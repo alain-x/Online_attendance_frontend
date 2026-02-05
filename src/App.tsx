@@ -6,6 +6,7 @@ import EmployeeDashboard from './pages/EmployeeDashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import PayrollDashboard from './pages/PayrollDashboard';
 import SystemAdminDashboard from './pages/SystemAdminDashboard';
+import RecorderDashboard from './pages/RecorderDashboard';
 import ProtectedRoute from './routes/ProtectedRoute';
 
 function App() {
@@ -19,6 +20,15 @@ function App() {
         element={
           <ProtectedRoute roles={["EMPLOYEE"]}>
             <EmployeeDashboard />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/recorder"
+        element={
+          <ProtectedRoute roles={["RECORDER"]}>
+            <RecorderDashboard />
           </ProtectedRoute>
         }
       />

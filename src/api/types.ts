@@ -1,4 +1,4 @@
-export type Role = 'SYSTEM_ADMIN' | 'ADMIN' | 'HR' | 'MANAGER' | 'EMPLOYEE' | 'PAYROLL' | 'AUDITOR';
+export type Role = 'SYSTEM_ADMIN' | 'ADMIN' | 'HR' | 'MANAGER' | 'RECORDER' | 'EMPLOYEE' | 'PAYROLL' | 'AUDITOR';
 
 export type AttendanceStatus = 'PRESENT' | 'LATE' | 'ABSENT' | 'EXCEPTION';
 

@@ -26,6 +26,44 @@ export async function checkIn(
   return res.data;
 }
 
+export async function recorderCheckIn(
+  employeeId: number,
+  latitude: number,
+  longitude: number,
+  descriptorJson?: string,
+  imageFile?: File
+): Promise<AttendanceResponse> {
+  const form = new FormData();
+  form.append('employeeId', String(employeeId));
+  if (imageFile) form.append('image', imageFile);
+  form.append('latitude', String(latitude));
+  form.append('longitude', String(longitude));
+  if (descriptorJson) form.append('descriptor', descriptorJson);
+  const res = await http.post<AttendanceResponse>('/api/attendance/recorder/check-in', form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return res.data;
+}
+
+export async function recorderCheckOut(
+  employeeId: number,
+  latitude: number,
+  longitude: number,
+  descriptorJson?: string,
+  imageFile?: File
+): Promise<AttendanceResponse> {
+  const form = new FormData();
+  form.append('employeeId', String(employeeId));
+  if (imageFile) form.append('image', imageFile);
+  form.append('latitude', String(latitude));
+  form.append('longitude', String(longitude));
+  if (descriptorJson) form.append('descriptor', descriptorJson);
+  const res = await http.post<AttendanceResponse>('/api/attendance/recorder/check-out', form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return res.data;
+}
+
 export async function checkOutCompanyPurpose(
   latitude: number,
   longitude: number,
