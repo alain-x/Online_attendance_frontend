@@ -9,7 +9,7 @@ import { useToast } from '../hooks/useToast';
 import Toast from '../components/Toast';
 
 import type { AttendanceResponse } from '../api/types';
-import { detectFaceInFile } from '../utils/faceDetection';
+import { detectFaceInFile, detectFaceInImage } from '../utils/faceDetection';
 
 function blobToFile(blob: Blob, filename: string): File {
   return new File([blob], filename, { type: blob.type || 'image/jpeg' });
@@ -46,8 +46,6 @@ export default function EmployeeDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [enrollImage, setEnrollImage] = useState<File | null>(null);
   const [verifyImage, setVerifyImage] = useState<File | null>(null);
-  const [checkInImage, setCheckInImage] = useState<File | null>(null);
-  const [checkOutImage, setCheckOutImage] = useState<File | null>(null);
   const [companyPurposeNote, setCompanyPurposeNote] = useState('');
   const [showCheckInModal, setShowCheckInModal] = useState(false);
   const [showCheckOutModal, setShowCheckOutModal] = useState(false);
@@ -60,6 +58,12 @@ export default function EmployeeDashboard() {
   const verifyVideoRef = useRef<HTMLVideoElement>(null);
   const verifyStreamRef = useRef<MediaStream | null>(null);
   const verifyFileInputRef = useRef<HTMLInputElement>(null);
+  const [checkInCameraOn, setCheckInCameraOn] = useState(false);
+  const checkInVideoRef = useRef<HTMLVideoElement>(null);
+  const checkInStreamRef = useRef<MediaStream | null>(null);
+  const [checkOutCameraOn, setCheckOutCameraOn] = useState(false);
+  const checkOutVideoRef = useRef<HTMLVideoElement>(null);
+  const checkOutStreamRef = useRef<MediaStream | null>(null);
 
   async function refresh() {
     try {
@@ -155,6 +159,56 @@ export default function EmployeeDashboard() {
     setEnrollCameraOn(false);
   }
 
+  async function startCheckInCamera() {
+    setError(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: { facingMode: 'user' },
+      });
+      checkInStreamRef.current = stream;
+      setCheckInCameraOn(true);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Camera not available';
+      setError(msg);
+      showToast(msg, 'error');
+    }
+  }
+
+  function stopCheckInCamera() {
+    if (checkInStreamRef.current) {
+      checkInStreamRef.current.getTracks().forEach((t) => t.stop());
+      checkInStreamRef.current = null;
+    }
+    if (checkInVideoRef.current) checkInVideoRef.current.srcObject = null;
+    setCheckInCameraOn(false);
+  }
+
+  async function startCheckOutCamera() {
+    setError(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: { facingMode: 'user' },
+      });
+      checkOutStreamRef.current = stream;
+      setCheckOutCameraOn(true);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Camera not available';
+      setError(msg);
+      showToast(msg, 'error');
+    }
+  }
+
+  function stopCheckOutCamera() {
+    if (checkOutStreamRef.current) {
+      checkOutStreamRef.current.getTracks().forEach((t) => t.stop());
+      checkOutStreamRef.current = null;
+    }
+    if (checkOutVideoRef.current) checkOutVideoRef.current.srcObject = null;
+    setCheckOutCameraOn(false);
+  }
+
   function captureEnrollPhoto() {
     const video = enrollVideoRef.current;
     if (!video || !video.videoWidth) return;
@@ -201,7 +255,7 @@ export default function EmployeeDashboard() {
         return;
       }
       const descriptorJson = faceResult.descriptor ? JSON.stringify(faceResult.descriptor) : undefined;
-      await enrollFace(enrollImage, descriptorJson);
+      await enrollFace(descriptorJson);
       setEnrollImage(null);
       showToast('Face enrolled successfully', 'success');
     } catch (e: unknown) {
@@ -292,11 +346,47 @@ export default function EmployeeDashboard() {
   }, [verifyCameraOn]);
 
   useEffect(() => {
+    if (!checkInCameraOn || !checkInStreamRef.current) return;
+    const stream = checkInStreamRef.current;
+    const video = checkInVideoRef.current;
+    if (!video) return;
+    video.srcObject = stream;
+    const onLoaded = () => {
+      video.play().catch(() => {});
+    };
+    video.addEventListener('loadedmetadata', onLoaded);
+    onLoaded();
+    return () => {
+      video.removeEventListener('loadedmetadata', onLoaded);
+    };
+  }, [checkInCameraOn]);
+
+  useEffect(() => {
+    if (!checkOutCameraOn || !checkOutStreamRef.current) return;
+    const stream = checkOutStreamRef.current;
+    const video = checkOutVideoRef.current;
+    if (!video) return;
+    video.srcObject = stream;
+    const onLoaded = () => {
+      video.play().catch(() => {});
+    };
+    video.addEventListener('loadedmetadata', onLoaded);
+    onLoaded();
+    return () => {
+      video.removeEventListener('loadedmetadata', onLoaded);
+    };
+  }, [checkOutCameraOn]);
+
+  useEffect(() => {
     return () => {
       enrollStreamRef.current?.getTracks().forEach((t) => t.stop());
       enrollStreamRef.current = null;
       verifyStreamRef.current?.getTracks().forEach((t) => t.stop());
       verifyStreamRef.current = null;
+      checkInStreamRef.current?.getTracks().forEach((t) => t.stop());
+      checkInStreamRef.current = null;
+      checkOutStreamRef.current?.getTracks().forEach((t) => t.stop());
+      checkOutStreamRef.current = null;
     };
   }, []);
 
@@ -360,43 +450,45 @@ export default function EmployeeDashboard() {
   function openCheckInModal() {
     setError(null);
     setLocationError(null);
-    setCheckInImage(null);
     setShowCheckInModal(true);
     requestLocation().catch(() => {});
+    startCheckInCamera().catch(() => {});
   }
 
   function openCheckOutModal() {
     setError(null);
     setLocationError(null);
-    setCheckOutImage(null);
     setShowCheckOutModal(true);
     requestLocation().catch(() => {});
+    startCheckOutCamera().catch(() => {});
   }
 
   function openCompanyPurposeModal() {
     setError(null);
     setLocationError(null);
-    setCheckOutImage(null);
     setCompanyPurposeNote('');
     setShowCompanyPurposeModal(true);
     requestLocation().catch(() => {});
+    startCheckOutCamera().catch(() => {});
   }
 
   async function doCheckIn() {
-    if (!checkInImage) {
-      showToast('Please take or choose a photo to verify your identity', 'warning');
-      return;
-    }
     if (locationLoading) return;
     const coords = lastCoords || (await requestLocation());
     if (!coords) {
       setError('Location permission is required to check in');
       return;
     }
+
+    const video = checkInVideoRef.current;
+    if (!video) {
+      showToast('Camera not ready. Please allow camera permission.', 'warning');
+      return;
+    }
     setError(null);
     setLoading(true);
     try {
-      const faceResult = await detectFaceInFile(checkInImage);
+      const faceResult = await detectFaceInImage(video);
       if (!faceResult.face) {
         setError('No face detected. Please use a clear front-facing photo.');
         showToast('No face detected in image', 'error');
@@ -405,11 +497,15 @@ export default function EmployeeDashboard() {
       }
       const descriptorJson = faceResult.descriptor ? JSON.stringify(faceResult.descriptor) : undefined;
       if (!descriptorJson) {
-        showToast('AI face models are not installed (public/models). Check-in will continue without face verification.', 'warning');
+        const msg = 'AI face models are not installed (public/models). Please install them to continue.';
+        setError(msg);
+        showToast(msg, 'error');
+        setLoading(false);
+        return;
       }
-      await checkIn(checkInImage, coords.latitude, coords.longitude, descriptorJson);
+      await checkIn(coords.latitude, coords.longitude, descriptorJson);
       setShowCheckInModal(false);
-      setCheckInImage(null);
+      stopCheckInCamera();
       showToast('Checked in successfully', 'success');
       await refresh();
     } catch (e: unknown) {
@@ -422,20 +518,22 @@ export default function EmployeeDashboard() {
   }
 
   async function doCheckOut() {
-    if (!checkOutImage) {
-      showToast('Please take or choose a photo to verify your identity', 'warning');
-      return;
-    }
     if (locationLoading) return;
     const coords = lastCoords || (await requestLocation());
     if (!coords) {
       setError('Location permission is required to check out');
       return;
     }
+
+    const video = checkOutVideoRef.current;
+    if (!video) {
+      showToast('Camera not ready. Please allow camera permission.', 'warning');
+      return;
+    }
     setError(null);
     setLoading(true);
     try {
-      const faceResult = await detectFaceInFile(checkOutImage);
+      const faceResult = await detectFaceInImage(video);
       if (!faceResult.face) {
         setError('No face detected. Please use a clear front-facing photo.');
         showToast('No face detected in image', 'error');
@@ -444,11 +542,15 @@ export default function EmployeeDashboard() {
       }
       const descriptorJson = faceResult.descriptor ? JSON.stringify(faceResult.descriptor) : undefined;
       if (!descriptorJson) {
-        showToast('AI face models are not installed (public/models). Check-out will continue without face verification.', 'warning');
+        const msg = 'AI face models are not installed (public/models). Please install them to continue.';
+        setError(msg);
+        showToast(msg, 'error');
+        setLoading(false);
+        return;
       }
-      await checkOut(checkOutImage, coords.latitude, coords.longitude, descriptorJson);
+      await checkOut(coords.latitude, coords.longitude, descriptorJson);
       setShowCheckOutModal(false);
-      setCheckOutImage(null);
+      stopCheckOutCamera();
       showToast('Checked out successfully', 'success');
       await refresh();
     } catch (e: unknown) {
@@ -461,10 +563,6 @@ export default function EmployeeDashboard() {
   }
 
   async function doCompanyPurposeCheckOut() {
-    if (!checkOutImage) {
-      showToast('Please take or choose a photo to verify your identity', 'warning');
-      return;
-    }
     if (!companyPurposeNote.trim()) {
       showToast('Please add a note for company purpose clock-out', 'warning');
       return;
@@ -475,10 +573,16 @@ export default function EmployeeDashboard() {
       setError('Location permission is required to check out');
       return;
     }
+
+    const video = checkOutVideoRef.current;
+    if (!video) {
+      showToast('Camera not ready. Please allow camera permission.', 'warning');
+      return;
+    }
     setError(null);
     setLoading(true);
     try {
-      const faceResult = await detectFaceInFile(checkOutImage);
+      const faceResult = await detectFaceInImage(video);
       if (!faceResult.face) {
         setError('No face detected. Please use a clear front-facing photo.');
         showToast('No face detected in image', 'error');
@@ -487,11 +591,15 @@ export default function EmployeeDashboard() {
       }
       const descriptorJson = faceResult.descriptor ? JSON.stringify(faceResult.descriptor) : undefined;
       if (!descriptorJson) {
-        showToast('AI face models are not installed (public/models). Check-out will continue without face verification.', 'warning');
+        const msg = 'AI face models are not installed (public/models). Please install them to continue.';
+        setError(msg);
+        showToast(msg, 'error');
+        setLoading(false);
+        return;
       }
-      await checkOutCompanyPurpose(checkOutImage, coords.latitude, coords.longitude, companyPurposeNote.trim(), descriptorJson);
+      await checkOutCompanyPurpose(coords.latitude, coords.longitude, companyPurposeNote.trim(), descriptorJson);
       setShowCompanyPurposeModal(false);
-      setCheckOutImage(null);
+      stopCheckOutCamera();
       setCompanyPurposeNote('');
       showToast('Company purpose clock-out submitted. Waiting for approval.', 'info');
       await refresh();
@@ -537,7 +645,7 @@ export default function EmployeeDashboard() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="check-in-modal-title">
           <div className="w-full max-w-md max-h-[85vh] overflow-y-auto rounded-xl border bg-white p-5 shadow-lg">
             <h2 id="check-in-modal-title" className="text-lg font-semibold text-slate-900">Check in – verify your identity</h2>
-            <p className="mt-1 text-sm text-slate-600">Take or upload a photo that matches your enrolled face. It will be verified before check-in.</p>
+            <p className="mt-1 text-sm text-slate-600">Take a photo that matches your enrolled face. The photo is used locally to generate a face descriptor and is not uploaded.</p>
             <div className="mt-3 text-sm">
               {locationLoading ? (
                 <div className="text-slate-500">Requesting location permission…</div>
@@ -549,33 +657,42 @@ export default function EmployeeDashboard() {
               {locationError ? <div className="mt-1 text-xs text-red-600">{locationError}</div> : null}
             </div>
             <div className="mt-4">
-              <input
-                type="file"
-                accept="image/*"
-                capture="user"
-                onChange={(e) => setCheckInImage(e.target.files?.[0] ?? null)}
-                className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-emerald-50 file:px-3 file:py-2 file:text-emerald-700"
-              />
-              {checkInImage && (
-                <p className="mt-2 text-sm text-emerald-600">Photo selected: {checkInImage.name}</p>
+              <div className="overflow-hidden rounded-lg border bg-slate-950">
+                <video ref={checkInVideoRef} className="h-56 w-full object-cover" playsInline muted />
+              </div>
+              {!checkInCameraOn ? (
+                <div className="mt-2 text-sm text-amber-700">Camera is off. Click "Turn on camera".</div>
+              ) : (
+                <div className="mt-2 text-sm text-slate-600">Center your face and keep it still.</div>
               )}
             </div>
             <div className="mt-5 flex flex-wrap gap-2 justify-end">
               <button
                 type="button"
-                onClick={() => { setShowCheckInModal(false); setCheckInImage(null); }}
+                onClick={() => {
+                  stopCheckInCamera();
+                  setShowCheckInModal(false);
+                }}
                 className="rounded-md border border-slate-300 bg-white px-4 py-2 text-slate-700 hover:bg-slate-50"
               >
                 Cancel
               </button>
               <button
                 type="button"
+                onClick={startCheckInCamera}
+                disabled={loading || checkInCameraOn}
+                className="rounded-md border border-slate-300 bg-white px-4 py-2 text-slate-700 hover:bg-slate-50 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                Turn on camera
+              </button>
+              <button
+                type="button"
                 onClick={doCheckIn}
-                disabled={loading || locationLoading || !lastCoords || !checkInImage}
+                disabled={loading || locationLoading || !lastCoords || !checkInCameraOn}
                 className="rounded-md bg-emerald-600 px-4 py-2 text-white hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 {loading && <LoadingSpinner size="sm" className="text-white" />}
-                Check in
+                Capture & Check in
               </button>
             </div>
           </div>
@@ -611,22 +728,22 @@ export default function EmployeeDashboard() {
             </div>
 
             <div className="mt-4">
-              <input
-                type="file"
-                accept="image/*"
-                capture="user"
-                onChange={(e) => setCheckOutImage(e.target.files?.[0] ?? null)}
-                className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-rose-50 file:px-3 file:py-2 file:text-rose-700"
-              />
-              {checkOutImage && <p className="mt-2 text-sm text-rose-700">Photo selected: {checkOutImage.name}</p>}
+              <div className="overflow-hidden rounded-lg border bg-slate-950">
+                <video ref={checkOutVideoRef} className="h-56 w-full object-cover" playsInline muted />
+              </div>
+              {!checkOutCameraOn ? (
+                <div className="mt-2 text-sm text-amber-700">Camera is off. Click "Turn on camera".</div>
+              ) : (
+                <div className="mt-2 text-sm text-slate-600">Center your face and keep it still.</div>
+              )}
             </div>
 
             <div className="mt-5 flex flex-wrap gap-2 justify-end">
               <button
                 type="button"
                 onClick={() => {
+                  stopCheckOutCamera();
                   setShowCompanyPurposeModal(false);
-                  setCheckOutImage(null);
                   setCompanyPurposeNote('');
                 }}
                 className="rounded-md border border-slate-300 bg-white px-4 py-2 text-slate-700 hover:bg-slate-50"
@@ -635,12 +752,20 @@ export default function EmployeeDashboard() {
               </button>
               <button
                 type="button"
+                onClick={startCheckOutCamera}
+                disabled={loading || checkOutCameraOn}
+                className="rounded-md border border-slate-300 bg-white px-4 py-2 text-slate-700 hover:bg-slate-50 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                Turn on camera
+              </button>
+              <button
+                type="button"
                 onClick={doCompanyPurposeCheckOut}
-                disabled={loading || locationLoading || !lastCoords || !checkOutImage || !companyPurposeNote.trim()}
+                disabled={loading || locationLoading || !lastCoords || !checkOutCameraOn || !companyPurposeNote.trim()}
                 className="rounded-md bg-rose-600 px-4 py-2 text-white hover:bg-rose-700 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 {loading && <LoadingSpinner size="sm" className="text-white" />}
-                Submit request
+                Capture & Submit
               </button>
             </div>
           </div>
@@ -651,7 +776,7 @@ export default function EmployeeDashboard() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="check-out-modal-title">
           <div className="w-full max-w-md max-h-[85vh] overflow-y-auto rounded-xl border bg-white p-5 shadow-lg">
             <h2 id="check-out-modal-title" className="text-lg font-semibold text-slate-900">Check out – verify your identity</h2>
-            <p className="mt-1 text-sm text-slate-600">Take or upload a photo that matches your enrolled face. It will be verified before check-out.</p>
+            <p className="mt-1 text-sm text-slate-600">Take a photo that matches your enrolled face. The photo is used locally to generate a face descriptor and is not uploaded.</p>
             <div className="mt-3 text-sm">
               {locationLoading ? (
                 <div className="text-slate-500">Requesting location permission…</div>
@@ -663,33 +788,42 @@ export default function EmployeeDashboard() {
               {locationError ? <div className="mt-1 text-xs text-red-600">{locationError}</div> : null}
             </div>
             <div className="mt-4">
-              <input
-                type="file"
-                accept="image/*"
-                capture="user"
-                onChange={(e) => setCheckOutImage(e.target.files?.[0] ?? null)}
-                className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-indigo-50 file:px-3 file:py-2 file:text-indigo-700"
-              />
-              {checkOutImage && (
-                <p className="mt-2 text-sm text-indigo-600">Photo selected: {checkOutImage.name}</p>
+              <div className="overflow-hidden rounded-lg border bg-slate-950">
+                <video ref={checkOutVideoRef} className="h-56 w-full object-cover" playsInline muted />
+              </div>
+              {!checkOutCameraOn ? (
+                <div className="mt-2 text-sm text-amber-700">Camera is off. Click "Turn on camera".</div>
+              ) : (
+                <div className="mt-2 text-sm text-slate-600">Center your face and keep it still.</div>
               )}
             </div>
             <div className="mt-5 flex flex-wrap gap-2 justify-end">
               <button
                 type="button"
-                onClick={() => { setShowCheckOutModal(false); setCheckOutImage(null); }}
+                onClick={() => {
+                  stopCheckOutCamera();
+                  setShowCheckOutModal(false);
+                }}
                 className="rounded-md border border-slate-300 bg-white px-4 py-2 text-slate-700 hover:bg-slate-50"
               >
                 Cancel
               </button>
               <button
                 type="button"
+                onClick={startCheckOutCamera}
+                disabled={loading || checkOutCameraOn}
+                className="rounded-md border border-slate-300 bg-white px-4 py-2 text-slate-700 hover:bg-slate-50 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                Turn on camera
+              </button>
+              <button
+                type="button"
                 onClick={doCheckOut}
-                disabled={loading || locationLoading || !lastCoords || !checkOutImage}
+                disabled={loading || locationLoading || !lastCoords || !checkOutCameraOn}
                 className="rounded-md bg-indigo-600 px-4 py-2 text-white hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 {loading && <LoadingSpinner size="sm" className="text-white" />}
-                Check out
+                Capture & Check out
               </button>
             </div>
           </div>

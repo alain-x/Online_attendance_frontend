@@ -10,13 +10,13 @@ import type {
 } from './types';
 
 export async function checkIn(
-  imageFile: File,
   latitude: number,
   longitude: number,
-  descriptorJson?: string
+  descriptorJson?: string,
+  imageFile?: File
 ): Promise<AttendanceResponse> {
   const form = new FormData();
-  form.append('image', imageFile);
+  if (imageFile) form.append('image', imageFile);
   form.append('latitude', String(latitude));
   form.append('longitude', String(longitude));
   if (descriptorJson) form.append('descriptor', descriptorJson);
@@ -27,14 +27,14 @@ export async function checkIn(
 }
 
 export async function checkOutCompanyPurpose(
-  imageFile: File,
   latitude: number,
   longitude: number,
   note: string,
-  descriptorJson?: string
+  descriptorJson?: string,
+  imageFile?: File
 ): Promise<AttendanceResponse> {
   const form = new FormData();
-  form.append('image', imageFile);
+  if (imageFile) form.append('image', imageFile);
   form.append('latitude', String(latitude));
   form.append('longitude', String(longitude));
   form.append('note', note);
@@ -65,13 +65,13 @@ export async function rejectCompanyPurpose(attendanceId: number, note?: string):
 }
 
 export async function checkOut(
-  imageFile: File,
   latitude: number,
   longitude: number,
-  descriptorJson?: string
+  descriptorJson?: string,
+  imageFile?: File
 ): Promise<AttendanceResponse> {
   const form = new FormData();
-  form.append('image', imageFile);
+  if (imageFile) form.append('image', imageFile);
   form.append('latitude', String(latitude));
   form.append('longitude', String(longitude));
   if (descriptorJson) form.append('descriptor', descriptorJson);
