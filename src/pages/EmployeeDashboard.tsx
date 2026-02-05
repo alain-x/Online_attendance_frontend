@@ -503,15 +503,19 @@ export default function EmployeeDashboard() {
         setLoading(false);
         return;
       }
-      await checkIn(coords.latitude, coords.longitude, descriptorJson);
+      const res = await checkIn(coords.latitude, coords.longitude, descriptorJson);
       setShowCheckInModal(false);
       stopCheckInCamera();
-      showToast('Checked in successfully', 'success');
+      showToast(`Thank you, ${res.employeeFirstName}! You are checked in.`, 'success');
       await refresh();
     } catch (e: unknown) {
       const errorMsg = getApiErrorMessage(e, 'Check-in failed');
       setError(errorMsg);
-      showToast(errorMsg, 'error');
+      if (errorMsg.toLowerCase().includes('face not enrolled')) {
+        showToast('Please enroll your face first, then try checking in again.', 'warning');
+      } else {
+        showToast(errorMsg, 'error');
+      }
     } finally {
       setLoading(false);
     }
@@ -548,15 +552,19 @@ export default function EmployeeDashboard() {
         setLoading(false);
         return;
       }
-      await checkOut(coords.latitude, coords.longitude, descriptorJson);
+      const res = await checkOut(coords.latitude, coords.longitude, descriptorJson);
       setShowCheckOutModal(false);
       stopCheckOutCamera();
-      showToast('Checked out successfully', 'success');
+      showToast(`Bye, ${res.employeeFirstName}! You are checked out.`, 'success');
       await refresh();
     } catch (e: unknown) {
       const errorMsg = getApiErrorMessage(e, 'Check-out failed');
       setError(errorMsg);
-      showToast(errorMsg, 'error');
+      if (errorMsg.toLowerCase().includes('face not enrolled')) {
+        showToast('Please enroll your face first, then try checking out again.', 'warning');
+      } else {
+        showToast(errorMsg, 'error');
+      }
     } finally {
       setLoading(false);
     }
@@ -597,16 +605,20 @@ export default function EmployeeDashboard() {
         setLoading(false);
         return;
       }
-      await checkOutCompanyPurpose(coords.latitude, coords.longitude, companyPurposeNote.trim(), descriptorJson);
+      const res = await checkOutCompanyPurpose(coords.latitude, coords.longitude, companyPurposeNote.trim(), descriptorJson);
       setShowCompanyPurposeModal(false);
       stopCheckOutCamera();
       setCompanyPurposeNote('');
-      showToast('Company purpose clock-out submitted. Waiting for approval.', 'info');
+      showToast(`Bye, ${res.employeeFirstName}! Your request was submitted for approval.`, 'info');
       await refresh();
     } catch (e: unknown) {
       const errorMsg = getApiErrorMessage(e, 'Company purpose check-out failed');
       setError(errorMsg);
-      showToast(errorMsg, 'error');
+      if (errorMsg.toLowerCase().includes('face not enrolled')) {
+        showToast('Please enroll your face first, then try again.', 'warning');
+      } else {
+        showToast(errorMsg, 'error');
+      }
     } finally {
       setLoading(false);
     }
