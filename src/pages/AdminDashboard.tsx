@@ -4,7 +4,6 @@ import { createCompany, deleteCompany, listCompanies, updateCompany, uploadCompa
 import { createEmployee, deleteEmployee, listEmployees, updateEmployee } from '../api/employees';
 import { createLocation, deleteLocation, listLocations, updateLocation } from '../api/locations';
 import { adminBulkImportTimesheet, adminCreateAttendance, adminDeleteAttendance, adminUpdateAttendance, listAttendanceByEmployee, todayAttendance } from '../api/attendance';
-import { createUser, deleteUser, listUsers, updateUser } from '../api/users';
 import { getDayAnalytics, getHomeAnalytics, getTimesheet } from '../api/analytics';
 import { downloadDailyAttendanceCsv } from '../api/reports';
 import { createHoliday, deleteHoliday, listHolidays, updateHoliday } from '../api/holidays';
@@ -22,7 +21,6 @@ import type {
   Company,
   CreateCompanyRequest,
   CreateEmployeeRequest,
-  CreateUserRequest,
   EmployeeResponse,
   DayAttendanceResponse,
   HomeAnalyticsResponse,
@@ -30,8 +28,6 @@ import type {
   TimesheetResponse,
   UpdateCompanyRequest,
   UpdateEmployeeRequest,
-  UpdateUserRequest,
-  UserResponse,
   WorkLocation,
 } from '../api/types';
 
@@ -214,7 +210,7 @@ export default function AdminDashboard() {
   const { toast, showToast, hideToast } = useToast();
   const [section, setSection] = useState('dashboard');
   const [dashboardTab, setDashboardTab] = useState('home');
-  const [settingsTab, setSettingsTab] = useState<'company' | 'users' | 'holidays'>('company');
+  const [settingsTab, setSettingsTab] = useState<'company' | 'holidays'>('company');
 
   const companyLogoLetter = (user?.companySlug || 'A').trim().charAt(0).toUpperCase();
   const companyLogoUrl = user?.companyLogoUrl || null;
@@ -244,6 +240,8 @@ export default function AdminDashboard() {
   const [importTimesheetOpen, setImportTimesheetOpen] = useState(false);
   const [importTimesheetBusy, setImportTimesheetBusy] = useState(false);
   const [importTimesheetRawError, setImportTimesheetRawError] = useState<string | null>(null);
+  const [importTimesheetFileName, setImportTimesheetFileName] = useState<string>('');
+  const [importTimesheetFileInputKey, setImportTimesheetFileInputKey] = useState<number>(0);
   const [importTimesheetRows, setImportTimesheetRows] = useState<
     { rowNumber: number; employeeId: number | null; employeeCode: string; checkInTime: string | null; checkOutTime: string | null; errors: string[] }[]
   >([]);
@@ -299,7 +297,6 @@ export default function AdminDashboard() {
   const [employees, setEmployees] = useState<EmployeeResponse[]>([]);
   const [locations, setLocations] = useState<WorkLocation[]>([]);
   const [attendance, setAttendance] = useState<AttendanceResponse[]>([]);
-  const [users, setUsers] = useState<(UserResponse & { newPassword?: string })[]>([]);
 
   const filteredEmployees = useMemo(() => {
     const q = staffSearch.trim().toLowerCase();
@@ -622,17 +619,13 @@ export default function AdminDashboard() {
   const [geofenceSearch, setGeofenceSearch] = useState<string>('');
   const [showGeofenceForm, setShowGeofenceForm] = useState(false);
 
-  const [newUser, setNewUser] = useState<Pick<CreateUserRequest, 'username' | 'password' | 'role'> & { enabled: boolean }>({
-    username: '',
-    password: '',
-    role: 'EMPLOYEE',
-    enabled: true,
-  });
-
-  const roleOptions = useMemo<Role[]>(() => ['ADMIN', 'HR', 'MANAGER', 'RECORDER', 'EMPLOYEE'], []);
-  const userRoleOptions = useMemo<Role[]>(() => ['ADMIN', 'HR', 'MANAGER', 'RECORDER', 'EMPLOYEE', 'PAYROLL', 'AUDITOR'], []);
+  const roleOptions = useMemo<Role[]>(
+    () => ['SYSTEM_ADMIN', 'ADMIN', 'HR', 'MANAGER', 'RECORDER', 'EMPLOYEE', 'PAYROLL', 'AUDITOR'],
+    []
+  );
+  const staffRoleOptions = useMemo<Role[]>(() => roleOptions.filter((r) => r !== 'SYSTEM_ADMIN'), [roleOptions]);
   const canManage = user && (user.role === 'ADMIN' || user.role === 'HR');
-  const canManageUsers = user && (user.role === 'SYSTEM_ADMIN' || user.role === 'ADMIN');
+  const canImportTimesheet = user && (user.role === 'ADMIN' || user.role === 'HR' || user.role === 'MANAGER' || user.role === 'RECORDER');
 
   const isOwnerAdmin = user?.role === 'ADMIN' && user?.companyId != null;
 
@@ -924,18 +917,8 @@ export default function AdminDashboard() {
     }
   }
 
-  async function refreshUsers() {
-    if (!canManageUsers) {
-      setUsers([]);
-      return;
-    }
-    const u = await listUsers();
-    setUsers(u);
-  }
-
   useEffect(() => {
     refreshAll();
-    refreshUsers();
     refreshHomeAnalytics(selectedYear, selectedMonth);
   }, []);
 
@@ -967,7 +950,6 @@ export default function AdminDashboard() {
     }
     // Reload data so all filters reflect the selected company.
     refreshAll();
-    refreshUsers();
     refreshHomeAnalytics(selectedYear, selectedMonth);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [effectiveCompanyId]);
@@ -984,12 +966,6 @@ export default function AdminDashboard() {
   useEffect(() => {
     refreshHomeAnalytics(selectedYear, selectedMonth);
   }, [selectedYear, selectedMonth]);
-
-  useEffect(() => {
-    if (section === 'settings' && settingsTab === 'users') {
-      refreshUsers();
-    }
-  }, [section, settingsTab]);
 
   async function refreshCompanies() {
     setCompaniesLoading(true);
@@ -1022,8 +998,7 @@ export default function AdminDashboard() {
     if (employeeUsername) {
       const uname = employeeUsername.toLowerCase();
       const existsInEmployees = employees.some((x) => (x.username || '').trim().toLowerCase() === uname);
-      const existsInUsers = users.some((x) => (x.username || '').trim().toLowerCase() === uname);
-      if (existsInEmployees || existsInUsers) {
+      if (existsInEmployees) {
         const msg = 'Username already exists';
         setError(msg);
         showToast(msg, 'error');
@@ -1205,12 +1180,15 @@ export default function AdminDashboard() {
     setImportTimesheetRawError(null);
     setImportTimesheetRows([]);
     setImportTimesheetDone(null);
+    setImportTimesheetFileName('');
+    setImportTimesheetFileInputKey((k) => k + 1);
     setImportTimesheetOpen(true);
   }
 
   function downloadTimesheetImportTemplate() {
     const header = ['employeeCode', 'date', 'checkIn', 'checkOut'].join(',');
-    const example = ['EMP001', utcDateString(new Date()), '08:00', '17:00'].join(',');
+    const exampleDate = utcDateString(new Date(Date.UTC(selectedYear, selectedMonth - 1, 1)));
+    const example = ['EMP001', exampleDate, '08:00', '17:00'].join(',');
     const csv = `${header}\n${example}\n`;
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -1281,6 +1259,19 @@ export default function AdminDashboard() {
       const employeeId = emp?.id ?? null;
       if (!employeeId) errors.push('Employee not found by employeeCode');
 
+      if (date.trim()) {
+        const dt = new Date(`${date.trim()}T00:00:00Z`);
+        if (Number.isNaN(dt.getTime())) {
+          errors.push('Invalid date format (expected YYYY-MM-DD)');
+        } else {
+          const y = dt.getUTCFullYear();
+          const m = dt.getUTCMonth() + 1;
+          if (y !== selectedYear || m !== selectedMonth) {
+            errors.push(`Date must be within selected period: ${selectedYear}-${String(selectedMonth).padStart(2, '0')}`);
+          }
+        }
+      }
+
       const checkInTime = parseUtcInstant(inRaw.includes('T') || inRaw.includes('-') ? inRaw : `${date} ${inRaw}`);
       const checkOutTime = parseUtcInstant(outRaw.includes('T') || outRaw.includes('-') ? outRaw : `${date} ${outRaw}`);
       if (!checkInTime) errors.push('Invalid checkIn time format');
@@ -1328,6 +1319,10 @@ export default function AdminDashboard() {
       setImportTimesheetDone({ ok: res.ok, failed: res.failed });
       await refreshAll();
       showToast(`Imported ${res.ok} attendance row(s), ${res.failed} failed`, res.failed ? 'error' : 'success');
+    } catch (err: unknown) {
+      const msg = getApiErrorMessage(err, 'Failed to import timesheet');
+      setImportTimesheetRawError(msg);
+      showToast(msg, 'error');
     } finally {
       setImportTimesheetBusy(false);
     }
@@ -1424,7 +1419,7 @@ export default function AdminDashboard() {
       throw new Error(`Missing required columns: ${requiredMissing.join(', ')}`);
     }
 
-    const allowedRoles = new Set(roleOptions);
+    const allowedRoles = new Set(staffRoleOptions);
 
     const rows: ImportEmployeeRow[] = [];
     for (let i = 1; i < table.length; i += 1) {
@@ -1481,8 +1476,7 @@ export default function AdminDashboard() {
       const uname = employee.username.trim().toLowerCase();
       if (uname) {
         const existsInEmployees = employees.some((x) => (x.username || '').trim().toLowerCase() === uname);
-        const existsInUsers = users.some((x) => (x.username || '').trim().toLowerCase() === uname);
-        if (existsInEmployees || existsInUsers) errors.push('Username already exists');
+        if (existsInEmployees) errors.push('Username already exists');
       }
 
       rows.push({ rowNumber, employee, companyId: companyIdRaw ? companyId : undefined, errors });
@@ -1564,8 +1558,7 @@ export default function AdminDashboard() {
         if (employeeUsername) {
           const uname = employeeUsername.toLowerCase();
           const existsInEmployees = employees.some((x) => (x.username || '').trim().toLowerCase() === uname);
-          const existsInUsers = users.some((x) => (x.username || '').trim().toLowerCase() === uname);
-          if (existsInEmployees || existsInUsers) {
+          if (existsInEmployees) {
             const msg = 'Username already exists';
             setError(msg);
             showToast(msg, 'error');
@@ -1590,10 +1583,7 @@ export default function AdminDashboard() {
         const uname = employeeUsername.toLowerCase();
         const otherEmployees = employees.filter((x) => x.id !== employeeEditTarget.id);
         const existsInEmployees = otherEmployees.some((x) => (x.username || '').trim().toLowerCase() === uname);
-        const existsInUsers = users.some(
-          (x) => (x.username || '').trim().toLowerCase() === uname && (employeeEditTarget.username || '').trim().toLowerCase() !== uname
-        );
-        if (existsInEmployees || existsInUsers) {
+        if (existsInEmployees) {
           const msg = 'Username already exists';
           setError(msg);
           showToast(msg, 'error');
@@ -1619,25 +1609,6 @@ export default function AdminDashboard() {
       await refreshAll();
     } catch (err: unknown) {
       const errorMsg = getApiErrorMessage(err, employeeModalMode === 'create' ? 'Failed to create employee' : 'Failed to update employee');
-      setError(errorMsg);
-      showToast(errorMsg, 'error');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function onDeleteUser(id: number) {
-    if (!window.confirm('Are you sure you want to delete this user?')) {
-      return;
-    }
-    setError(null);
-    setBusy(true);
-    try {
-      await deleteUser(id);
-      showToast('User deleted successfully', 'success');
-      await refreshUsers();
-    } catch (err: unknown) {
-      const errorMsg = getApiErrorMessage(err, 'Failed to delete user');
       setError(errorMsg);
       showToast(errorMsg, 'error');
     } finally {
@@ -1754,60 +1725,6 @@ export default function AdminDashboard() {
       showToast(errorMsg, 'error');
     } finally {
       setBranchFormBusy(false);
-    }
-  }
-
-  async function onCreateUser(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setError(null);
-
-    const username = (newUser.username || '').trim();
-    if (username) {
-      const uname = username.toLowerCase();
-      const existsInUsers = users.some((x) => (x.username || '').trim().toLowerCase() === uname);
-      const existsInEmployees = employees.some((x) => (x.username || '').trim().toLowerCase() === uname);
-      if (existsInUsers || existsInEmployees) {
-        const msg = 'Username already exists';
-        setError(msg);
-        showToast(msg, 'error');
-        return;
-      }
-    }
-
-    setBusy(true);
-    try {
-      await createUser({
-        username: username,
-        password: newUser.password,
-        role: newUser.role,
-        enabled: !!newUser.enabled,
-      });
-      setNewUser({ username: '', password: '', role: 'EMPLOYEE', enabled: true });
-      await refreshUsers();
-    } catch (err: unknown) {
-      const errorMsg = getApiErrorMessage(err, 'Failed to create user');
-      setError(errorMsg);
-      showToast(errorMsg, 'error');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function onQuickUpdateUser(u: UserResponse & { newPassword?: string }) {
-    setError(null);
-    setBusy(true);
-    try {
-      const payload: UpdateUserRequest = {
-        role: u.role,
-        enabled: !!u.enabled,
-        password: u.newPassword || undefined,
-      };
-      await updateUser(u.id, payload);
-      await refreshUsers();
-    } catch (err: unknown) {
-      setError(getApiErrorMessage(err, 'Failed to update user'));
-    } finally {
-      setBusy(false);
     }
   }
 
@@ -1963,16 +1880,43 @@ export default function AdminDashboard() {
     }
   }
 
-  const sidebarItems = useMemo(
-    () => [
+  const sidebarItems = useMemo(() => {
+    const role = user?.role;
+
+    if (role === 'MANAGER') {
+      return [
+        { key: 'dashboard', label: 'Dashboard' },
+        { key: 'reports', label: 'Reports & Analytics' },
+        { key: 'workforce', label: 'Workforce Plan' },
+        { key: 'staff', label: 'Staff Directory' },
+      ];
+    }
+
+    if (role === 'HR') {
+      return [
+        { key: 'dashboard', label: 'Dashboard' },
+        { key: 'reports', label: 'Reports & Analytics' },
+        { key: 'workforce', label: 'Workforce Plan' },
+        { key: 'staff', label: 'Staff Directory' },
+        { key: 'settings', label: 'Settings' },
+      ];
+    }
+
+    return [
       { key: 'dashboard', label: 'Dashboard' },
       { key: 'reports', label: 'Reports & Analytics' },
       { key: 'workforce', label: 'Workforce Plan' },
       { key: 'staff', label: 'Staff Directory' },
       { key: 'settings', label: 'Settings' },
-    ],
-    []
-  );
+    ];
+  }, [user?.role]);
+
+  useEffect(() => {
+    const allowed = sidebarItems.some((x) => x.key === section);
+    if (!allowed) {
+      setSection(sidebarItems[0]?.key || 'dashboard');
+    }
+  }, [section, sidebarItems]);
 
   if (loading && employees.length === 0) {
     return (
@@ -2428,9 +2372,12 @@ export default function AdminDashboard() {
                         { label: 'Download Timesheet Import Template', onClick: () => downloadTimesheetImportTemplate() },
                         { label: 'Staff Directory', onClick: () => setSection('staff') },
                         { label: 'Reports & Analytics', onClick: () => setSection('reports') },
-                        { label: 'Work Locations', onClick: () => (setSection('settings'), setSettingsTab('company')) },
-                        { label: 'Users & Roles', onClick: () => (setSection('settings'), setSettingsTab('users')) },
-                        { label: 'Holidays', onClick: () => (setSection('settings'), setSettingsTab('holidays')) },
+                        ...(sidebarItems.some((i) => i.key === 'settings') && canManage
+                          ? [
+                              { label: 'Work Locations', onClick: () => (setSection('settings'), setSettingsTab('company')) },
+                              { label: 'Holidays', onClick: () => (setSection('settings'), setSettingsTab('holidays')) },
+                            ]
+                          : []),
                       ].map((x) => (
                         <button
                           key={x.label}
@@ -2753,7 +2700,7 @@ export default function AdminDashboard() {
                       </button>
                       <button
                         type="button"
-                        disabled={!canManage}
+                        disabled={!canImportTimesheet}
                         className="rounded-md border px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-60"
                         onClick={openImportTimesheetModal}
                       >
@@ -2982,6 +2929,160 @@ export default function AdminDashboard() {
                     disabled={importEmployeesBusy}
                     className="rounded-md border border-slate-300 px-4 py-2 text-slate-700 hover:bg-slate-50 disabled:opacity-60"
                     onClick={() => setImportEmployeesOpen(false)}
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {importTimesheetOpen ? (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-0 sm:p-4" role="dialog" aria-modal="true">
+            <div className="w-full sm:max-w-3xl rounded-t-2xl sm:rounded-xl bg-white shadow-lg border">
+              <div className="px-4 py-3 border-b flex items-center justify-between">
+                <div>
+                  <div className="text-base font-semibold text-slate-900">Import timesheet (CSV)</div>
+                  <div className="mt-0.5 text-sm text-slate-600">Uploads attendance rows into the system so they appear in reports/analytics.</div>
+                </div>
+                <button
+                  type="button"
+                  className="h-9 w-9 rounded-md hover:bg-slate-100 text-slate-600"
+                  onClick={() => setImportTimesheetOpen(false)}
+                  aria-label="Close"
+                  title="Close"
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="p-4">
+                <div className="rounded-lg border bg-slate-50 p-3 text-sm text-slate-700">
+                  Period: <span className="font-medium text-slate-900">{getMonthRangeLabel(selectedYear, selectedMonth)}</span>
+                </div>
+
+                <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                  <div className="grid gap-2">
+                    <div className="text-sm font-medium text-slate-900">Upload CSV</div>
+                    <input
+                      key={importTimesheetFileInputKey}
+                      type="file"
+                      accept=".csv,text/csv"
+                      disabled={importTimesheetBusy}
+                      onChange={async (e) => {
+                        setImportTimesheetRawError(null);
+                        setImportTimesheetDone(null);
+                        const f = e.target.files && e.target.files[0] ? e.target.files[0] : null;
+                        if (!f) return;
+                        setImportTimesheetFileName(f.name);
+                        try {
+                          const text = await f.text();
+                          const rows = parseTimesheetImportCsv(text);
+                          setImportTimesheetRows(rows);
+                          showToast(`Loaded ${rows.length} row(s)`, 'success');
+                        } catch (err: unknown) {
+                          const msg = err instanceof Error ? err.message : 'Failed to read CSV';
+                          setImportTimesheetRows([]);
+                          setImportTimesheetRawError(msg);
+                          showToast(msg, 'error');
+                        }
+                      }}
+                    />
+                    {importTimesheetFileName ? <div className="text-xs text-slate-500">Selected: {importTimesheetFileName}</div> : null}
+                    {importTimesheetRawError ? (
+                      <div className="rounded-md border border-red-200 bg-red-50 p-2 text-sm text-red-700">{importTimesheetRawError}</div>
+                    ) : null}
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2 justify-end">
+                    <button
+                      type="button"
+                      disabled={importTimesheetBusy}
+                      className="rounded-md border px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                      onClick={downloadTimesheetImportTemplate}
+                    >
+                      Download template
+                    </button>
+                    <button
+                      type="button"
+                      disabled={importTimesheetBusy}
+                      className="rounded-md border px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                      onClick={() => {
+                        setImportTimesheetRawError(null);
+                        setImportTimesheetDone(null);
+                        setImportTimesheetRows([]);
+                        setImportTimesheetFileName('');
+                        setImportTimesheetFileInputKey((k) => k + 1);
+                      }}
+                    >
+                      Clear
+                    </button>
+                    <button
+                      type="button"
+                      disabled={importTimesheetBusy || !importTimesheetRows.length}
+                      className="rounded-md bg-slate-900 px-3 py-2 text-sm text-white hover:bg-slate-800 disabled:opacity-60 flex items-center gap-2"
+                      onClick={startTimesheetImport}
+                    >
+                      {importTimesheetBusy && <LoadingSpinner size="sm" />}
+                      {importTimesheetBusy ? 'Importing...' : 'Start import'}
+                    </button>
+                  </div>
+                </div>
+
+                {importTimesheetDone ? (
+                  <div className="mt-3 rounded-md border bg-slate-50 p-3 text-sm text-slate-700">
+                    Imported: <span className="font-medium text-slate-900">{importTimesheetDone.ok}</span> OK,{' '}
+                    <span className="font-medium text-slate-900">{importTimesheetDone.failed}</span> failed
+                  </div>
+                ) : null}
+
+                {importTimesheetRows.length ? (
+                  <div className="mt-4 overflow-x-auto rounded-lg border">
+                    <table className="w-full text-sm">
+                      <thead className="bg-slate-50 text-slate-600">
+                        <tr>
+                          <th className="px-3 py-2 text-left">Row</th>
+                          <th className="px-3 py-2 text-left">Employee Code</th>
+                          <th className="px-3 py-2 text-left">Check In (UTC)</th>
+                          <th className="px-3 py-2 text-left">Check Out (UTC)</th>
+                          <th className="px-3 py-2 text-left">Errors</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {importTimesheetRows.slice(0, 20).map((r) => (
+                          <tr key={r.rowNumber} className="border-t">
+                            <td className="px-3 py-2">{r.rowNumber}</td>
+                            <td className="px-3 py-2">{r.employeeCode}</td>
+                            <td className="px-3 py-2">{r.checkInTime || '-'}</td>
+                            <td className="px-3 py-2">{r.checkOutTime || '-'}</td>
+                            <td className="px-3 py-2">
+                              {r.errors.length ? <div className="text-red-700">{r.errors.join(' | ')}</div> : <div className="text-slate-500">OK</div>}
+                            </td>
+                          </tr>
+                        ))}
+                        {importTimesheetRows.length > 20 ? (
+                          <tr className="border-t">
+                            <td colSpan={5} className="px-3 py-2 text-xs text-slate-500">
+                              Showing first 20 rows (total: {importTimesheetRows.length}).
+                            </td>
+                          </tr>
+                        ) : null}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="mt-4 rounded-lg border bg-slate-50 p-3 text-sm text-slate-700">
+                    Required columns: <span className="font-medium">employeeCode, date, checkIn, checkOut</span>. Date must be within the selected period.
+                  </div>
+                )}
+
+                <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end">
+                  <button
+                    type="button"
+                    disabled={importTimesheetBusy}
+                    className="rounded-md border border-slate-300 px-4 py-2 text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                    onClick={() => setImportTimesheetOpen(false)}
                   >
                     Close
                   </button>
@@ -3237,145 +3338,12 @@ export default function AdminDashboard() {
               </div>
             ) : null}
 
-            {importTimesheetOpen ? (
-              <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-0 sm:p-4" role="dialog" aria-modal="true">
-                <div className="w-full sm:max-w-3xl rounded-t-2xl sm:rounded-xl bg-white shadow-lg border">
-                  <div className="px-4 py-3 border-b flex items-center justify-between">
-                    <div>
-                      <div className="text-base font-semibold text-slate-900">Import timesheet (CSV)</div>
-                      <div className="mt-0.5 text-sm text-slate-600">Uploads attendance rows into the system so they appear in reports/analytics.</div>
-                    </div>
-                    <button
-                      type="button"
-                      className="h-9 w-9 rounded-md hover:bg-slate-100 text-slate-600"
-                      onClick={() => setImportTimesheetOpen(false)}
-                      aria-label="Close"
-                      title="Close"
-                    >
-                      ×
-                    </button>
-                  </div>
-
-                  <div className="p-4">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                      <div className="grid gap-2">
-                        <div className="text-sm font-medium text-slate-900">Upload CSV</div>
-                        <input
-                          type="file"
-                          accept=".csv,text/csv"
-                          disabled={importTimesheetBusy}
-                          onChange={async (e) => {
-                            setImportTimesheetRawError(null);
-                            setImportTimesheetDone(null);
-                            const f = e.target.files && e.target.files[0] ? e.target.files[0] : null;
-                            if (!f) return;
-                            try {
-                              const text = await f.text();
-                              const rows = parseTimesheetImportCsv(text);
-                              setImportTimesheetRows(rows);
-                              showToast(`Loaded ${rows.length} row(s)`, 'success');
-                            } catch (err: unknown) {
-                              const msg = err instanceof Error ? err.message : 'Failed to read CSV';
-                              setImportTimesheetRows([]);
-                              setImportTimesheetRawError(msg);
-                              showToast(msg, 'error');
-                            }
-                          }}
-                        />
-                        {importTimesheetRawError ? (
-                          <div className="rounded-md border border-red-200 bg-red-50 p-2 text-sm text-red-700">{importTimesheetRawError}</div>
-                        ) : null}
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-2 justify-end">
-                        <button
-                          type="button"
-                          disabled={importTimesheetBusy}
-                          className="rounded-md border px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-                          onClick={downloadTimesheetImportTemplate}
-                        >
-                          Download template
-                        </button>
-                        <button
-                          type="button"
-                          disabled={importTimesheetBusy || !importTimesheetRows.length}
-                          className="rounded-md bg-slate-900 px-3 py-2 text-sm text-white hover:bg-slate-800 disabled:opacity-60 flex items-center gap-2"
-                          onClick={startTimesheetImport}
-                        >
-                          {importTimesheetBusy && <LoadingSpinner size="sm" />}
-                          {importTimesheetBusy ? 'Importing...' : 'Start import'}
-                        </button>
-                      </div>
-                    </div>
-
-                    {importTimesheetDone ? (
-                      <div className="mt-3 rounded-md border bg-slate-50 p-3 text-sm text-slate-700">
-                        Imported: <span className="font-medium text-slate-900">{importTimesheetDone.ok}</span> OK,{' '}
-                        <span className="font-medium text-slate-900">{importTimesheetDone.failed}</span> failed
-                      </div>
-                    ) : null}
-
-                    {importTimesheetRows.length ? (
-                      <div className="mt-4 overflow-x-auto rounded-lg border">
-                        <table className="w-full text-sm">
-                          <thead className="bg-slate-50 text-slate-600">
-                            <tr>
-                              <th className="px-3 py-2 text-left">Row</th>
-                              <th className="px-3 py-2 text-left">Employee Code</th>
-                              <th className="px-3 py-2 text-left">Check In (UTC)</th>
-                              <th className="px-3 py-2 text-left">Check Out (UTC)</th>
-                              <th className="px-3 py-2 text-left">Errors</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {importTimesheetRows.slice(0, 20).map((r) => (
-                              <tr key={r.rowNumber} className="border-t">
-                                <td className="px-3 py-2">{r.rowNumber}</td>
-                                <td className="px-3 py-2">{r.employeeCode}</td>
-                                <td className="px-3 py-2">{r.checkInTime || '-'}</td>
-                                <td className="px-3 py-2">{r.checkOutTime || '-'}</td>
-                                <td className="px-3 py-2">
-                                  {r.errors.length ? <div className="text-red-700">{r.errors.join(' | ')}</div> : <div className="text-slate-500">OK</div>}
-                                </td>
-                              </tr>
-                            ))}
-                            {importTimesheetRows.length > 20 ? (
-                              <tr className="border-t">
-                                <td colSpan={5} className="px-3 py-2 text-xs text-slate-500">
-                                  Showing first 20 rows (total: {importTimesheetRows.length}).
-                                </td>
-                              </tr>
-                            ) : null}
-                          </tbody>
-                        </table>
-                      </div>
-                    ) : (
-                      <div className="mt-4 rounded-lg border bg-slate-50 p-3 text-sm text-slate-700">
-                        Required columns: <span className="font-medium">employeeCode, date, checkIn, checkOut</span>
-                      </div>
-                    )}
-
-                    <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end">
-                      <button
-                        type="button"
-                        disabled={importTimesheetBusy}
-                        className="rounded-md border border-slate-300 px-4 py-2 text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-                        onClick={() => setImportTimesheetOpen(false)}
-                      >
-                        Close
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ) : null}
-
             {deleteCompanyId != null ? (
               <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="delete-company-title">
                 <div className="w-full max-w-md rounded-xl border bg-white p-5 shadow-lg">
                   <h2 id="delete-company-title" className="text-lg font-semibold text-slate-900">Delete company</h2>
                   <p className="mt-2 text-sm text-slate-600">
-                    Are you sure you want to delete this company? This cannot be undone. The company must have no users.
+                    Are you sure you want to delete this company? This cannot be undone. The company must have no staff accounts.
                   </p>
                   <div className="mt-4 flex gap-2 justify-end">
                     <button type="button" className="rounded-md border border-slate-300 px-4 py-2 text-slate-700 hover:bg-slate-50" onClick={() => setDeleteCompanyId(null)}>
@@ -3412,7 +3380,7 @@ export default function AdminDashboard() {
                     </button>
                     <button
                       type="button"
-                      disabled={!canManage}
+                      disabled={!canImportTimesheet}
                       className="rounded-md border px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
                       onClick={openImportTimesheetModal}
                     >
@@ -3852,7 +3820,7 @@ export default function AdminDashboard() {
                   <label className="block">
                     <div className="text-xs font-medium text-slate-600">Role</div>
                     <select className="mt-1 w-full rounded-md border bg-white px-3 py-2 text-sm" value={newEmployee.role} onChange={(e) => setNewEmployee({ ...newEmployee, role: e.target.value as Role })}>
-                      {roleOptions.map((r) => (
+                      {staffRoleOptions.map((r) => (
                         <option key={r} value={r}>{r}</option>
                       ))}
                     </select>
@@ -4099,7 +4067,6 @@ export default function AdminDashboard() {
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <TabButton active={settingsTab === 'company'} onClick={() => setSettingsTab('company')}>Company & Branches</TabButton>
-                  <TabButton active={settingsTab === 'users'} onClick={() => setSettingsTab('users')}>Users</TabButton>
                   <TabButton active={settingsTab === 'holidays'} onClick={() => setSettingsTab('holidays')}>Holidays</TabButton>
                 </div>
               </div>
@@ -4241,153 +4208,6 @@ export default function AdminDashboard() {
               </div>
             ) : null}
 
-            {settingsTab === 'users' ? (
-              canManageUsers ? (
-                <form className="rounded-xl border bg-white p-5" onSubmit={onCreateUser}>
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <div className="text-base font-semibold text-slate-900">Create user</div>
-                    <div className="mt-1 text-sm text-slate-600">Create a login account for your organization. Usernames must be unique.</div>
-                  </div>
-                </div>
-
-                <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <label className="block">
-                    <div className="text-xs font-medium text-slate-600">Username</div>
-                    <input
-                      className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
-                      placeholder="e.g. john"
-                      value={newUser.username}
-                      onChange={(e) => setNewUser({ ...newUser, username: e.target.value })}
-                    />
-                  </label>
-                  <label className="block">
-                    <div className="text-xs font-medium text-slate-600">Password</div>
-                    <input
-                      className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
-                      placeholder="Set a strong password"
-                      type="password"
-                      value={newUser.password}
-                      onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
-                    />
-                  </label>
-
-                  <label className="block">
-                    <div className="text-xs font-medium text-slate-600">Role</div>
-                    <select
-                      className="mt-1 w-full rounded-md border bg-white px-3 py-2 text-sm"
-                      value={newUser.role}
-                      onChange={(e) => setNewUser({ ...newUser, role: e.target.value as Role })}
-                    >
-                      {userRoleOptions.map((r) => (
-                        <option key={r} value={r}>
-                          {r}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <label className="flex items-center gap-2 rounded-md border bg-slate-50 px-3 py-2">
-                    <input type="checkbox" checked={!!newUser.enabled} onChange={(e) => setNewUser({ ...newUser, enabled: e.target.checked })} />
-                    <span className="text-sm text-slate-700">Enabled</span>
-                  </label>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={busy || !newUser.username.trim() || !newUser.password.trim()}
-                  className="mt-5 rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60 flex items-center gap-2"
-                >
-                  {busy && <LoadingSpinner size="sm" />}
-                  {busy ? 'Creating...' : 'Create User'}
-                </button>
-              </form>
-              ) : (
-                <div className="rounded-xl border bg-white p-4 text-sm text-slate-600">
-                  You do not have permission to manage users.
-                </div>
-              )
-            ) : null}
-
-            {settingsTab === 'users' ? (
-              <div className="rounded-xl border bg-white overflow-x-auto">
-                <div className="px-4 py-3 border-b font-medium text-slate-900">Users</div>
-                <table className="w-full min-w-[980px] text-sm">
-                  <thead className="bg-slate-50 text-slate-600">
-                    <tr>
-                      <th className="px-4 py-2 text-left">Username</th>
-                      <th className="px-4 py-2 text-left">Role</th>
-                      <th className="px-4 py-2 text-left">Enabled</th>
-                      <th className="px-4 py-2 text-left">Reset password</th>
-                      <th className="px-4 py-2"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {users.map((u) => (
-                      <tr key={u.id} className="border-t">
-                        <td className="px-4 py-2">{u.username}</td>
-                        <td className="px-4 py-2">
-                          <select
-                            className="w-full sm:w-auto rounded-md border px-2 py-1 bg-white"
-                            value={u.role}
-                            disabled={!canManageUsers}
-                            onChange={(e) => setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, role: e.target.value as Role } : x)))}
-                          >
-                            {userRoleOptions.map((r) => (
-                              <option key={r} value={r}>{r}</option>
-                            ))}
-                          </select>
-                        </td>
-                        <td className="px-4 py-2">
-                          <input
-                            type="checkbox"
-                            checked={!!u.enabled}
-                            disabled={!canManageUsers}
-                            onChange={(e) => setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, enabled: e.target.checked } : x)))}
-                          />
-                        </td>
-                        <td className="px-4 py-2">
-                          <input
-                            className="w-full min-w-[180px] rounded-md border px-2 py-1"
-                            placeholder="New password (optional)"
-                            type="password"
-                            disabled={!canManageUsers}
-                            value={u.newPassword || ''}
-                            onChange={(e) => setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, newPassword: e.target.value } : x)))}
-                          />
-                        </td>
-                        <td className="px-4 py-2 text-right">
-                          {canManageUsers ? (
-                            <>
-                              <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:justify-end">
-                                <button type="button" disabled={busy} className="rounded-md border px-3 py-1.5 hover:bg-slate-50 disabled:opacity-60" onClick={() => onQuickUpdateUser(u)}>
-                                  Save
-                                </button>
-                                <button type="button" disabled={busy} className="rounded-md bg-red-600 px-3 py-1.5 text-white hover:bg-red-500 disabled:opacity-60" onClick={() => onDeleteUser(u.id)}>
-                                  Delete
-                                </button>
-                              </div>
-                            </>
-                          ) : (
-                            <span className="text-slate-400">Read-only</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                    {users.length === 0 ? (
-                      <tr>
-                        <td colSpan={5} className="px-4 py-12">
-                          <EmptyState
-                            title="No users"
-                            description="Create system users to manage access and permissions for your attendance system."
-                          />
-                        </td>
-                      </tr>
-                    ) : null}
-                  </tbody>
-                </table>
-              </div>
-            ) : null}
           </div>
         ) : null}
       </div>

@@ -1,6 +1,6 @@
 import React from 'react';
 import { useAuth } from '../auth/AuthContext';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 
 type ShellHeaderProps = {
   title?: string;
@@ -10,7 +10,6 @@ type ShellHeaderProps = {
 export default function ShellHeader({ title, onMenuClick }: ShellHeaderProps) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
 
   const systemName = localStorage.getItem('systemName');
 
@@ -34,8 +33,6 @@ export default function ShellHeader({ title, onMenuClick }: ShellHeaderProps) {
     logout();
     navigate('/login');
   };
-
-  const showSystemAdminLink = user?.role === 'SYSTEM_ADMIN' && location.pathname !== '/system-admin';
 
   return (
     <div className="w-full bg-gradient-to-r from-blue-700 to-indigo-700 text-white shadow-md">
@@ -80,20 +77,11 @@ export default function ShellHeader({ title, onMenuClick }: ShellHeaderProps) {
               ) : null}
             </div>
           ) : null}
-          {showSystemAdminLink ? (
-            <button
-              type="button"
-              onClick={() => navigate('/system-admin')}
-              className="rounded-md bg-white/20 px-3 py-2 text-sm font-medium hover:bg-white/30 transition-colors"
-            >
-              System Admin
-            </button>
-          ) : null}
           {user ? (
             <div className="hidden md:flex items-center gap-2 rounded-lg bg-white/10 px-3 py-1.5 text-sm">
               <span className="text-white/70">User:</span>
               <span className="font-medium">{user.username}</span>
-              <span className="text-white/70">({user.role})</span>
+              {user.role !== 'SYSTEM_ADMIN' ? <span className="text-white/70">({user.role})</span> : null}
             </div>
           ) : null}
           {user ? (

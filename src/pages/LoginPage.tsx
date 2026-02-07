@@ -54,11 +54,17 @@ export default function LoginPage() {
       if (user.role === 'SYSTEM_ADMIN') {
         navigate('/system-admin', { replace: true });
       } else if (user.role === 'RECORDER') {
-        navigate('/employee', { replace: true });
+        navigate('/recorder', { replace: true });
       } else if (user.role === 'EMPLOYEE') {
         navigate('/employee', { replace: true });
+      } else if (user.role === 'HR') {
+        navigate('/hr', { replace: true });
+      } else if (user.role === 'MANAGER') {
+        navigate('/manager', { replace: true });
       } else if (user.role === 'PAYROLL') {
         navigate('/payroll', { replace: true });
+      } else if (user.role === 'AUDITOR') {
+        navigate('/auditor', { replace: true });
       } else {
         navigate('/admin', { replace: true });
       }

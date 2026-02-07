@@ -3,6 +3,7 @@ import AppLayout from '../components/AppLayout';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Toast from '../components/Toast';
 import { useToast } from '../hooks/useToast';
+import { useAuth } from '../auth/AuthContext';
 
 import { approveCompanyPurpose, listPendingCompanyPurpose, rejectCompanyPurpose } from '../api/attendance';
 import { getPayrollSummary } from '../api/payroll';
@@ -50,6 +51,7 @@ function getApiErrorMessage(err: unknown, fallback: string): string {
 }
 
 export default function PayrollDashboard() {
+  const { user } = useAuth();
   const { toast, showToast, hideToast } = useToast();
   const [section, setSection] = useState<'overview' | 'approvals' | 'payroll'>('overview');
 
@@ -70,11 +72,26 @@ export default function PayrollDashboard() {
   >('employee');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
-  const sidebarItems = [
-    { key: 'overview', label: 'Overview' },
-    { key: 'approvals', label: 'Company Purpose Approvals' },
-    { key: 'payroll', label: 'Payroll Summary' },
-  ];
+  const sidebarItems = useMemo(() => {
+    if (user?.role === 'AUDITOR') {
+      return [
+        { key: 'overview', label: 'Overview' },
+        { key: 'payroll', label: 'Payroll Summary' },
+      ];
+    }
+
+    return [
+      { key: 'overview', label: 'Overview' },
+      { key: 'approvals', label: 'Company Purpose Approvals' },
+      { key: 'payroll', label: 'Payroll Summary' },
+    ];
+  }, [user?.role]);
+
+  useEffect(() => {
+    if (!sidebarItems.some((x) => x.key === section)) {
+      setSection((sidebarItems[0]?.key as 'overview' | 'approvals' | 'payroll') || 'overview');
+    }
+  }, [section, sidebarItems]);
 
   const [helpOpen, setHelpOpen] = useState(false);
   const [helpInput, setHelpInput] = useState('');
