@@ -10,11 +10,43 @@ const MODEL_URL = '/models';
 let modelsLoaded = false;
 let loadPromise: Promise<void> | null = null;
 
+let faceApiScriptPromise: Promise<void> | null = null;
+
+function getFaceApiGlobal(): any {
+  return (window as any).faceapi;
+}
+
+async function ensureFaceApiScriptLoaded(): Promise<void> {
+  if (getFaceApiGlobal()) return;
+  if (faceApiScriptPromise) return faceApiScriptPromise;
+
+  faceApiScriptPromise = new Promise<void>((resolve, reject) => {
+    const existing = document.querySelector('script[data-faceapi="true"]') as HTMLScriptElement | null;
+    if (existing) {
+      existing.addEventListener('load', () => resolve());
+      existing.addEventListener('error', () => reject(new Error('Failed to load face-api.js')));
+      return;
+    }
+
+    const s = document.createElement('script');
+    s.setAttribute('data-faceapi', 'true');
+    s.async = true;
+    s.src = 'https://unpkg.com/face-api.js@0.22.2/dist/face-api.min.js';
+    s.onload = () => resolve();
+    s.onerror = () => reject(new Error('Failed to load face-api.js'));
+    document.head.appendChild(s);
+  });
+
+  return faceApiScriptPromise;
+}
+
 async function loadModels(): Promise<void> {
   if (modelsLoaded) return;
   if (loadPromise) return loadPromise;
   try {
-    const faceapi = await import('face-api.js/dist/face-api.min.js');
+    await ensureFaceApiScriptLoaded();
+    const faceapi = getFaceApiGlobal();
+    if (!faceapi) throw new Error('face-api.js not available');
     loadPromise = Promise.all([
       faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
       faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
@@ -45,7 +77,8 @@ export async function detectFaceInImage(
     await loadModels();
     if (!modelsLoaded) return { face: true };
 
-    const faceapi = await import('face-api.js/dist/face-api.min.js');
+    const faceapi = getFaceApiGlobal();
+    if (!faceapi) return { face: true };
     const detection = await faceapi
       .detectSingleFace(input)
       .withFaceLandmarks()
