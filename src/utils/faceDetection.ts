@@ -14,7 +14,7 @@ async function loadModels(): Promise<void> {
   if (modelsLoaded) return;
   if (loadPromise) return loadPromise;
   try {
-    const faceapi = await import('face-api.js');
+    const faceapi = await import('face-api.js/dist/face-api.min.js');
     loadPromise = Promise.all([
       faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
       faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
@@ -45,7 +45,7 @@ export async function detectFaceInImage(
     await loadModels();
     if (!modelsLoaded) return { face: true };
 
-    const faceapi = await import('face-api.js');
+    const faceapi = await import('face-api.js/dist/face-api.min.js');
     const detection = await faceapi
       .detectSingleFace(input)
       .withFaceLandmarks()
