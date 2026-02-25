@@ -46,8 +46,21 @@ export default function LoginPage() {
 
     try {
       const res = await loginApi(trimmedUsername, password);
+      // Don't commit token into AuthContext until we confirm it can be used to fetch /me.
+      // This prevents persisting a bad token and spamming /api/auth/me with repeated 401s.
+      localStorage.setItem('token', res.token);
+
+      let user;
+      try {
+        user = await refreshMe();
+      } catch (eMe) {
+        localStorage.removeItem('token');
+        setToken(null);
+        throw eMe;
+      }
+
+      // Now we know the token works; commit it to context/state.
       setToken(res.token);
-      const user = await refreshMe();
       if (user.companySlug) {
         localStorage.setItem('companySlug', user.companySlug);
       }
@@ -74,7 +87,7 @@ export default function LoginPage() {
       if (status === 403) {
         setError(serverMessage || 'Access denied (403).');
       } else if (status === 401) {
-        setError('Invalid username or password.');
+        setError(serverMessage || 'Unauthorized (401). Login failed or session could not be established.');
       } else if (status != null) {
         setError(`Login failed (${status}). Check your credentials.`);
       } else {

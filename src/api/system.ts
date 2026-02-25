@@ -15,10 +15,16 @@ export type UpdateSystemBrandingRequest = {
 
 function normalizeLogoUrl<T extends { logoUrl: string | null }>(data: T): T {
   const logoUrl = data.logoUrl;
-  if (logoUrl && logoUrl.startsWith('/')) {
-    return { ...data, logoUrl: `${API_BASE_URL}${logoUrl}` };
+  if (!logoUrl) return data;
+
+  // Absolute URLs (http/https) and data URLs should be left as-is.
+  if (/^(https?:)?\/\//i.test(logoUrl) || /^data:/i.test(logoUrl)) {
+    return data;
   }
-  return data;
+
+  // Handle both '/uploads/x.png' and 'uploads/x.png' forms.
+  const normalizedPath = logoUrl.startsWith('/') ? logoUrl : `/${logoUrl}`;
+  return { ...data, logoUrl: `${API_BASE_URL}${normalizedPath}` };
 }
 
 export async function getSystemLogo(): Promise<SystemLogoResponse> {
