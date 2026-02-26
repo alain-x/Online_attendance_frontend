@@ -4,7 +4,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import Toast from '../components/Toast';
 import { useToast } from '../hooks/useToast';
 import { listEmployees } from '../api/employees';
-import { recorderCheckIn, recorderCheckOut } from '../api/attendance';
+import { recorderCheckIn, recorderCheckOut, todayAttendance } from '../api/attendance';
 import { enrollFaceForEmployee } from '../api/face';
 import type { EmployeeResponse } from '../api/types';
 import { detectFaceInImage } from '../utils/faceDetection';
@@ -39,6 +39,9 @@ export default function RecorderDashboard() {
   const [enrolling, setEnrolling] = useState(false);
   const [enrollError, setEnrollError] = useState<string | null>(null);
 
+  const [mode, setMode] = useState<'quick' | 'single'>('quick');
+  const [todayRows, setTodayRows] = useState<import('../api/types').AttendanceResponse[]>([]);
+
   const [search, setSearch] = useState('');
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<number | null>(null);
 
@@ -70,11 +73,36 @@ export default function RecorderDashboard() {
     });
   }, [employees, search]);
 
+  const todayByEmployeeId = useMemo(() => {
+    const map = new Map<number, import('../api/types').AttendanceResponse>();
+    for (const row of todayRows || []) {
+      const id = Number(row.employeeId);
+      if (!id) continue;
+      const prev = map.get(id);
+      if (!prev) {
+        map.set(id, row);
+        continue;
+      }
+      // Prefer the latest by checkInTime then by id.
+      const prevKey = prev.checkInTime || '';
+      const nextKey = row.checkInTime || '';
+      if (nextKey > prevKey) {
+        map.set(id, row);
+        continue;
+      }
+      if (nextKey === prevKey && Number(row.id) > Number(prev.id)) {
+        map.set(id, row);
+      }
+    }
+    return map;
+  }, [todayRows]);
+
   async function refresh() {
     try {
       setInitialLoading(true);
-      const data = await listEmployees();
-      setEmployees(data);
+      const [empData, attendanceData] = await Promise.all([listEmployees(), todayAttendance()]);
+      setEmployees(empData);
+      setTodayRows(attendanceData);
     } catch (e: unknown) {
       showToast(getApiErrorMessage(e, 'Failed to load employees'), 'error');
     } finally {
@@ -271,6 +299,70 @@ export default function RecorderDashboard() {
     }
   }
 
+  async function doQuickCheckIn(employeeId: number) {
+    if (locationLoading) return;
+    const coords = lastCoords || (await requestLocation());
+    if (!coords) {
+      setError('Location permission is required to check in');
+      return;
+    }
+    if (!cameraOn) {
+      showToast('Please start the camera', 'warning');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    try {
+      const descriptorJson = await captureDescriptor();
+      if (!descriptorJson) {
+        setLoading(false);
+        return;
+      }
+      const res = await recorderCheckIn(employeeId, coords.latitude, coords.longitude, descriptorJson);
+      setTodayRows((p) => [res, ...(p || [])]);
+      showToast(`Recorded check-in for ${res.employeeFirstName} ${res.employeeLastName}`, 'success');
+    } catch (e: unknown) {
+      const msg = getApiErrorMessage(e, 'Recorder check-in failed');
+      setError(msg);
+      showToast(msg, msg.toLowerCase().includes('face not enrolled') ? 'warning' : 'error');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function doQuickCheckOut(employeeId: number) {
+    if (locationLoading) return;
+    const coords = lastCoords || (await requestLocation());
+    if (!coords) {
+      setError('Location permission is required to check out');
+      return;
+    }
+    if (!cameraOn) {
+      showToast('Please start the camera', 'warning');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    try {
+      const descriptorJson = await captureDescriptor();
+      if (!descriptorJson) {
+        setLoading(false);
+        return;
+      }
+      const res = await recorderCheckOut(employeeId, coords.latitude, coords.longitude, descriptorJson);
+      setTodayRows((p) => [res, ...(p || [])]);
+      showToast(`Recorded check-out for ${res.employeeFirstName} ${res.employeeLastName}`, 'success');
+    } catch (e: unknown) {
+      const msg = getApiErrorMessage(e, 'Recorder check-out failed');
+      setError(msg);
+      showToast(msg, msg.toLowerCase().includes('face not enrolled') ? 'warning' : 'error');
+    } finally {
+      setLoading(false);
+    }
+  }
+
   const sidebarItems = [{ key: 'record', label: 'Recorder' }];
 
   if (initialLoading) {
@@ -328,6 +420,123 @@ export default function RecorderDashboard() {
         {error ? <div className="mt-3 text-sm text-red-600">{error}</div> : null}
         {enrollError ? <div className="mt-2 text-sm text-red-600">{enrollError}</div> : null}
 
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setMode('quick')}
+            className={mode === 'quick'
+              ? 'rounded-md bg-slate-900 px-3 py-2 text-sm text-white hover:bg-slate-800'
+              : 'rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50'}
+          >
+            Quick record
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode('single')}
+            className={mode === 'single'
+              ? 'rounded-md bg-slate-900 px-3 py-2 text-sm text-white hover:bg-slate-800'
+              : 'rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50'}
+          >
+            Single record
+          </button>
+          <div className="flex-1" />
+          <button
+            type="button"
+            onClick={refresh}
+            disabled={initialLoading}
+            className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+          >
+            Refresh list
+          </button>
+        </div>
+
+        {mode === 'quick' ? (
+          <div className="mt-4 rounded-lg border bg-white overflow-hidden">
+            <div className="px-4 py-3 border-b bg-slate-50">
+              <div className="text-sm font-semibold text-slate-900">Employees (Quick record)</div>
+              <div className="mt-1 text-xs text-slate-600">Use Check In / Check Out without selecting an employee first.</div>
+            </div>
+
+            <div className="p-3">
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search by name, code, username…"
+                className="w-full rounded-md border bg-white px-3 py-2 text-sm"
+              />
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[720px] text-sm">
+                <thead className="bg-slate-50 text-slate-600">
+                  <tr>
+                    <th className="px-4 py-2 text-left">Employee</th>
+                    <th className="px-4 py-2 text-left">Status</th>
+                    <th className="px-4 py-2 text-left">Last in</th>
+                    <th className="px-4 py-2 text-left">Last out</th>
+                    <th className="px-4 py-2 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredEmployees.map((emp) => {
+                    const row = todayByEmployeeId.get(emp.id) || null;
+                    const inStatus = !!row?.checkInTime && !row?.checkOutTime;
+                    const outStatus = !!row?.checkInTime && !!row?.checkOutTime;
+                    const statusLabel = inStatus ? 'In' : outStatus ? 'Out' : 'Not In';
+                    const statusClass = inStatus
+                      ? 'inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 border border-emerald-200'
+                      : outStatus
+                        ? 'inline-flex items-center rounded-full bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700 border border-rose-200'
+                        : 'inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700 border border-slate-200';
+
+                    return (
+                      <tr key={emp.id} className="border-t">
+                        <td className="px-4 py-3">
+                          <div className="font-medium text-slate-900">{emp.firstName} {emp.lastName}</div>
+                          <div className="text-xs text-slate-600">{emp.employeeCode} • {emp.username}</div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={statusClass}>{statusLabel}</span>
+                        </td>
+                        <td className="px-4 py-3 text-slate-700">
+                          {row?.checkInTime ? new Date(row.checkInTime).toLocaleTimeString() : <span className="text-slate-400">-</span>}
+                        </td>
+                        <td className="px-4 py-3 text-slate-700">
+                          {row?.checkOutTime ? new Date(row.checkOutTime).toLocaleTimeString() : <span className="text-slate-400">-</span>}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex flex-wrap gap-2 justify-end">
+                            <button
+                              type="button"
+                              onClick={() => doQuickCheckIn(emp.id)}
+                              disabled={loading || !cameraOn || !lastCoords || inStatus}
+                              className="rounded-md bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                            >
+                              Check In
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => doQuickCheckOut(emp.id)}
+                              disabled={loading || !cameraOn || !lastCoords || !inStatus}
+                              className="rounded-md bg-rose-600 px-3 py-2 text-xs font-semibold text-white hover:bg-rose-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                            >
+                              Check Out
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {!lastCoords ? <div className="px-4 py-3 text-xs text-amber-700 border-t">Location is required (tap “Refresh location”).</div> : null}
+            {!cameraOn ? <div className="px-4 py-3 text-xs text-amber-700 border-t">Camera is required (tap “Start camera”).</div> : null}
+          </div>
+        ) : null}
+
+        {mode === 'single' ? (
         <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
           <div className="rounded-lg border bg-slate-50 p-3">
             <div className="text-sm font-semibold text-slate-900">Employee</div>
@@ -418,6 +627,7 @@ export default function RecorderDashboard() {
             {!cameraOn ? <div className="mt-1 text-xs text-amber-700">Camera is required (click “Start camera”).</div> : null}
           </div>
         </div>
+        ) : null}
       </div>
     </AppLayout>
   );
