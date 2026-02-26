@@ -1910,7 +1910,6 @@ export default function AdminDashboard() {
       { key: 'workforce', label: 'Workforce Plan' },
       { key: 'staff', label: 'Staff Directory' },
       { key: 'settings', label: 'Settings' },
-      ...(role === 'ADMIN' ? [{ key: 'system_admin', label: 'System Admin' }] : []),
     ];
   }, [user?.role]);
 
@@ -1942,10 +1941,6 @@ export default function AdminDashboard() {
       sidebarItems={sidebarItems}
       activeSidebarKey={section}
       onSidebarChange={(k) => {
-        if (k === 'system_admin') {
-          navigate('/system-admin');
-          return;
-        }
         setSection(k);
       }}
     >

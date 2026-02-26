@@ -101,7 +101,7 @@ function App() {
       <Route
         path="/system-admin"
         element={
-          <ProtectedRoute roles={["SYSTEM_ADMIN", "ADMIN"]}>
+          <ProtectedRoute roles={["SYSTEM_ADMIN"]}>
             <SystemAdminDashboard />
           </ProtectedRoute>
         }
