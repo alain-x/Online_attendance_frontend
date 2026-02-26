@@ -1906,6 +1906,7 @@ export default function AdminDashboard() {
 
     return [
       { key: 'dashboard', label: 'Dashboard' },
+      ...(role === 'ADMIN' ? [{ key: 'recorder_nav', label: 'Recorder (Take Attendance)' }] : []),
       { key: 'reports', label: 'Reports & Analytics' },
       { key: 'workforce', label: 'Workforce Plan' },
       { key: 'staff', label: 'Staff Directory' },
@@ -1941,6 +1942,10 @@ export default function AdminDashboard() {
       sidebarItems={sidebarItems}
       activeSidebarKey={section}
       onSidebarChange={(k) => {
+        if (k === 'recorder_nav') {
+          navigate('/recorder');
+          return;
+        }
         setSection(k);
       }}
     >

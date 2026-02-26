@@ -48,6 +48,15 @@ export default function RecorderDashboard() {
 
   const selectedEmployee = useMemo(() => employees.find((e) => e.id === selectedEmployeeId) || null, [employees, selectedEmployeeId]);
 
+  const readiness = useMemo(
+    () => ({
+      employee: !!selectedEmployee,
+      location: !!lastCoords,
+      camera: cameraOn,
+    }),
+    [selectedEmployee, lastCoords, cameraOn]
+  );
+
   const filteredEmployees = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return employees;
@@ -270,6 +279,18 @@ export default function RecorderDashboard() {
           </div>
         </div>
 
+        <div className="mt-3 flex flex-wrap gap-2">
+          <span className={readiness.employee ? 'inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 border border-emerald-200' : 'inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700 border border-slate-200'}>
+            {readiness.employee ? 'Employee selected' : 'Select employee'}
+          </span>
+          <span className={readiness.location ? 'inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 border border-emerald-200' : 'inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 border border-amber-200'}>
+            {readiness.location ? 'Location ready' : 'Location required'}
+          </span>
+          <span className={readiness.camera ? 'inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 border border-emerald-200' : 'inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 border border-amber-200'}>
+            {readiness.camera ? 'Camera on' : 'Camera required'}
+          </span>
+        </div>
+
         {locationError ? <div className="mt-3 text-sm text-amber-700">{locationError}</div> : null}
         {error ? <div className="mt-3 text-sm text-red-600">{error}</div> : null}
 
@@ -286,7 +307,7 @@ export default function RecorderDashboard() {
             </div>
             <div className="mt-2 max-h-80 overflow-y-auto rounded-md border bg-white">
               {filteredEmployees.length === 0 ? (
-                <div className="p-3 text-sm text-slate-600">No employees found.</div>
+                <div className="p-3 text-sm text-slate-600">No employees found. Try clearing search or add employees in Admin → Settings.</div>
               ) : (
                 filteredEmployees.map((emp) => (
                   <button
@@ -301,6 +322,14 @@ export default function RecorderDashboard() {
                 ))
               )}
             </div>
+
+            {selectedEmployee ? (
+              <div className="mt-3 rounded-md border bg-white p-3">
+                <div className="text-xs font-medium text-slate-500">Selected employee</div>
+                <div className="mt-1 font-semibold text-slate-900">{selectedEmployee.firstName} {selectedEmployee.lastName}</div>
+                <div className="mt-1 text-xs text-slate-600">{selectedEmployee.employeeCode} • {selectedEmployee.username}</div>
+              </div>
+            ) : null}
           </div>
 
           <div className="rounded-lg border bg-white p-3">
@@ -343,6 +372,7 @@ export default function RecorderDashboard() {
             </div>
 
             {!lastCoords ? <div className="mt-2 text-xs text-amber-700">Location is required (click “Refresh location”).</div> : null}
+            {!cameraOn ? <div className="mt-1 text-xs text-amber-700">Camera is required (click “Start camera”).</div> : null}
           </div>
         </div>
       </div>
