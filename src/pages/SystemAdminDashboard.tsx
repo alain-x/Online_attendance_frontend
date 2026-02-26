@@ -39,6 +39,29 @@ type InvoiceDraft = {
   status: 'UNPAID' | 'PAID';
 };
 
+type StoredInvoice = InvoiceDraft & {
+  id: string;
+  createdAt: string;
+};
+
+const INVOICE_STORAGE_KEY = 'systemInvoices';
+
+function loadStoredInvoices(): StoredInvoice[] {
+  try {
+    const raw = localStorage.getItem(INVOICE_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as StoredInvoice[];
+    if (!Array.isArray(parsed)) return [];
+    return parsed;
+  } catch {
+    return [];
+  }
+}
+
+function saveStoredInvoices(next: StoredInvoice[]) {
+  localStorage.setItem(INVOICE_STORAGE_KEY, JSON.stringify(next));
+}
+
 function buildInvoiceNumber(companySlug: string): string {
   const now = new Date();
   const ym = `${now.getUTCFullYear()}${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
@@ -166,6 +189,8 @@ export default function SystemAdminDashboard() {
   });
 
   const [draft, setDraft] = useState<InvoiceDraft | null>(null);
+  const [storedInvoices, setStoredInvoices] = useState<StoredInvoice[]>(() => loadStoredInvoices());
+  const [invoiceSearch, setInvoiceSearch] = useState('');
 
   async function refreshCompanies() {
     setLoading(true);
@@ -277,6 +302,38 @@ export default function SystemAdminDashboard() {
       note: 'Thank you for using our attendance system.',
       status: kind === 'receipt' ? 'PAID' : 'UNPAID',
     });
+    setSection('billing');
+  }
+
+  function addStoredInvoice(from: InvoiceDraft) {
+    const rec: StoredInvoice = {
+      ...from,
+      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      createdAt: new Date().toISOString(),
+    };
+    setStoredInvoices((prev) => {
+      const next = [rec, ...prev];
+      saveStoredInvoices(next);
+      return next;
+    });
+    showToast(from.kind === 'invoice' ? 'Invoice created' : 'Receipt created', 'success');
+  }
+
+  function updateStoredInvoice(id: string, patch: Partial<StoredInvoice>) {
+    setStoredInvoices((prev) => {
+      const next = prev.map((x) => (x.id === id ? { ...x, ...patch } : x));
+      saveStoredInvoices(next);
+      return next;
+    });
+  }
+
+  function removeStoredInvoice(id: string) {
+    setStoredInvoices((prev) => {
+      const next = prev.filter((x) => x.id !== id);
+      saveStoredInvoices(next);
+      return next;
+    });
+    showToast('Deleted', 'success');
   }
 
   function printDraft() {
@@ -321,7 +378,11 @@ export default function SystemAdminDashboard() {
         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <div className="text-2xl font-bold text-slate-900">{sidebarItems.find((x) => x.key === section)?.label}</div>
-            <div className="mt-1 text-sm text-slate-600">Manage all companies in the system and enforce billing status.</div>
+            <div className="mt-1 text-sm text-slate-600">
+              {section === 'companies'
+                ? 'Manage all companies in the system and enforce access.'
+                : 'Create, track, and manage invoices and receipts professionally.'}
+            </div>
           </div>
           <button
             type="button"
@@ -564,6 +625,286 @@ export default function SystemAdminDashboard() {
             </div>
           )}
         </div>
+
+        {section === 'billing' ? (
+          <div className="rounded-xl border bg-white p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <div className="text-sm font-semibold text-slate-900">Billing Center</div>
+                <div className="mt-1 text-sm text-slate-600">Create invoices/receipts and track payment status.</div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="rounded-md border px-3 py-2 text-sm hover:bg-slate-50"
+                  onClick={() => {
+                    setStoredInvoices([]);
+                    saveStoredInvoices([]);
+                    showToast('Billing history cleared', 'success');
+                  }}
+                >
+                  Clear history
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="md:col-span-1">
+                <label className="text-sm font-medium text-slate-700">Company</label>
+                <select
+                  className="mt-1 w-full rounded-md border bg-white px-3 py-2 text-sm"
+                  value={draft?.companyId ?? ''}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    const id = v ? Number(v) : null;
+                    if (!id) {
+                      setDraft(null);
+                      return;
+                    }
+                    const c = companies.find((x) => x.id === id);
+                    if (!c) return;
+                    openInvoiceForCompany(c, draft?.kind || 'invoice');
+                  }}
+                >
+                  <option value="">-- Select company --</option>
+                  {companies
+                    .slice()
+                    .sort((a, b) => a.name.localeCompare(b.name))
+                    .map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} ({c.slug})
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-slate-700">Document type</label>
+                <select
+                  className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+                  value={draft?.kind || 'invoice'}
+                  onChange={(e) => {
+                    const kind = e.target.value as 'invoice' | 'receipt';
+                    if (!draft) return;
+                    setDraft({ ...draft, kind, status: kind === 'receipt' ? 'PAID' : draft.status });
+                  }}
+                >
+                  <option value="invoice">Invoice</option>
+                  <option value="receipt">Receipt</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-slate-700">Status</label>
+                <select
+                  className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+                  value={draft?.status || 'UNPAID'}
+                  onChange={(e) => {
+                    if (!draft) return;
+                    setDraft({ ...draft, status: e.target.value as any });
+                  }}
+                >
+                  <option value="UNPAID">UNPAID</option>
+                  <option value="PAID">PAID</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-slate-700">Plan</label>
+                <input
+                  className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+                  value={draft?.planName || ''}
+                  onChange={(e) => draft && setDraft({ ...draft, planName: e.target.value })}
+                  placeholder="e.g. Standard Plan"
+                  disabled={!draft}
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-slate-700">Amount</label>
+                <input
+                  type="number"
+                  className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+                  value={draft?.amount ?? 0}
+                  onChange={(e) => draft && setDraft({ ...draft, amount: Number(e.target.value) })}
+                  disabled={!draft}
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-slate-700">Currency</label>
+                <input
+                  className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+                  value={draft?.currency || ''}
+                  onChange={(e) => draft && setDraft({ ...draft, currency: e.target.value.toUpperCase() })}
+                  placeholder="USD"
+                  disabled={!draft}
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-slate-700">Issue date</label>
+                <input
+                  type="date"
+                  className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+                  value={draft?.issueDate || ''}
+                  onChange={(e) => draft && setDraft({ ...draft, issueDate: e.target.value })}
+                  disabled={!draft}
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-slate-700">Due date</label>
+                <input
+                  type="date"
+                  className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+                  value={draft?.dueDate || ''}
+                  onChange={(e) => draft && setDraft({ ...draft, dueDate: e.target.value })}
+                  disabled={!draft || draft.kind !== 'invoice'}
+                />
+              </div>
+
+              <div className="md:col-span-3">
+                <label className="text-sm font-medium text-slate-700">Note</label>
+                <textarea
+                  className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+                  rows={3}
+                  value={draft?.note || ''}
+                  onChange={(e) => draft && setDraft({ ...draft, note: e.target.value })}
+                  disabled={!draft}
+                />
+              </div>
+            </div>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button
+                type="button"
+                className="rounded-md border px-3 py-2 text-sm hover:bg-slate-50 disabled:opacity-60"
+                disabled={!draft}
+                onClick={() => draft && printDraft()}
+              >
+                Preview / Print
+              </button>
+              <button
+                type="button"
+                className="rounded-md bg-slate-900 px-3 py-2 text-sm text-white hover:bg-slate-800 disabled:opacity-60"
+                disabled={!draft}
+                onClick={() => {
+                  if (!draft) return;
+                  addStoredInvoice(draft);
+                }}
+              >
+                Create & Save
+              </button>
+            </div>
+
+            <div className="mt-6 rounded-xl border">
+              <div className="border-b p-4">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="text-sm font-semibold text-slate-900">Invoices & receipts</div>
+                  <input
+                    className="w-full sm:w-72 rounded-md border bg-white px-3 py-2 text-sm"
+                    placeholder="Search company, invoice number, plan"
+                    value={invoiceSearch}
+                    onChange={(e) => setInvoiceSearch(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {storedInvoices.length === 0 ? (
+                <div className="px-4 py-10 text-center text-sm text-slate-600">No invoices yet.</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-[1000px] w-full text-sm">
+                    <thead className="bg-slate-50 text-slate-600">
+                      <tr>
+                        <th className="px-4 py-2 text-left">Document</th>
+                        <th className="px-4 py-2 text-left">Company</th>
+                        <th className="px-4 py-2 text-left">Dates</th>
+                        <th className="px-4 py-2 text-left">Status</th>
+                        <th className="px-4 py-2 text-right">Amount</th>
+                        <th className="px-4 py-2 text-left">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {storedInvoices
+                        .filter((inv) => {
+                          const q = invoiceSearch.trim().toLowerCase();
+                          if (!q) return true;
+                          return `${inv.invoiceNumber} ${inv.companyName} ${inv.companySlug} ${inv.planName}`.toLowerCase().includes(q);
+                        })
+                        .map((inv) => (
+                          <tr key={inv.id} className="hover:bg-slate-50/50">
+                            <td className="px-4 py-3">
+                              <div className="font-semibold text-slate-900">{inv.kind === 'invoice' ? 'Invoice' : 'Receipt'}</div>
+                              <div className="text-xs font-mono text-slate-600">{inv.invoiceNumber}</div>
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="font-semibold text-slate-900">{inv.companyName}</div>
+                              <div className="text-xs text-slate-500">{inv.companySlug} • ID: {inv.companyId}</div>
+                            </td>
+                            <td className="px-4 py-3 text-slate-700">
+                              <div className="text-xs text-slate-500">Issue</div>
+                              <div className="font-medium">{inv.issueDate}</div>
+                              {inv.kind === 'invoice' ? (
+                                <>
+                                  <div className="mt-1 text-xs text-slate-500">Due</div>
+                                  <div className="font-medium">{inv.dueDate}</div>
+                                </>
+                              ) : null}
+                            </td>
+                            <td className="px-4 py-3">
+                              <span
+                                className={
+                                  inv.status === 'PAID'
+                                    ? 'inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 border border-emerald-200'
+                                    : 'inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 border border-amber-200'
+                                }
+                              >
+                                {inv.status}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-right font-semibold text-slate-900">
+                              {money(inv.amount)} {inv.currency}
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="flex flex-wrap gap-2">
+                                <button
+                                  type="button"
+                                  className="rounded-md border px-3 py-1.5 text-xs hover:bg-slate-50"
+                                  onClick={() => {
+                                    setDraft(inv);
+                                    const html = renderInvoiceHtml(inv);
+                                    openPrintWindow(html, inv.kind === 'invoice' ? 'Invoice' : 'Receipt');
+                                  }}
+                                >
+                                  Print
+                                </button>
+                                <button
+                                  type="button"
+                                  className="rounded-md border px-3 py-1.5 text-xs hover:bg-slate-50"
+                                  onClick={() => updateStoredInvoice(inv.id, { status: inv.status === 'PAID' ? 'UNPAID' : 'PAID' })}
+                                >
+                                  Mark {inv.status === 'PAID' ? 'unpaid' : 'paid'}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="rounded-md border px-3 py-1.5 text-xs hover:bg-slate-50"
+                                  onClick={() => removeStoredInvoice(inv.id)}
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : null}
 
         {draft ? (
           <div className="rounded-xl border bg-white p-4">
