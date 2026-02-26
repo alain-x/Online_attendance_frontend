@@ -2087,50 +2087,6 @@ export default function AdminDashboard() {
 
                   <div className="rounded-xl border bg-white">
                     <div className="px-4 py-3 border-b">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="font-medium text-slate-900">Clock-ins ({getMonthRangeLabel(selectedYear, selectedMonth)})</div>
-                        <div className="flex items-center gap-2">
-                          <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">Clock-ins</span>
-                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">Hours</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="p-4 grid gap-4 lg:grid-cols-12">
-                      <div className="lg:col-span-3">
-                        <div className="text-xs text-slate-500">Worked Hrs</div>
-                        <div className="mt-1 text-2xl font-semibold text-slate-900">
-                          {workedMonthDisplay.h}
-                          <span className="text-sm font-normal text-slate-500"> h {workedMonthDisplay.m} m</span>
-                        </div>
-                        <div className="mt-3 text-xs text-slate-500">Overtime Hrs</div>
-                        <div className="mt-1 text-2xl font-semibold text-slate-900">
-                          {overtimeMonthDisplay.h}
-                          <span className="text-sm font-normal text-slate-500"> h {overtimeMonthDisplay.m} m</span>
-                        </div>
-                      </div>
-                      <div className="lg:col-span-9">
-                        <div className="h-48 w-full rounded-lg border bg-white p-3">
-                          <div className="h-full flex items-end gap-2">
-                            {(effectiveHome.monthClockIns.length ? effectiveHome.monthClockIns : [{ day: 'n/a', count: 0 }]).slice(-18).map((x, idx) => {
-                              const label = String(x.day || '').slice(5);
-                              return (
-                                <div key={idx} className="flex-1 flex flex-col justify-end">
-                                  <div className="w-full rounded-sm bg-blue-600" style={{ height: `${Math.min(120, Number(x.count || 0) * 10)}px` }} />
-                                  <div className="mt-1 text-[10px] text-slate-400 text-center whitespace-nowrap" style={{ transform: 'rotate(-35deg)', transformOrigin: 'center' }}>
-                                    {label}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                          <div className="mt-2 text-xs text-slate-500">Date</div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="rounded-xl border bg-white">
-                    <div className="px-4 py-3 border-b">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div className="font-medium text-slate-900">Today attendance</div>
                         <div className="flex flex-wrap items-center gap-2">
