@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import AppLayout from '../components/AppLayout';
 import { createCompany, deleteCompany, listCompanies, updateCompany, uploadCompanyLogo } from '../api/companies';
 import { createEmployee, deleteEmployee, listEmployees, updateEmployee } from '../api/employees';
@@ -207,6 +208,7 @@ function TabButton({ active, children, onClick }: TabButtonProps) {
 
 export default function AdminDashboard() {
   const { user, refreshMe } = useAuth();
+  const navigate = useNavigate();
   const { toast, showToast, hideToast } = useToast();
   const [section, setSection] = useState('dashboard');
   const [dashboardTab, setDashboardTab] = useState('home');
@@ -1908,6 +1910,7 @@ export default function AdminDashboard() {
       { key: 'workforce', label: 'Workforce Plan' },
       { key: 'staff', label: 'Staff Directory' },
       { key: 'settings', label: 'Settings' },
+      ...(role === 'ADMIN' ? [{ key: 'system_admin', label: 'System Admin' }] : []),
     ];
   }, [user?.role]);
 
@@ -1938,7 +1941,13 @@ export default function AdminDashboard() {
       title=""
       sidebarItems={sidebarItems}
       activeSidebarKey={section}
-      onSidebarChange={setSection}
+      onSidebarChange={(k) => {
+        if (k === 'system_admin') {
+          navigate('/system-admin');
+          return;
+        }
+        setSection(k);
+      }}
     >
       {toast && <Toast message={toast.message} type={toast.type} onClose={hideToast} />}
       <div>

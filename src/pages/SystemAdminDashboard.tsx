@@ -290,6 +290,34 @@ export default function SystemAdminDashboard() {
       {toast && <Toast message={toast.message} type={toast.type} onClose={hideToast} />}
 
       <div className="space-y-4">
+        <div className="rounded-xl border bg-white p-4">
+          <div className="text-sm font-semibold text-slate-900">Quick navigation</div>
+          <div className="mt-1 text-sm text-slate-600">Open any dashboard with full access.</div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button type="button" className="rounded-md bg-slate-900 px-3 py-2 text-sm text-white hover:bg-slate-800" onClick={() => navigate('/admin')}>
+              Admin
+            </button>
+            <button type="button" className="rounded-md border px-3 py-2 text-sm hover:bg-slate-50" onClick={() => navigate('/payroll')}>
+              Payroll
+            </button>
+            <button type="button" className="rounded-md border px-3 py-2 text-sm hover:bg-slate-50" onClick={() => navigate('/hr')}>
+              HR
+            </button>
+            <button type="button" className="rounded-md border px-3 py-2 text-sm hover:bg-slate-50" onClick={() => navigate('/manager')}>
+              Manager
+            </button>
+            <button type="button" className="rounded-md border px-3 py-2 text-sm hover:bg-slate-50" onClick={() => navigate('/recorder')}>
+              Recorder
+            </button>
+            <button type="button" className="rounded-md border px-3 py-2 text-sm hover:bg-slate-50" onClick={() => navigate('/auditor')}>
+              Auditor
+            </button>
+            <button type="button" className="rounded-md border px-3 py-2 text-sm hover:bg-slate-50" onClick={() => navigate('/employee')}>
+              Employee
+            </button>
+          </div>
+        </div>
+
         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <div className="text-2xl font-bold text-slate-900">{sidebarItems.find((x) => x.key === section)?.label}</div>
