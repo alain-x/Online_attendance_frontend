@@ -5,7 +5,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import Toast from '../components/Toast';
 import { useToast } from '../hooks/useToast';
 
-import { listCompanies, setCompanyActive } from '../api/companies';
+import { listCompanies, registerCompany, setCompanyActive } from '../api/companies';
 import { getSystemBranding, updateSystemBranding, uploadSystemLogo } from '../api/system';
 
 import type { Company } from '../api/types';
@@ -162,7 +162,7 @@ function renderInvoiceHtml(d: InvoiceDraft): string {
 export default function SystemAdminDashboard() {
   const { toast, showToast, hideToast } = useToast();
   const navigate = useNavigate();
-  const [section, setSection] = useState<'companies' | 'billing'>('companies');
+  const [section, setSection] = useState<'companies' | 'create_company' | 'billing'>('companies');
 
   const [systemLogoUrl, setSystemLogoUrl] = useState<string | null>(() => localStorage.getItem('systemLogoUrl'));
   const [systemName, setSystemName] = useState<string>(() => localStorage.getItem('systemName') || '');
@@ -173,6 +173,7 @@ export default function SystemAdminDashboard() {
   const sidebarItems = useMemo(
     () => [
       { key: 'companies', label: 'Companies' },
+      { key: 'create_company', label: 'Create Company' },
       { key: 'billing', label: 'Billing (Invoices & Receipts)' },
     ],
     []
@@ -181,6 +182,13 @@ export default function SystemAdminDashboard() {
   const [loading, setLoading] = useState(false);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [search, setSearch] = useState('');
+
+  const [createCompanyBusy, setCreateCompanyBusy] = useState(false);
+  const [createCompanyError, setCreateCompanyError] = useState<string | null>(null);
+  const [newCompanyName, setNewCompanyName] = useState('');
+  const [newCompanySlug, setNewCompanySlug] = useState('');
+  const [newAdminUsername, setNewAdminUsername] = useState('');
+  const [newAdminPassword, setNewAdminPassword] = useState('');
 
   const [companyContextId, setCompanyContextId] = useState<number | null>(() => {
     const v = localStorage.getItem('companyContextId');
@@ -201,6 +209,32 @@ export default function SystemAdminDashboard() {
       showToast(getApiErrorMessage(e, 'Failed to load companies'), 'error');
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function onCreateCompany() {
+    setCreateCompanyError(null);
+    setCreateCompanyBusy(true);
+    try {
+      await registerCompany({
+        companyName: newCompanyName,
+        companySlug: newCompanySlug,
+        adminUsername: newAdminUsername,
+        adminPassword: newAdminPassword,
+      });
+      showToast('Company created successfully', 'success');
+      setNewCompanyName('');
+      setNewCompanySlug('');
+      setNewAdminUsername('');
+      setNewAdminPassword('');
+      await refreshCompanies();
+      setSection('companies');
+    } catch (e: unknown) {
+      const msg = getApiErrorMessage(e, 'Failed to create company');
+      setCreateCompanyError(msg);
+      showToast(msg, 'error');
+    } finally {
+      setCreateCompanyBusy(false);
     }
   }
 
@@ -381,6 +415,8 @@ export default function SystemAdminDashboard() {
             <div className="mt-1 text-sm text-slate-600">
               {section === 'companies'
                 ? 'Manage all companies in the system and enforce access.'
+                : section === 'create_company'
+                  ? 'Create a new company and its initial admin account.'
                 : 'Create, track, and manage invoices and receipts professionally.'}
             </div>
           </div>
@@ -393,6 +429,80 @@ export default function SystemAdminDashboard() {
             {loading ? 'Loading…' : 'Refresh'}
           </button>
         </div>
+
+        {section === 'create_company' ? (
+          <div className="rounded-xl border bg-white p-4">
+            <div className="text-sm font-semibold text-slate-900">Create company</div>
+            <div className="mt-1 text-sm text-slate-600">This creates a new company and an initial ADMIN user for that company.</div>
+
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label className="text-sm font-medium text-slate-700">Company name</label>
+                <input
+                  className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+                  value={newCompanyName}
+                  onChange={(e) => setNewCompanyName(e.target.value)}
+                  autoComplete="organization"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-slate-700">Company slug</label>
+                <input
+                  className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+                  value={newCompanySlug}
+                  onChange={(e) => setNewCompanySlug(e.target.value)}
+                  placeholder="e.g. acme"
+                  autoComplete="off"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-slate-700">Admin email</label>
+                <input
+                  className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+                  value={newAdminUsername}
+                  onChange={(e) => setNewAdminUsername(e.target.value)}
+                  autoComplete="email"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-slate-700">Admin password</label>
+                <input
+                  type="password"
+                  className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+                  value={newAdminPassword}
+                  onChange={(e) => setNewAdminPassword(e.target.value)}
+                  autoComplete="new-password"
+                />
+              </div>
+            </div>
+
+            {createCompanyError ? (
+              <div className="mt-3 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+                {createCompanyError}
+              </div>
+            ) : null}
+
+            <div className="mt-4 flex flex-col sm:flex-row gap-2 sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setSection('companies')}
+                disabled={createCompanyBusy}
+                className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={onCreateCompany}
+                disabled={createCompanyBusy || !newCompanyName.trim() || !newCompanySlug.trim() || !newAdminUsername.trim() || !newAdminPassword}
+                className="rounded-md bg-slate-900 px-4 py-2 text-sm text-white hover:bg-slate-800 disabled:opacity-60 flex items-center justify-center gap-2"
+              >
+                {createCompanyBusy && <LoadingSpinner size="sm" />}
+                {createCompanyBusy ? 'Creating…' : 'Create company'}
+              </button>
+            </div>
+          </div>
+        ) : null}
 
         {section === 'companies' ? (
           <div className="rounded-xl border bg-white p-4">
