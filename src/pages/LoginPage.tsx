@@ -163,7 +163,7 @@ export default function LoginPage() {
               </>
             )}
           </button>
-
+{/*
           <button
             type="button"
             disabled={loading}
@@ -172,7 +172,7 @@ export default function LoginPage() {
           >
             Register New Company
           </button>
-
+*/}
         </form>
       </div>
     </div>
