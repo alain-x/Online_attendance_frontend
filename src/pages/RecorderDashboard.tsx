@@ -5,6 +5,7 @@ import Toast from '../components/Toast';
 import { useToast } from '../hooks/useToast';
 import { listEmployees } from '../api/employees';
 import { recorderCheckIn, recorderCheckOut } from '../api/attendance';
+import { enrollFaceForEmployee } from '../api/face';
 import type { EmployeeResponse } from '../api/types';
 import { detectFaceInImage } from '../utils/faceDetection';
 
@@ -34,6 +35,9 @@ export default function RecorderDashboard() {
   const [initialLoading, setInitialLoading] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [enrolling, setEnrolling] = useState(false);
+  const [enrollError, setEnrollError] = useState<string | null>(null);
 
   const [search, setSearch] = useState('');
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<number | null>(null);
@@ -168,6 +172,35 @@ export default function RecorderDashboard() {
     return JSON.stringify(faceResult.descriptor);
   }
 
+  async function doEnrollFace() {
+    if (!selectedEmployee) {
+      showToast('Please select an employee first', 'warning');
+      return;
+    }
+    if (!cameraOn) {
+      showToast('Please start the camera', 'warning');
+      return;
+    }
+
+    setEnrollError(null);
+    setEnrolling(true);
+    try {
+      const descriptorJson = await captureDescriptor();
+      if (!descriptorJson) {
+        setEnrolling(false);
+        return;
+      }
+      await enrollFaceForEmployee(selectedEmployee.id, descriptorJson);
+      showToast(`Face registered for ${selectedEmployee.firstName} ${selectedEmployee.lastName}`, 'success');
+    } catch (e: unknown) {
+      const msg = getApiErrorMessage(e, 'Face registration failed');
+      setEnrollError(msg);
+      showToast(msg, 'error');
+    } finally {
+      setEnrolling(false);
+    }
+  }
+
   async function doRecorderCheckIn() {
     if (!selectedEmployee) {
       showToast('Please select an employee first', 'warning');
@@ -260,19 +293,19 @@ export default function RecorderDashboard() {
             <div className="text-lg font-semibold text-slate-900">Record attendance</div>
             <div className="mt-1 text-sm text-slate-600">Select an employee and record check-in / check-out one by one. Camera image stays on-device.</div>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="grid grid-cols-1 sm:flex sm:flex-wrap gap-2">
             <button
               type="button"
               onClick={requestLocation}
               disabled={locationLoading}
-              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-60 disabled:cursor-not-allowed"
+              className="w-full sm:w-auto rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {locationLoading ? 'Getting location…' : 'Refresh location'}
             </button>
             <button
               type="button"
               onClick={cameraOn ? stopCamera : startCamera}
-              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+              className="w-full sm:w-auto rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
             >
               {cameraOn ? 'Stop camera' : 'Start camera'}
             </button>
@@ -293,6 +326,7 @@ export default function RecorderDashboard() {
 
         {locationError ? <div className="mt-3 text-sm text-amber-700">{locationError}</div> : null}
         {error ? <div className="mt-3 text-sm text-red-600">{error}</div> : null}
+        {enrollError ? <div className="mt-2 text-sm text-red-600">{enrollError}</div> : null}
 
         <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
           <div className="rounded-lg border bg-slate-50 p-3">
@@ -350,12 +384,12 @@ export default function RecorderDashboard() {
               <video ref={videoRef} className="h-64 w-full object-cover" playsInline muted />
             </div>
 
-            <div className="mt-3 flex flex-wrap gap-2 justify-end">
+            <div className="mt-3 grid grid-cols-1 sm:flex sm:flex-wrap gap-2 sm:justify-end">
               <button
                 type="button"
                 onClick={doRecorderCheckIn}
                 disabled={loading || !selectedEmployee || !cameraOn || !lastCoords}
-                className="rounded-md bg-emerald-600 px-4 py-2 text-sm text-white hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
+                className="w-full sm:w-auto rounded-md bg-emerald-600 px-4 py-2 text-sm text-white hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {loading && <LoadingSpinner size="sm" className="text-white" />}
                 Record check-in
@@ -364,10 +398,19 @@ export default function RecorderDashboard() {
                 type="button"
                 onClick={doRecorderCheckOut}
                 disabled={loading || !selectedEmployee || !cameraOn || !lastCoords}
-                className="rounded-md bg-indigo-600 px-4 py-2 text-sm text-white hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
+                className="w-full sm:w-auto rounded-md bg-indigo-600 px-4 py-2 text-sm text-white hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {loading && <LoadingSpinner size="sm" className="text-white" />}
                 Record check-out
+              </button>
+              <button
+                type="button"
+                onClick={doEnrollFace}
+                disabled={enrolling || !selectedEmployee || !cameraOn}
+                className="w-full sm:w-auto rounded-md border border-slate-300 bg-white px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {enrolling && <LoadingSpinner size="sm" />}
+                Register face
               </button>
             </div>
 
