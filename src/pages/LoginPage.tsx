@@ -46,6 +46,12 @@ export default function LoginPage() {
 
     try {
       const res = await loginApi(trimmedUsername, password);
+      if (!res?.token) {
+        throw new Error('Login response did not include a token');
+      }
+      // Persist token both via context and directly to localStorage so the axios interceptor
+      // definitely has it before we call /api/auth/me.
+      localStorage.setItem('token', res.token);
       setToken(res.token);
       const user = await refreshMe();
       if (user.companySlug) {
@@ -77,6 +83,8 @@ export default function LoginPage() {
         setError('Invalid username or password.');
       } else if (status != null) {
         setError(`Login failed (${status}). Check your credentials.`);
+      } else if (e2 instanceof Error && e2.message === 'Login response did not include a token') {
+        setError('Login succeeded but no token was returned by the server.');
       } else {
         setError('Cannot reach server. Is the backend running on port 8080?');
       }
