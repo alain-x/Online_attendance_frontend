@@ -466,6 +466,21 @@ export default function RecorderDashboard() {
               />
             </div>
 
+            <div className="px-4 pb-3">
+              <div className="rounded-lg border bg-slate-50 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <div className="text-sm font-semibold text-slate-900">Camera</div>
+                    <div className="mt-1 text-xs text-slate-600">Live preview used for quick In / Out verification.</div>
+                  </div>
+                </div>
+
+                <div className="mt-3 overflow-hidden rounded-lg border bg-slate-950">
+                  <video ref={videoRef} className="h-48 w-full object-cover" playsInline muted />
+                </div>
+              </div>
+            </div>
+
             <div className="overflow-x-auto">
               <table className="w-full min-w-[720px] text-sm">
                 <thead className="bg-slate-50 text-slate-600">

@@ -3604,7 +3604,7 @@ export default function AdminDashboard() {
                     <div className="font-medium text-slate-900">Staff Directory</div>
                     <div className="mt-0.5 text-sm text-slate-600">Create, update, and manage employees.</div>
                   </div>
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-2">
                     <input
                       className="w-full sm:w-72 rounded-md border bg-white px-3 py-2 text-sm"
                       placeholder="Search staff..."
@@ -3614,7 +3614,7 @@ export default function AdminDashboard() {
                     <button
                       type="button"
                       disabled={!canManage}
-                      className="rounded-md border px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                      className="w-full sm:w-auto rounded-md border px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-60"
                       onClick={openImportEmployeesModal}
                     >
                       Import CSV
@@ -3622,7 +3622,7 @@ export default function AdminDashboard() {
                     <button
                       type="button"
                       disabled={!canManage}
-                      className="rounded-md bg-slate-900 px-3 py-2 text-sm text-white hover:bg-slate-800 disabled:opacity-60"
+                      className="w-full sm:w-auto rounded-md bg-slate-900 px-3 py-2 text-sm text-white hover:bg-slate-800 disabled:opacity-60"
                       onClick={openCreateEmployeeModal}
                     >
                       Add employee
@@ -3632,7 +3632,7 @@ export default function AdminDashboard() {
               </div>
 
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="w-full min-w-[980px] text-sm">
                   <thead className="bg-slate-50 text-slate-600">
                     <tr>
                       <th className="px-4 py-2 text-left">Code</th>
@@ -3842,19 +3842,19 @@ export default function AdminDashboard() {
                     <div className="font-medium text-slate-900">Geofencing Locations</div>
                     <div className="mt-0.5 text-sm text-slate-600">GPS location for clock in / clock out.</div>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2">
+                  <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center">
                     <button
                       type="button"
                       disabled={!canManage}
-                      className="rounded-md bg-slate-900 px-3 py-2 text-sm text-white hover:bg-slate-800 disabled:opacity-60"
+                      className="w-full sm:w-auto rounded-md bg-slate-900 px-3 py-2 text-sm text-white hover:bg-slate-800 disabled:opacity-60"
                       onClick={() => setShowGeofenceForm((v) => !v)}
                     >
                       Add New Geolocation
                     </button>
-                    <button type="button" className="rounded-md border px-3 py-2 text-sm text-slate-700 hover:bg-slate-50" onClick={() => showToast('Bulk add will be added next', 'success')}>
+                    <button type="button" className="w-full sm:w-auto rounded-md border px-3 py-2 text-sm text-slate-700 hover:bg-slate-50" onClick={() => showToast('Bulk add will be added next', 'success')}>
                       Bulk Add
                     </button>
-                    <button type="button" className="rounded-md border px-3 py-2 text-sm text-slate-700 hover:bg-slate-50" onClick={downloadGeofencesCsv}>
+                    <button type="button" className="w-full sm:w-auto rounded-md border px-3 py-2 text-sm text-slate-700 hover:bg-slate-50" onClick={downloadGeofencesCsv}>
                       Download
                     </button>
                   </div>
