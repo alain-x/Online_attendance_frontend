@@ -20,6 +20,12 @@ export default function ShellHeader({ title, onMenuClick }: ShellHeaderProps) {
   const logoBust = localStorage.getItem('companyLogoBust');
   const displayCompanyLogoUrl = logoUrl && logoBust ? `${logoUrl}${logoUrl.includes('?') ? '&' : '?'}v=${encodeURIComponent(logoBust)}` : logoUrl;
 
+  const systemLogoUrl = localStorage.getItem('systemLogoUrl');
+  const systemLogoBust = localStorage.getItem('systemLogoBust');
+  const displaySystemLogoUrl = systemLogoUrl && systemLogoBust
+    ? `${systemLogoUrl}${systemLogoUrl.includes('?') ? '&' : '?'}v=${encodeURIComponent(systemLogoBust)}`
+    : systemLogoUrl;
+
   const companyContextLabel = localStorage.getItem('companyContextLabel');
   const companyContextIdRaw = localStorage.getItem('companyContextId');
   const companyContextId = companyContextIdRaw ? Number(companyContextIdRaw) : null;
@@ -71,7 +77,13 @@ export default function ShellHeader({ title, onMenuClick }: ShellHeaderProps) {
               </svg>
             </button>
           ) : null}
-          {displayCompanyLogoUrl ? (
+          {displaySystemLogoUrl ? (
+            <img
+              src={displaySystemLogoUrl || ''}
+              alt={user?.companySlug || 'Company logo'}
+              className="h-8 w-8 rounded-lg object-cover bg-white/20"
+            />
+          ) : displayCompanyLogoUrl ? (
             <img
               src={displayCompanyLogoUrl || ''}
               alt={user?.companySlug || 'Company logo'}

@@ -259,9 +259,10 @@ export default function EmployeeDashboard() {
         return;
       }
       const descriptorJson = faceResult.descriptor ? JSON.stringify(faceResult.descriptor) : undefined;
-      await enrollFace(descriptorJson);
+      await enrollFace(descriptorJson, enrollImage);
       setEnrollImage(null);
       showToast('Face enrolled successfully', 'success');
+      await refreshMe();
     } catch (e: unknown) {
       const errorMsg = getApiErrorMessage(e, 'Face enroll failed');
       setError(errorMsg);

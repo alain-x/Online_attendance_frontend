@@ -13,9 +13,17 @@ export async function me(): Promise<MeResponse> {
   const res = await http.get<MeResponse>('/api/auth/me');
   const logoUrl = res.data.companyLogoUrl;
   const profileImageUrl = res.data.profileImageUrl;
+
+  const toAbsolute = (url?: string | null): string | null | undefined => {
+    if (!url) return url;
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    if (url.startsWith('/')) return `${API_BASE_URL}${url}`;
+    if (url.startsWith('uploads/')) return `${API_BASE_URL}/${url}`;
+    return url;
+  };
   return {
     ...res.data,
-    companyLogoUrl: logoUrl && logoUrl.startsWith('/') ? `${API_BASE_URL}${logoUrl}` : logoUrl,
-    profileImageUrl: profileImageUrl && profileImageUrl.startsWith('/') ? `${API_BASE_URL}${profileImageUrl}` : profileImageUrl,
+    companyLogoUrl: toAbsolute(logoUrl),
+    profileImageUrl: toAbsolute(profileImageUrl),
   };
 }
