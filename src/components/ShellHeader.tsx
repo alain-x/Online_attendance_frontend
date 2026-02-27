@@ -96,7 +96,7 @@ export default function ShellHeader({ title, onMenuClick }: ShellHeaderProps) {
           )}
           <div className="font-semibold text-base sm:text-lg truncate">
             {systemName || 'Attendance Management System'}
-            {title ? ` — ${title}` : ''}
+            {title ? ` ${title}` : ''}
           </div>
         </div>
 
