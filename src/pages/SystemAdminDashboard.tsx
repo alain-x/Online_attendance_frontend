@@ -166,6 +166,76 @@ async function openPdfPrintWindow(blob: Blob, title: string) {
   w.addEventListener('beforeunload', revoke);
 }
 
+function openPdfPlaceholderWindow(title: string) {
+  const w = window.open('', '_blank', 'noopener,noreferrer');
+  if (!w) return null;
+
+  w.document.open();
+  w.document.write(`<!doctype html><html><head><title>${title}</title><meta charset="utf-8" />
+    <style>
+      *{box-sizing:border-box;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial;}
+      body{margin:0;padding:24px;background:#f8fafc;}
+      .card{max-width:900px;margin:0 auto;background:white;border:1px solid #e2e8f0;border-radius:16px;padding:20px;}
+      .muted{color:#64748b;font-size:13px;}
+      .row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+      .btn{padding:10px 14px;border-radius:10px;border:1px solid #e2e8f0;background:white;cursor:pointer;}
+      .btn.primary{background:#0f172a;color:white;border-color:#0f172a;}
+      iframe{border:0;width:100%;height:80vh;margin-top:14px;display:none;}
+    </style>
+    </head><body>
+      <div class="card">
+        <div class="row">
+          <div>
+            <div style="font-weight:800;font-size:18px">${title}</div>
+            <div class="muted" id="status">Generating PDF…</div>
+          </div>
+          <div>
+            <button class="btn" onclick="window.close()">Close</button>
+          </div>
+        </div>
+        <iframe id="pdf"></iframe>
+      </div>
+    </body></html>`);
+  w.document.close();
+  return w;
+}
+
+function loadPdfIntoPlaceholderWindow(w: Window, blob: Blob) {
+  const url = window.URL.createObjectURL(blob);
+  const revoke = () => {
+    try {
+      window.URL.revokeObjectURL(url);
+    } catch {
+      // ignore
+    }
+  };
+
+  try {
+    const doc = w.document;
+    const iframe = doc.getElementById('pdf') as HTMLIFrameElement | null;
+    const status = doc.getElementById('status');
+    if (status) status.textContent = 'Preview ready. Opening print dialog…';
+    if (iframe) {
+      iframe.style.display = 'block';
+      iframe.src = url;
+      iframe.onload = () => {
+        try {
+          iframe.contentWindow?.focus();
+          iframe.contentWindow?.print();
+        } catch {
+          // ignore
+        }
+      };
+    } else {
+      w.location.href = url;
+    }
+  } catch {
+    w.location.href = url;
+  }
+
+  w.addEventListener('beforeunload', revoke);
+}
+
 function renderInvoiceHtml(d: InvoiceDraft): string {
   const kindLabel = d.kind === 'invoice' ? 'Invoice' : 'Receipt';
   const statusBadge = d.status === 'PAID' ? '<span class="badge">PAID</span>' : '<span class="badge">UNPAID</span>';
@@ -441,11 +511,23 @@ export default function SystemAdminDashboard() {
   function printDraft() {
     if (!draft) return;
     const payload = buildInvoicePdfPayload(draft);
+    const title = draft.kind === 'invoice' ? 'Invoice' : 'Receipt';
+    const w = openPdfPlaceholderWindow(title);
+
     generateInvoicePdf(payload)
-      .then((blob) => openPdfPrintWindow(blob, draft.kind === 'invoice' ? 'Invoice' : 'Receipt'))
+      .then((blob) => {
+        if (w && !w.closed) {
+          loadPdfIntoPlaceholderWindow(w, blob);
+          return;
+        }
+        return openPdfPrintWindow(blob, title);
+      })
       .catch(() => {
+        if (w && !w.closed) {
+          w.close();
+        }
         const html = renderInvoiceHtml(draft);
-        openPrintWindow(html, draft.kind === 'invoice' ? 'Invoice' : 'Receipt');
+        openPrintWindow(html, title);
       });
   }
 
