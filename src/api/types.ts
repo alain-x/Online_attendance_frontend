@@ -21,6 +21,7 @@ export type MeResponse = {
   role: Role;
   companyId: number | null;
   companySlug: string | null;
+  companyName?: string | null;
   companyLogoUrl?: string | null;
 };
 

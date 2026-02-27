@@ -216,6 +216,7 @@ export default function AdminDashboard() {
 
   const companyLogoLetter = (user?.companySlug || 'A').trim().charAt(0).toUpperCase();
   const companyLogoUrl = user?.companyLogoUrl || null;
+  const companyTitle = (user as any)?.companyName || user?.companySlug || '';
 
   const [selectedYear, setSelectedYear] = useState<number>(() => new Date().getUTCFullYear());
   const [selectedMonth, setSelectedMonth] = useState<number>(() => new Date().getUTCMonth() + 1);
@@ -1674,6 +1675,10 @@ export default function AdminDashboard() {
         payload.hourlyRateDefault = null;
       }
       await updateCompany(editingCompany.id, payload);
+      if (payload.logoUrl === null) {
+        localStorage.setItem('companyLogoBust', String(Date.now()));
+        await refreshMe();
+      }
       setEditingCompany(null);
       showToast('Company updated successfully', 'success');
       await refreshCompanies();
@@ -3090,7 +3095,7 @@ export default function AdminDashboard() {
                 )}
 
                 <div className="min-w-0">
-                  <div className="text-sm font-semibold text-slate-900 truncate">{currentCompany?.name || user?.companySlug || '—'}</div>
+                  <div className="text-sm font-semibold text-slate-900 truncate">{currentCompany?.name || companyTitle || '—'}</div>
                   <div className="mt-0.5 text-xs text-slate-500">Slug: {currentCompany?.slug || user?.companySlug || '—'}</div>
                   <div className="mt-0.5 text-xs text-slate-500">Company ID: {user?.companyId ?? '—'}</div>
                 </div>
@@ -3252,6 +3257,17 @@ export default function AdminDashboard() {
                         onChange={(e) => setEditCompanyForm((f) => ({ ...f, logoUrl: e.target.value }))}
                         placeholder="https://..."
                       />
+                      <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="text-xs text-slate-500">Leave empty to remove the logo.</div>
+                        <button
+                          type="button"
+                          disabled={editCompanyBusy}
+                          className="w-full sm:w-auto rounded-md border border-red-200 px-3 py-2 text-sm text-red-700 hover:bg-red-50 disabled:opacity-60"
+                          onClick={() => setEditCompanyForm((f) => ({ ...f, logoUrl: '' }))}
+                        >
+                          Remove logo
+                        </button>
+                      </div>
                     </div>
 
                     <div>
