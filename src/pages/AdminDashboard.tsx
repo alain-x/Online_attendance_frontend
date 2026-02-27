@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import AppLayout from '../components/AppLayout';
 import { createCompany, deleteCompany, listCompanies, updateCompany, uploadCompanyLogo } from '../api/companies';
 import { createEmployee, deleteEmployee, listEmployees, updateEmployee } from '../api/employees';
@@ -209,6 +209,7 @@ function TabButton({ active, children, onClick }: TabButtonProps) {
 export default function AdminDashboard() {
   const { user, refreshMe } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast, showToast, hideToast } = useToast();
   const [section, setSection] = useState('dashboard');
   const [dashboardTab, setDashboardTab] = useState('home');
@@ -239,6 +240,14 @@ export default function AdminDashboard() {
   const [search, setSearch] = useState('');
   const [attendanceStatusFilter, setAttendanceStatusFilter] = useState<'ALL' | 'IN' | 'OUT' | 'NOT_IN'>('ALL');
   const [staffSearch, setStaffSearch] = useState('');
+
+  useEffect(() => {
+    const state = location.state as { section?: string } | null;
+    const next = state?.section;
+    if (next && typeof next === 'string') {
+      setSection(next);
+    }
+  }, [location.state]);
 
   const [importTimesheetOpen, setImportTimesheetOpen] = useState(false);
   const [importTimesheetBusy, setImportTimesheetBusy] = useState(false);
@@ -596,6 +605,7 @@ export default function AdminDashboard() {
     designation: '',
     category: '',
     username: '',
+    email: '',
     password: '',
     role: 'EMPLOYEE',
     hourlyRateOverride: null,
@@ -1002,7 +1012,7 @@ export default function AdminDashboard() {
       const uname = employeeUsername.toLowerCase();
       const existsInEmployees = employees.some((x) => (x.username || '').trim().toLowerCase() === uname);
       if (existsInEmployees) {
-        const msg = 'Username already exists';
+        const msg = `${employeeUsername} is taken, try another one`;
         setError(msg);
         showToast(msg, 'error');
         return;
@@ -1021,6 +1031,7 @@ export default function AdminDashboard() {
         designation: '',
         category: '',
         username: '',
+        email: '',
         password: '',
         role: 'EMPLOYEE',
         hourlyRateOverride: null,
@@ -1049,6 +1060,7 @@ export default function AdminDashboard() {
       designation: '',
       category: '',
       username: '',
+      email: '',
       password: '',
       role: 'EMPLOYEE',
       hourlyRateOverride: null,
@@ -1341,20 +1353,22 @@ export default function AdminDashboard() {
       'designation',
       'category',
       'username',
+      'email',
       'password',
       'role',
       'hourlyRateOverride',
       ...(isOwnerAdmin ? ['companyId'] : []),
     ].join(',');
     const example = [
-      'EMP001',
+      'E001',
       'John',
       'Doe',
-      'IT',
-      '0780000000',
-      'Developer',
+      'Sales',
+      '0777000000',
+      'Sales rep',
       'Full-time',
-      'jdoe',
+      'john.doe',
+      'john.doe@company.com',
       'Pass1234',
       'EMPLOYEE',
       '5.00',
@@ -1392,6 +1406,7 @@ export default function AdminDashboard() {
       designation: ['designation', 'position', 'title', 'jobtitle'],
       category: ['category', 'type', 'employmenttype'],
       username: ['username', 'user', 'login', 'userid', 'username'],
+      email: ['email', 'mail', 'emailaddress', 'emailid'],
       password: ['password', 'pass', 'pwd'],
       role: ['role', 'userrole'],
       hourlyRateOverride: ['hourlyrateoverride', 'hourlyrate', 'rate', 'rateperhour', 'amountperhour'],
@@ -1416,6 +1431,7 @@ export default function AdminDashboard() {
     if (lastIdx == null && fullIdx == null) requiredMissing.push('lastName/Name');
 
     if (findIndex(col.username) == null) requiredMissing.push('username');
+    if (findIndex(col.email) == null) requiredMissing.push('email');
     if (findIndex(col.password) == null) requiredMissing.push('password');
 
     if (requiredMissing.length) {
@@ -1461,6 +1477,7 @@ export default function AdminDashboard() {
         designation: pickByAliases(col.designation) || undefined,
         category: pickByAliases(col.category) || undefined,
         username: pickByAliases(col.username),
+        email: pickByAliases(col.email),
         password: pickByAliases(col.password),
         role,
         hourlyRateOverride: hourlyRaw ? (Number.isNaN(hourlyN) ? null : hourlyN) : null,
@@ -1471,6 +1488,7 @@ export default function AdminDashboard() {
       if (!employee.firstName.trim()) errors.push('firstName is required');
       if (!employee.lastName.trim()) errors.push('lastName is required');
       if (!employee.username.trim()) errors.push('username is required');
+      if (!employee.email.trim()) errors.push('email is required');
       if (!employee.password.trim()) errors.push('password is required');
       if (roleRaw && !allowedRoles.has(employee.role)) errors.push(`Invalid role: ${employee.role}`);
       if (hourlyRaw && (hourlyN == null || Number.isNaN(hourlyN) || hourlyN < 0)) errors.push('hourlyRateOverride must be a number >= 0');
@@ -1544,6 +1562,7 @@ export default function AdminDashboard() {
       designation: emp.designation || '',
       category: emp.category || '',
       username: emp.username,
+      email: emp.email || '',
       password: '',
       role: emp.role,
       hourlyRateOverride: emp.hourlyRateOverride != null ? emp.hourlyRateOverride : null,
@@ -1562,7 +1581,7 @@ export default function AdminDashboard() {
           const uname = employeeUsername.toLowerCase();
           const existsInEmployees = employees.some((x) => (x.username || '').trim().toLowerCase() === uname);
           if (existsInEmployees) {
-            const msg = 'Username already exists';
+            const msg = `${employeeUsername} is taken, try another one`;
             setError(msg);
             showToast(msg, 'error');
             return;
@@ -1587,7 +1606,7 @@ export default function AdminDashboard() {
         const otherEmployees = employees.filter((x) => x.id !== employeeEditTarget.id);
         const existsInEmployees = otherEmployees.some((x) => (x.username || '').trim().toLowerCase() === uname);
         if (existsInEmployees) {
-          const msg = 'Username already exists';
+          const msg = `${employeeUsername} is taken, try another one`;
           setError(msg);
           showToast(msg, 'error');
           return;
@@ -1602,6 +1621,7 @@ export default function AdminDashboard() {
         designation: newEmployee.designation || undefined,
         category: newEmployee.category || undefined,
         username: employeeUsername || undefined,
+        email: (newEmployee.email || '').trim() || undefined,
         role: newEmployee.role,
         password: employeeModalPassword.trim() ? employeeModalPassword : undefined,
         hourlyRateOverride: newEmployee.hourlyRateOverride != null ? newEmployee.hourlyRateOverride : undefined,
@@ -3852,6 +3872,17 @@ export default function AdminDashboard() {
                   <label className="block">
                     <div className="text-xs font-medium text-slate-600">Username</div>
                     <input className="mt-1 w-full rounded-md border px-3 py-2 text-sm" value={newEmployee.username} onChange={(e) => setNewEmployee({ ...newEmployee, username: e.target.value })} required />
+                  </label>
+
+                  <label className="block">
+                    <div className="text-xs font-medium text-slate-600">Email</div>
+                    <input
+                      className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+                      type="email"
+                      value={newEmployee.email}
+                      onChange={(e) => setNewEmployee({ ...newEmployee, email: e.target.value })}
+                      required={employeeModalMode === 'create'}
+                    />
                   </label>
 
                   {employeeModalMode === 'create' ? (

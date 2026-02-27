@@ -3,6 +3,8 @@ import AppLayout from '../components/AppLayout';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Toast from '../components/Toast';
 import { useToast } from '../hooks/useToast';
+import { useAuth } from '../auth/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import { listEmployees } from '../api/employees';
 import { recorderCheckIn, recorderCheckOut, todayAttendance } from '../api/attendance';
 import { enrollFaceForEmployee } from '../api/face';
@@ -30,6 +32,8 @@ function getCurrentPosition(): Promise<GeolocationPosition> {
 
 export default function RecorderDashboard() {
   const { toast, showToast, hideToast } = useToast();
+  const { user } = useAuth();
+  const navigate = useNavigate();
 
   const [employees, setEmployees] = useState<EmployeeResponse[]>([]);
   const [initialLoading, setInitialLoading] = useState(true);
@@ -363,11 +367,31 @@ export default function RecorderDashboard() {
     }
   }
 
-  const sidebarItems = [{ key: 'record', label: 'Recorder' }];
+  const sidebarItems = useMemo(() => {
+    if (user?.role === 'ADMIN') {
+      return [
+        { key: 'dashboard', label: 'Dashboard' },
+        { key: 'reports', label: 'Reports & Analytics' },
+        { key: 'workforce', label: 'Workforce Plan' },
+        { key: 'staff', label: 'Staff Directory' },
+        { key: 'settings', label: 'Settings' },
+        { key: 'record', label: 'Recorder' },
+      ];
+    }
+    return [{ key: 'record', label: 'Recorder' }];
+  }, [user?.role]);
 
   if (initialLoading) {
     return (
-      <AppLayout title="Recorder" sidebarItems={sidebarItems} activeSidebarKey="record" onSidebarChange={() => {}}>
+      <AppLayout
+        title="Recorder"
+        sidebarItems={sidebarItems}
+        activeSidebarKey="record"
+        onSidebarChange={(k) => {
+          if (k === 'record') return;
+          navigate('/admin', { state: { section: k } });
+        }}
+      >
         <div className="flex items-center justify-center py-12">
           <LoadingSpinner size="lg" />
         </div>
@@ -376,7 +400,15 @@ export default function RecorderDashboard() {
   }
 
   return (
-    <AppLayout title="Recorder" sidebarItems={sidebarItems} activeSidebarKey="record" onSidebarChange={() => {}}>
+    <AppLayout
+      title="Recorder"
+      sidebarItems={sidebarItems}
+      activeSidebarKey="record"
+      onSidebarChange={(k) => {
+        if (k === 'record') return;
+        navigate('/admin', { state: { section: k } });
+      }}
+    >
       {toast && <Toast message={toast.message} type={toast.type} onClose={hideToast} />}
 
       <div className="rounded-xl border bg-white p-4 shadow-sm">

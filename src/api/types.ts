@@ -72,6 +72,7 @@ export type EmployeeResponse = {
   designation?: string | null;
   category?: string | null;
   username: string;
+  email?: string | null;
   role: Role;
   hourlyRateOverride?: number | null;
 };
@@ -85,6 +86,7 @@ export type CreateEmployeeRequest = {
   designation?: string;
   category?: string;
   username: string;
+  email: string;
   password: string;
   role: Role;
   hourlyRateOverride?: number | null;
@@ -98,6 +100,7 @@ export type UpdateEmployeeRequest = {
   designation?: string;
   category?: string;
   username?: string;
+  email?: string;
   password?: string;
   role?: Role;
   enabled?: boolean;
@@ -311,6 +314,7 @@ export type TimesheetResponse = {
 export type UserResponse = {
   id: number;
   username: string;
+  email?: string | null;
   role: Role;
   enabled: boolean;
   companyId: number | null;
@@ -319,12 +323,14 @@ export type UserResponse = {
 
 export type CreateUserRequest = {
   username: string;
+  email: string;
   password: string;
   role: Role;
   enabled?: boolean;
 };
 
 export type UpdateUserRequest = {
+  email?: string;
   password?: string;
   role?: Role;
   enabled?: boolean;
