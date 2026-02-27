@@ -12,8 +12,10 @@ export async function login(username: string, password: string, companySlug?: st
 export async function me(): Promise<MeResponse> {
   const res = await http.get<MeResponse>('/api/auth/me');
   const logoUrl = res.data.companyLogoUrl;
-  if (logoUrl && logoUrl.startsWith('/')) {
-    return { ...res.data, companyLogoUrl: `${API_BASE_URL}${logoUrl}` };
-  }
-  return res.data;
+  const profileImageUrl = res.data.profileImageUrl;
+  return {
+    ...res.data,
+    companyLogoUrl: logoUrl && logoUrl.startsWith('/') ? `${API_BASE_URL}${logoUrl}` : logoUrl,
+    profileImageUrl: profileImageUrl && profileImageUrl.startsWith('/') ? `${API_BASE_URL}${profileImageUrl}` : profileImageUrl,
+  };
 }

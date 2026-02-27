@@ -23,6 +23,7 @@ export type MeResponse = {
   companySlug: string | null;
   companyName?: string | null;
   companyLogoUrl?: string | null;
+  profileImageUrl?: string | null;
 };
 
 export type RegisterCompanyRequest = {
@@ -71,6 +72,7 @@ export type EmployeeResponse = {
   mobile?: string | null;
   designation?: string | null;
   category?: string | null;
+  profileImageUrl?: string | null;
   username: string;
   email?: string | null;
   role: Role;

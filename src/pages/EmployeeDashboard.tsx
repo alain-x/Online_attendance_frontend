@@ -38,7 +38,7 @@ function getCurrentPosition(): Promise<GeolocationPosition> {
 
 export default function EmployeeDashboard() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, refreshMe } = useAuth();
   const { toast, showToast, hideToast } = useToast();
   const [section, setSection] = useState('day');
   const [history, setHistory] = useState<AttendanceResponse[]>([]);
@@ -442,6 +442,7 @@ export default function EmployeeDashboard() {
       setVerifyImage(null);
       showToast('Face verified successfully', 'success');
       await refresh();
+      await refreshMe();
     } catch (e: unknown) {
       const errorMsg = getApiErrorMessage(e, 'Face verify failed');
       setError(errorMsg);

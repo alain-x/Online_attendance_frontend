@@ -29,6 +29,8 @@ export default function ShellHeader({ title, onMenuClick }: ShellHeaderProps) {
   const companyContextId = companyContextIdRaw ? Number(companyContextIdRaw) : null;
   const isBranchView = user?.companyId != null && companyContextId != null && companyContextId !== user.companyId;
 
+  const userInitial = (user?.username || 'U').trim().charAt(0).toUpperCase();
+
   const handleLogout = () => {
     logout();
     navigate('/login');
@@ -83,6 +85,20 @@ export default function ShellHeader({ title, onMenuClick }: ShellHeaderProps) {
               <span className="font-medium">{user.username}</span>
               {user.role !== 'SYSTEM_ADMIN' ? <span className="text-white/70">({user.role})</span> : null}
             </div>
+          ) : null}
+          {user ? (
+            user.profileImageUrl ? (
+              <img
+                src={user.profileImageUrl}
+                alt={user.username}
+                className="h-9 w-9 rounded-full object-cover bg-white/20 ring-2 ring-white/25"
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              <div className="h-9 w-9 rounded-full bg-white/20 flex items-center justify-center font-semibold ring-2 ring-white/25">
+                {userInitial}
+              </div>
+            )
           ) : null}
           {user ? (
             <button
