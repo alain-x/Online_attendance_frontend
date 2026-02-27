@@ -3631,7 +3631,75 @@ export default function AdminDashboard() {
                 </div>
               </div>
 
-              <div className="overflow-x-auto">
+              <div className="sm:hidden p-3">
+                {filteredEmployees.length === 0 ? (
+                  <div className="py-8">
+                    <EmptyState title="No employees" description={staffSearch.trim() ? 'No employees match your search.' : 'Create your first employee to get started.'} />
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-3">
+                    {filteredEmployees.map((emp) => (
+                      <div key={emp.id} className="rounded-xl border bg-white p-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="font-semibold text-slate-900 truncate">{emp.firstName} {emp.lastName}</div>
+                            <div className="mt-0.5 text-xs text-slate-600 truncate">{emp.employeeCode} • {emp.username}</div>
+                          </div>
+                          <span className="shrink-0 inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
+                            {emp.role}
+                          </span>
+                        </div>
+
+                        <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                          <div className="rounded-lg bg-slate-50 px-3 py-2">
+                            <div className="text-slate-500">Department</div>
+                            <div className="mt-0.5 font-medium text-slate-900 truncate">{emp.department || '-'}</div>
+                          </div>
+                          <div className="rounded-lg bg-slate-50 px-3 py-2">
+                            <div className="text-slate-500">Designation</div>
+                            <div className="mt-0.5 font-medium text-slate-900 truncate">{emp.designation || '-'}</div>
+                          </div>
+                          <div className="rounded-lg bg-slate-50 px-3 py-2">
+                            <div className="text-slate-500">Mobile</div>
+                            <div className="mt-0.5 font-medium text-slate-900 truncate">{emp.mobile || '-'}</div>
+                          </div>
+                          <div className="rounded-lg bg-slate-50 px-3 py-2">
+                            <div className="text-slate-500">Category</div>
+                            <div className="mt-0.5 font-medium text-slate-900 truncate">{emp.category || '-'}</div>
+                          </div>
+                        </div>
+
+                        <div className="mt-3">
+                          {canManage ? (
+                            <div className="grid grid-cols-2 gap-2">
+                              <button
+                                type="button"
+                                disabled={busy}
+                                className="w-full rounded-md border px-3 py-2 text-sm hover:bg-slate-50 disabled:opacity-60"
+                                onClick={() => openEditEmployeeModal(emp)}
+                              >
+                                Edit
+                              </button>
+                              <button
+                                type="button"
+                                disabled={busy}
+                                className="w-full rounded-md bg-red-600 px-3 py-2 text-sm text-white hover:bg-red-500 disabled:opacity-60"
+                                onClick={() => onDeleteEmployee(emp.id)}
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="text-sm text-slate-400">Read-only</div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="hidden sm:block overflow-x-auto">
                 <table className="w-full min-w-[980px] text-sm">
                   <thead className="bg-slate-50 text-slate-600">
                     <tr>
