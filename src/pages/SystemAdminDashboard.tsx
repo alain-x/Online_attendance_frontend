@@ -7,6 +7,7 @@ import { useToast } from '../hooks/useToast';
 
 import { listCompanies, registerCompany, setCompanyActive } from '../api/companies';
 import { getSystemBranding, updateSystemBranding, uploadSystemLogo } from '../api/system';
+import { generateInvoicePdf } from '../api/invoices';
 
 import type { Company } from '../api/types';
 
@@ -38,6 +39,42 @@ type InvoiceDraft = {
   note: string;
   status: 'UNPAID' | 'PAID';
 };
+
+function buildInvoicePdfPayload(d: InvoiceDraft) {
+  const isReceipt = d.kind === 'receipt';
+  return {
+    invoiceNumber: d.invoiceNumber,
+    invoiceDate: d.issueDate,
+    dueDate: isReceipt ? null : d.dueDate,
+    status: d.status,
+    currency: d.currency,
+    vatRatePercent: 0,
+    credit: 0,
+    seller: {
+      name: 'Attendance System',
+    },
+    billedTo: {
+      name: d.companyName,
+      attn: d.companySlug,
+    },
+    items: [
+      {
+        description: `${d.planName} subscription`,
+        total: d.amount,
+      },
+    ],
+    transactions: isReceipt
+      ? [
+          {
+            transactionDate: d.issueDate,
+            gateway: 'SYSTEM',
+            transactionId: d.invoiceNumber,
+            amount: d.amount,
+          },
+        ]
+      : [],
+  };
+}
 
 type StoredInvoice = InvoiceDraft & {
   id: string;
@@ -96,6 +133,37 @@ function openPrintWindow(html: string, title: string) {
     <div class="card">${html}<div class="btnbar"><button onclick="window.print()" class="primary">Print / Save PDF</button><button onclick="window.close()">Close</button></div></div>
     </body></html>`);
   w.document.close();
+}
+
+async function openPdfPrintWindow(blob: Blob, title: string) {
+  const url = window.URL.createObjectURL(blob);
+  const w = window.open('', '_blank', 'noopener,noreferrer');
+  if (!w) {
+    window.URL.revokeObjectURL(url);
+    return;
+  }
+
+  w.document.open();
+  w.document.write(`<!doctype html><html><head><title>${title}</title><meta charset="utf-8" />
+    <style>
+      html,body{margin:0;padding:0;height:100%;}
+      iframe{border:0;width:100%;height:100%;}
+    </style>
+    </head><body>
+      <iframe id="pdf" src="${url}"></iframe>
+      <script>
+        const iframe = document.getElementById('pdf');
+        iframe.addEventListener('load', () => {
+          try { iframe.contentWindow.focus(); iframe.contentWindow.print(); } catch (e) {}
+        });
+      </script>
+    </body></html>`);
+  w.document.close();
+
+  const revoke = () => {
+    try { window.URL.revokeObjectURL(url); } catch (e) {}
+  };
+  w.addEventListener('beforeunload', revoke);
 }
 
 function renderInvoiceHtml(d: InvoiceDraft): string {
@@ -372,8 +440,13 @@ export default function SystemAdminDashboard() {
 
   function printDraft() {
     if (!draft) return;
-    const html = renderInvoiceHtml(draft);
-    openPrintWindow(html, draft.kind === 'invoice' ? 'Invoice' : 'Receipt');
+    const payload = buildInvoicePdfPayload(draft);
+    generateInvoicePdf(payload)
+      .then((blob) => openPdfPrintWindow(blob, draft.kind === 'invoice' ? 'Invoice' : 'Receipt'))
+      .catch(() => {
+        const html = renderInvoiceHtml(draft);
+        openPrintWindow(html, draft.kind === 'invoice' ? 'Invoice' : 'Receipt');
+      });
   }
 
   return (

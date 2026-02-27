@@ -15,9 +15,12 @@ export type UpdateSystemBrandingRequest = {
 
 function normalizeLogoUrl<T extends { logoUrl: string | null }>(data: T): T {
   const logoUrl = data.logoUrl;
-  if (logoUrl && logoUrl.startsWith('/')) {
-    return { ...data, logoUrl: `${API_BASE_URL}${logoUrl}` };
-  }
+  if (!logoUrl) return data;
+  if (/^[a-zA-Z]:\\/.test(logoUrl)) return { ...data, logoUrl: null };
+  if (logoUrl.startsWith('file:')) return { ...data, logoUrl: null };
+  if (logoUrl.startsWith('http://') || logoUrl.startsWith('https://')) return data;
+  if (logoUrl.startsWith('/')) return { ...data, logoUrl: `${API_BASE_URL}${logoUrl}` };
+  if (logoUrl.startsWith('uploads/')) return { ...data, logoUrl: `${API_BASE_URL}/${logoUrl}` };
   return data;
 }
 

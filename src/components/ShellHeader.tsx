@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { getSystemBranding } from '../api/system';
 
 type ShellHeaderProps = {
   title?: string;
@@ -13,18 +14,24 @@ export default function ShellHeader({ title, onMenuClick }: ShellHeaderProps) {
   const [profileOpen, setProfileOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement | null>(null);
 
-  const systemName = localStorage.getItem('systemName');
+  const [systemLogoError, setSystemLogoError] = useState(false);
+  const [companyLogoError, setCompanyLogoError] = useState(false);
+
+  const [systemName, setSystemName] = useState(() => localStorage.getItem('systemName') || '');
+  const [systemLogoUrlState, setSystemLogoUrlState] = useState(() => localStorage.getItem('systemLogoUrl') || '');
 
   const logoLetter = (user?.companySlug || 'A').trim().charAt(0).toUpperCase();
-  const logoUrl = user?.companyLogoUrl || null;
+  const logoUrlRaw = user?.companyLogoUrl || null;
+  const logoUrl = logoUrlRaw && (/^[a-zA-Z]:\\/.test(logoUrlRaw) || logoUrlRaw.startsWith('file:')) ? null : logoUrlRaw;
   const logoBust = localStorage.getItem('companyLogoBust');
   const displayCompanyLogoUrl = logoUrl && logoBust ? `${logoUrl}${logoUrl.includes('?') ? '&' : '?'}v=${encodeURIComponent(logoBust)}` : logoUrl;
 
-  const systemLogoUrl = localStorage.getItem('systemLogoUrl');
+  const systemLogoUrl = systemLogoUrlState || localStorage.getItem('systemLogoUrl');
   const systemLogoBust = localStorage.getItem('systemLogoBust');
-  const displaySystemLogoUrl = systemLogoUrl && systemLogoBust
-    ? `${systemLogoUrl}${systemLogoUrl.includes('?') ? '&' : '?'}v=${encodeURIComponent(systemLogoBust)}`
-    : systemLogoUrl;
+  const sanitizedSystemLogoUrl = systemLogoUrl && (/^[a-zA-Z]:\\/.test(systemLogoUrl) || systemLogoUrl.startsWith('file:')) ? null : systemLogoUrl;
+  const displaySystemLogoUrl = sanitizedSystemLogoUrl && systemLogoBust
+    ? `${sanitizedSystemLogoUrl}${sanitizedSystemLogoUrl.includes('?') ? '&' : '?'}v=${encodeURIComponent(systemLogoBust)}`
+    : sanitizedSystemLogoUrl;
 
   const companyContextLabel = localStorage.getItem('companyContextLabel');
   const companyContextIdRaw = localStorage.getItem('companyContextId');
@@ -56,6 +63,28 @@ export default function ShellHeader({ title, onMenuClick }: ShellHeaderProps) {
     };
   }, [profileOpen]);
 
+  useEffect(() => {
+    const ls = localStorage.getItem('systemLogoUrl');
+    if (ls && (/^[a-zA-Z]:\\/.test(ls) || ls.startsWith('file:'))) {
+      localStorage.removeItem('systemLogoUrl');
+    }
+    const name = localStorage.getItem('systemName');
+    if (!name || !ls) {
+      getSystemBranding()
+        .then((res) => {
+          localStorage.setItem('systemLogoUrl', res.logoUrl || '');
+          localStorage.setItem('systemName', res.systemName || '');
+          setSystemLogoUrlState(res.logoUrl || '');
+          setSystemName(res.systemName || '');
+          setSystemLogoError(false);
+        })
+        .catch(() => {});
+    } else {
+      setSystemName(name || '');
+      setSystemLogoUrlState(ls || '');
+    }
+  }, []);
+
   const handleLogout = () => {
     logout();
     navigate('/login');
@@ -77,17 +106,19 @@ export default function ShellHeader({ title, onMenuClick }: ShellHeaderProps) {
               </svg>
             </button>
           ) : null}
-          {displaySystemLogoUrl ? (
+          {!systemLogoError && displaySystemLogoUrl ? (
             <img
               src={displaySystemLogoUrl || ''}
               alt={user?.companySlug || 'Company logo'}
               className="h-8 w-8 rounded-lg object-cover bg-white/20"
+              onError={() => setSystemLogoError(true)}
             />
-          ) : displayCompanyLogoUrl ? (
+          ) : !companyLogoError && displayCompanyLogoUrl ? (
             <img
               src={displayCompanyLogoUrl || ''}
               alt={user?.companySlug || 'Company logo'}
               className="h-8 w-8 rounded-lg object-cover bg-white/20"
+              onError={() => setCompanyLogoError(true)}
             />
           ) : (
             <div className="h-8 w-8 rounded-lg bg-white/20 flex items-center justify-center font-bold">
