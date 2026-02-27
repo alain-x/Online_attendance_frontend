@@ -6,7 +6,7 @@ import Toast from '../components/Toast';
 import { useToast } from '../hooks/useToast';
 
 import { listCompanies, registerCompany, setCompanyActive } from '../api/companies';
-import { getSystemBranding, updateSystemBranding, uploadSystemLogo } from '../api/system';
+import { deleteSystemBranding, deleteSystemLogo, getSystemBranding, updateSystemBranding, uploadSystemLogo } from '../api/system';
 import { generateInvoicePdf } from '../api/invoices';
 
 import type { Company } from '../api/types';
@@ -384,9 +384,25 @@ export default function SystemAdminDashboard() {
     try {
       await updateSystemBranding({ systemName: systemName.trim() });
       localStorage.setItem('systemName', systemName.trim());
+      document.title = systemName.trim() ? systemName.trim() : 'Attendance System';
       showToast('System name updated', 'success');
     } catch (e: unknown) {
       showToast(getApiErrorMessage(e, 'Failed to update system name'), 'error');
+    } finally {
+      setSystemNameBusy(false);
+    }
+  }
+
+  async function onDeleteSystemName() {
+    setSystemNameBusy(true);
+    try {
+      await deleteSystemBranding();
+      localStorage.setItem('systemName', '');
+      setSystemName('');
+      document.title = 'Attendance System';
+      showToast('System name removed', 'success');
+    } catch (e: unknown) {
+      showToast(getApiErrorMessage(e, 'Failed to remove system name'), 'error');
     } finally {
       setSystemNameBusy(false);
     }
@@ -404,6 +420,22 @@ export default function SystemAdminDashboard() {
       showToast('System logo uploaded', 'success');
     } catch (e: unknown) {
       showToast(getApiErrorMessage(e, 'Failed to upload system logo'), 'error');
+    } finally {
+      setSystemLogoBusy(false);
+    }
+  }
+
+  async function onDeleteSystemLogo() {
+    setSystemLogoBusy(true);
+    try {
+      await deleteSystemLogo();
+      localStorage.setItem('systemLogoUrl', '');
+      localStorage.setItem('systemLogoBust', String(Date.now()));
+      setSystemLogoUrl(null);
+      setSystemLogoFile(null);
+      showToast('System logo removed', 'success');
+    } catch (e: unknown) {
+      showToast(getApiErrorMessage(e, 'Failed to remove system logo'), 'error');
     } finally {
       setSystemLogoBusy(false);
     }
@@ -687,6 +719,15 @@ export default function SystemAdminDashboard() {
                 {systemLogoBusy && <LoadingSpinner size="sm" />}
                 {systemLogoBusy ? 'Uploading...' : 'Upload system logo'}
               </button>
+              <button
+                type="button"
+                disabled={systemLogoBusy || !systemLogoUrl}
+                className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-60 flex items-center gap-2"
+                onClick={onDeleteSystemLogo}
+              >
+                {systemLogoBusy && <LoadingSpinner size="sm" />}
+                {systemLogoBusy ? 'Removing...' : 'Remove logo'}
+              </button>
             </div>
           </div>
         ) : null}
@@ -711,6 +752,15 @@ export default function SystemAdminDashboard() {
               >
                 {systemNameBusy && <LoadingSpinner size="sm" />}
                 {systemNameBusy ? 'Saving...' : 'Save'}
+              </button>
+              <button
+                type="button"
+                disabled={systemNameBusy || !systemName.trim()}
+                className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-60 flex items-center gap-2"
+                onClick={onDeleteSystemName}
+              >
+                {systemNameBusy && <LoadingSpinner size="sm" />}
+                {systemNameBusy ? 'Removing...' : 'Remove name'}
               </button>
             </div>
           </div>

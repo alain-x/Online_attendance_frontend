@@ -76,12 +76,14 @@ export default function ShellHeader({ title, onMenuClick }: ShellHeaderProps) {
           localStorage.setItem('systemName', res.systemName || '');
           setSystemLogoUrlState(res.logoUrl || '');
           setSystemName(res.systemName || '');
+          document.title = (res.systemName && res.systemName.trim()) ? res.systemName.trim() : 'Attendance System';
           setSystemLogoError(false);
         })
         .catch(() => {});
     } else {
       setSystemName(name || '');
       setSystemLogoUrlState(ls || '');
+      document.title = name && name.trim() ? name.trim() : 'Attendance System';
     }
   }, []);
 

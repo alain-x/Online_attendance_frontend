@@ -38,7 +38,7 @@ function App() {
       <Route
         path="/employee"
         element={
-          <ProtectedRoute roles={["EMPLOYEE", "RECORDER"]}>
+          <ProtectedRoute roles={["EMPLOYEE", "RECORDER", "ADMIN"]}>
             <EmployeeDashboard />
           </ProtectedRoute>
         }
@@ -65,7 +65,7 @@ function App() {
       <Route
         path="/hr"
         element={
-          <ProtectedRoute roles={["HR"]}>
+          <ProtectedRoute roles={["HR", "ADMIN"]}>
             <HRDashboard />
           </ProtectedRoute>
         }
@@ -74,7 +74,7 @@ function App() {
       <Route
         path="/manager"
         element={
-          <ProtectedRoute roles={["MANAGER"]}>
+          <ProtectedRoute roles={["MANAGER", "ADMIN"]}>
             <ManagerDashboard />
           </ProtectedRoute>
         }
@@ -92,7 +92,7 @@ function App() {
       <Route
         path="/auditor"
         element={
-          <ProtectedRoute roles={["AUDITOR"]}>
+          <ProtectedRoute roles={["AUDITOR", "ADMIN"]}>
             <AuditorDashboard />
           </ProtectedRoute>
         }

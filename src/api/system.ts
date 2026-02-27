@@ -47,3 +47,13 @@ export async function updateSystemBranding(payload: UpdateSystemBrandingRequest)
   const res = await http.put<{ updated: boolean }>('/api/system/branding', payload);
   return res.data;
 }
+
+export async function deleteSystemBranding(): Promise<{ deleted: boolean }> {
+  const res = await http.delete<{ deleted: boolean }>('/api/system/branding');
+  return res.data;
+}
+
+export async function deleteSystemLogo(): Promise<{ deleted: boolean }> {
+  const res = await http.delete<{ deleted: boolean }>('/api/system/logo');
+  return res.data;
+}

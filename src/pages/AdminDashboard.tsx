@@ -3530,99 +3530,82 @@ export default function AdminDashboard() {
               </div>
 
               <div className="p-4">
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                  {reportItems.map((item) => {
-                    const isCore = item.key === 'daily_attendance';
-                    return (
-                      <div key={item.key} className="rounded-xl border bg-white p-4 shadow-sm">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <div className="text-sm font-semibold text-slate-900">{item.title}</div>
-                            <div className="mt-1 text-sm text-slate-600">{item.description}</div>
-                          </div>
-                          <div className="flex flex-col items-end gap-2">
-                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">{item.format}</span>
-                            {isCore ? (
-                              <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">Available</span>
-                            ) : (
-                              <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">Available (Beta)</span>
-                            )}
-                          </div>
-                        </div>
+                <div className="overflow-hidden rounded-xl border">
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-slate-200">
+                      <thead className="bg-slate-50">
+                        <tr>
+                          <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-slate-600">Report</th>
+                          <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-slate-600">Format</th>
+                          <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-slate-600">Status</th>
+                          <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-slate-600">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200 bg-white">
+                        {reportItems.map((item) => {
+                          const isCore = item.key === 'daily_attendance';
+                          const expanded = expandedReportKey === item.key;
+                          return (
+                            <React.Fragment key={item.key}>
+                              <tr className="hover:bg-slate-50">
+                                <td className="px-4 py-3 align-top">
+                                  <div className="text-sm font-semibold text-slate-900">{item.title}</div>
+                                  <div className="mt-1 text-sm text-slate-600">{item.description}</div>
+                                </td>
+                                <td className="px-4 py-3 align-top">
+                                  <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">{item.format}</span>
+                                </td>
+                                <td className="px-4 py-3 align-top">
+                                  {isCore ? (
+                                    <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">Available</span>
+                                  ) : (
+                                    <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">Available (Beta)</span>
+                                  )}
+                                </td>
+                                <td className="px-4 py-3 align-top">
+                                  <div className="flex justify-end gap-2">
+                                    <button
+                                      type="button"
+                                      className="rounded-md border px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                                      onClick={() => setExpandedReportKey(expanded ? null : item.key)}
+                                    >
+                                      {expanded ? 'Hide details' : 'Details'}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+                                      onClick={() => downloadReport(item)}
+                                    >
+                                      Download
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
 
-                        <div className="mt-4 grid gap-2">
-                          <div className="rounded-lg border bg-slate-50 p-3">
-                            <div className="text-xs font-medium text-slate-600">Applied filters</div>
-                            <div className="mt-2 flex flex-wrap gap-2">
-                              <span className="rounded-full bg-white px-2 py-0.5 text-xs text-slate-700">{getMonthRangeLabel(selectedYear, selectedMonth)}</span>
-                              <span className="rounded-full bg-white px-2 py-0.5 text-xs text-slate-700">{selectedDepartment === 'ALL' ? 'All departments' : selectedDepartment}</span>
-                              <span className="rounded-full bg-white px-2 py-0.5 text-xs text-slate-700">{selectedRoleScope === 'ALL' ? 'All roles' : 'Managers'}</span>
-                              {search.trim() ? (
-                                <span className="rounded-full bg-white px-2 py-0.5 text-xs text-slate-700">Search: {search.trim()}</span>
+                              {expanded ? (
+                                <tr className="bg-white">
+                                  <td className="px-4 pb-4" colSpan={4}>
+                                    <div className="rounded-lg border bg-white p-3 text-sm text-slate-700">
+                                      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                                        <div className="rounded-md border bg-slate-50 px-3 py-2">Period: {getMonthRangeLabel(selectedYear, selectedMonth)}</div>
+                                        <div className="rounded-md border bg-slate-50 px-3 py-2">Department: {selectedDepartment === 'ALL' ? 'All' : selectedDepartment}</div>
+                                        <div className="rounded-md border bg-slate-50 px-3 py-2">Role scope: {selectedRoleScope === 'ALL' ? 'All' : 'Managers'}</div>
+                                        <div className="rounded-md border bg-slate-50 px-3 py-2">Format: {item.format}</div>
+                                      </div>
+                                      {search.trim() ? (
+                                        <div className="mt-2 rounded-md border bg-slate-50 px-3 py-2">Search: {search.trim()}</div>
+                                      ) : null}
+                                      {!isCore ? <div className="mt-2 text-xs text-slate-500">This report is in beta and will improve as more APIs are connected.</div> : null}
+                                    </div>
+                                  </td>
+                                </tr>
                               ) : null}
-                            </div>
-                          </div>
-
-                          <div className="flex items-center justify-between gap-2">
-                            <button
-                              type="button"
-                              className="rounded-md border px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
-                              onClick={() => setExpandedReportKey(expandedReportKey === item.key ? null : item.key)}
-                            >
-                              {expandedReportKey === item.key ? 'Hide details' : 'Details'}
-                            </button>
-                            <button
-                              type="button"
-                              className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
-                              onClick={() => downloadReport(item)}
-                            >
-                              Download
-                            </button>
-                          </div>
-
-                          {expandedReportKey === item.key ? (
-                            <div className="rounded-lg border bg-white p-3 text-sm text-slate-700">
-                              <div className="grid gap-2 sm:grid-cols-2">
-                                <div className="rounded-md border bg-slate-50 px-3 py-2">Period: {getMonthRangeLabel(selectedYear, selectedMonth)}</div>
-                                <div className="rounded-md border bg-slate-50 px-3 py-2">Format: {item.format}</div>
-                                <div className="rounded-md border bg-slate-50 px-3 py-2">Department: {selectedDepartment === 'ALL' ? 'All' : selectedDepartment}</div>
-                                <div className="rounded-md border bg-slate-50 px-3 py-2">Role scope: {selectedRoleScope === 'ALL' ? 'All' : 'Managers'}</div>
-                              </div>
-                              {!isCore ? <div className="mt-2 text-xs text-slate-500">This report is in beta and will improve as more APIs are connected.</div> : null}
-                            </div>
-                          ) : null}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-xl border bg-white p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="text-sm font-semibold text-slate-900">Coming next</div>
-                  <div className="mt-1 text-sm text-slate-600">Planned reporting improvements for the next iterations.</div>
-                </div>
-                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">Roadmap</span>
-              </div>
-              <div className="mt-4 grid gap-3 md:grid-cols-2">
-                <div className="rounded-lg border bg-slate-50 p-4">
-                  <div className="text-sm font-medium text-slate-900">Late arrivals</div>
-                  <div className="mt-1 text-sm text-slate-600">Shift-aware late threshold per employee and downloadable CSV.</div>
-                </div>
-                <div className="rounded-lg border bg-slate-50 p-4">
-                  <div className="text-sm font-medium text-slate-900">Overtime summary</div>
-                  <div className="mt-1 text-sm text-slate-600">Overtime policy rules, approval flow, and per-period export.</div>
-                </div>
-                <div className="rounded-lg border bg-slate-50 p-4">
-                  <div className="text-sm font-medium text-slate-900">Absence report</div>
-                  <div className="mt-1 text-sm text-slate-600">Leave/holiday integration (LV/PH/WO) with date-range filters.</div>
-                </div>
-                <div className="rounded-lg border bg-slate-50 p-4">
-                  <div className="text-sm font-medium text-slate-900">Exports</div>
-                  <div className="mt-1 text-sm text-slate-600">Excel/PDF exports and scheduled monthly email reports.</div>
+                            </React.Fragment>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
             </div>
