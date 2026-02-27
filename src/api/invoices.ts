@@ -42,8 +42,23 @@ export type InvoicePdfRequest = {
 };
 
 export async function generateInvoicePdf(payload: InvoicePdfRequest): Promise<Blob> {
-  const res = await http.post<BlobPart>('/api/invoices/pdf', payload, {
+  const res = await http.post<Blob>('/api/invoices/pdf', payload, {
     responseType: 'blob',
   });
-  return new Blob([res.data], { type: 'application/pdf' });
+
+  const blob = res.data;
+  const typed = blob.type ? blob : blob.slice(0, blob.size, 'application/pdf');
+
+  try {
+    const headerBytes = new Uint8Array(await typed.slice(0, 5).arrayBuffer());
+    const header = String.fromCharCode(...Array.from(headerBytes));
+    if (header !== '%PDF-') {
+      const text = await typed.text();
+      throw new Error(text || 'Response is not a valid PDF');
+    }
+  } catch (e) {
+    throw e;
+  }
+
+  return typed;
 }

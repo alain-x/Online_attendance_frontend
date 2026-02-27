@@ -225,6 +225,28 @@ function loadPdfIntoPlaceholderWindow(w: Window, blob: Blob) {
         } catch {
           // ignore
         }
+
+        try {
+          setTimeout(() => {
+            if (w.closed) return;
+            const doc2 = w.document;
+            const iframe2 = doc2.getElementById('pdf') as HTMLIFrameElement | null;
+            const currentSrc = iframe2?.getAttribute('src') || '';
+            if (!iframe2 || !currentSrc) {
+              w.location.href = url;
+            }
+          }, 800);
+        } catch {
+          // ignore
+        }
+      };
+
+      iframe.onerror = () => {
+        try {
+          w.location.href = url;
+        } catch {
+          // ignore
+        }
       };
     } else {
       w.location.href = url;
@@ -522,9 +544,17 @@ export default function SystemAdminDashboard() {
         }
         return openPdfPrintWindow(blob, title);
       })
-      .catch(() => {
+      .catch((err) => {
         if (w && !w.closed) {
-          w.close();
+          try {
+            const status = w.document.getElementById('status');
+            if (status) {
+              const msg = err instanceof Error ? err.message : 'Failed to generate PDF';
+              status.textContent = msg;
+            }
+          } catch {
+            // ignore
+          }
         }
         const html = renderInvoiceHtml(draft);
         openPrintWindow(html, title);
