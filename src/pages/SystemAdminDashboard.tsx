@@ -200,7 +200,7 @@ function openPdfPlaceholderWindow(title: string) {
   return w;
 }
 
-function loadPdfIntoPlaceholderWindow(w: Window, blob: Blob) {
+function navigatePdfIntoPlaceholderWindow(w: Window, blob: Blob) {
   const url = window.URL.createObjectURL(blob);
   const revoke = () => {
     try {
@@ -211,48 +211,16 @@ function loadPdfIntoPlaceholderWindow(w: Window, blob: Blob) {
   };
 
   try {
-    const doc = w.document;
-    const iframe = doc.getElementById('pdf') as HTMLIFrameElement | null;
-    const status = doc.getElementById('status');
-    if (status) status.textContent = 'Preview ready. Opening print dialog…';
-    if (iframe) {
-      iframe.style.display = 'block';
-      iframe.src = url;
-      iframe.onload = () => {
-        try {
-          iframe.contentWindow?.focus();
-          iframe.contentWindow?.print();
-        } catch {
-          // ignore
-        }
-
-        try {
-          setTimeout(() => {
-            if (w.closed) return;
-            const doc2 = w.document;
-            const iframe2 = doc2.getElementById('pdf') as HTMLIFrameElement | null;
-            const currentSrc = iframe2?.getAttribute('src') || '';
-            if (!iframe2 || !currentSrc) {
-              w.location.href = url;
-            }
-          }, 800);
-        } catch {
-          // ignore
-        }
-      };
-
-      iframe.onerror = () => {
-        try {
-          w.location.href = url;
-        } catch {
-          // ignore
-        }
-      };
-    } else {
-      w.location.href = url;
-    }
+    const status = w.document.getElementById('status');
+    if (status) status.textContent = 'Opening PDF…';
   } catch {
+    // ignore
+  }
+
+  try {
     w.location.href = url;
+  } catch {
+    // ignore
   }
 
   w.addEventListener('beforeunload', revoke);
@@ -539,7 +507,7 @@ export default function SystemAdminDashboard() {
     generateInvoicePdf(payload)
       .then((blob) => {
         if (w && !w.closed) {
-          loadPdfIntoPlaceholderWindow(w, blob);
+          navigatePdfIntoPlaceholderWindow(w, blob);
           return;
         }
         return openPdfPrintWindow(blob, title);
