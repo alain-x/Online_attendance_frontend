@@ -28,10 +28,6 @@ export default function ProtectedRoute({ children, roles }: ProtectedRouteProps)
     return <Navigate to="/login" replace />;
   }
 
-  if (user.role === 'SYSTEM_ADMIN') {
-    return children;
-  }
-
   if (roles && roles.length > 0 && !roles.includes(user.role)) {
     return <Navigate to="/" replace />;
   }

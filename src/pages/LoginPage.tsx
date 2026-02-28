@@ -10,6 +10,22 @@ export default function LoginPage() {
   const location = useLocation();
   const { setToken, refreshMe } = useAuth();
 
+  function applyFavicon(url: string | null | undefined) {
+    const clean = url && url.trim() ? url.trim() : '';
+    if (!clean) return;
+    const bust = localStorage.getItem('systemFaviconBust');
+    const withBust = bust ? `${clean}${clean.includes('?') ? '&' : '?'}v=${encodeURIComponent(bust)}` : clean;
+    const existing = document.querySelector<HTMLLinkElement>('link[rel~="icon"]');
+    if (existing) {
+      existing.href = withBust;
+      return;
+    }
+    const link = document.createElement('link');
+    link.rel = 'icon';
+    link.href = withBust;
+    document.head.appendChild(link);
+  }
+
   const navState = location.state as { username?: string } | null;
   const [username, setUsername] = useState(navState?.username || '');
   const [password, setPassword] = useState('');
@@ -24,7 +40,9 @@ export default function LoginPage() {
         if (cancelled) return;
         localStorage.setItem('systemLogoUrl', res.logoUrl || '');
         localStorage.setItem('systemName', res.systemName || '');
+        localStorage.setItem('systemFaviconUrl', res.faviconUrl || '');
         setSystemLogoUrl(res.logoUrl || null);
+        applyFavicon(res.faviconUrl);
       })
       .catch(() => {});
     return () => {

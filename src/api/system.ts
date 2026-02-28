@@ -6,22 +6,34 @@ export type SystemLogoResponse = {
 
 export type SystemBrandingResponse = {
   logoUrl: string | null;
+  faviconUrl: string | null;
   systemName: string | null;
+};
+
+export type SystemFaviconResponse = {
+  faviconUrl: string | null;
 };
 
 export type UpdateSystemBrandingRequest = {
   systemName?: string | null;
 };
 
+function normalizeRelativeUrl(url: string | null): string | null {
+  if (!url) return url;
+  if (/^[a-zA-Z]:\\/.test(url)) return null;
+  if (url.startsWith('file:')) return null;
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  if (url.startsWith('/')) return `${API_BASE_URL}${url}`;
+  if (url.startsWith('uploads/')) return `${API_BASE_URL}/${url}`;
+  return url;
+}
+
 function normalizeLogoUrl<T extends { logoUrl: string | null }>(data: T): T {
-  const logoUrl = data.logoUrl;
-  if (!logoUrl) return data;
-  if (/^[a-zA-Z]:\\/.test(logoUrl)) return { ...data, logoUrl: null };
-  if (logoUrl.startsWith('file:')) return { ...data, logoUrl: null };
-  if (logoUrl.startsWith('http://') || logoUrl.startsWith('https://')) return data;
-  if (logoUrl.startsWith('/')) return { ...data, logoUrl: `${API_BASE_URL}${logoUrl}` };
-  if (logoUrl.startsWith('uploads/')) return { ...data, logoUrl: `${API_BASE_URL}/${logoUrl}` };
-  return data;
+  return { ...data, logoUrl: normalizeRelativeUrl(data.logoUrl) };
+}
+
+function normalizeFaviconUrl<T extends { faviconUrl: string | null }>(data: T): T {
+  return { ...data, faviconUrl: normalizeRelativeUrl(data.faviconUrl) };
 }
 
 export async function getSystemLogo(): Promise<SystemLogoResponse> {
@@ -40,7 +52,21 @@ export async function uploadSystemLogo(file: File): Promise<SystemLogoResponse> 
 
 export async function getSystemBranding(): Promise<SystemBrandingResponse> {
   const res = await http.get<SystemBrandingResponse>('/api/system/branding');
-  return normalizeLogoUrl(res.data);
+  return normalizeFaviconUrl(normalizeLogoUrl(res.data));
+}
+
+export async function getSystemFavicon(): Promise<SystemFaviconResponse> {
+  const res = await http.get<SystemFaviconResponse>('/api/system/favicon');
+  return normalizeFaviconUrl(res.data);
+}
+
+export async function uploadSystemFavicon(file: File): Promise<SystemFaviconResponse> {
+  const form = new FormData();
+  form.append('file', file);
+  const res = await http.post<SystemFaviconResponse>('/api/system/favicon', form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return normalizeFaviconUrl(res.data);
 }
 
 export async function updateSystemBranding(payload: UpdateSystemBrandingRequest): Promise<{ updated: boolean }> {
@@ -55,5 +81,10 @@ export async function deleteSystemBranding(): Promise<{ deleted: boolean }> {
 
 export async function deleteSystemLogo(): Promise<{ deleted: boolean }> {
   const res = await http.delete<{ deleted: boolean }>('/api/system/logo');
+  return res.data;
+}
+
+export async function deleteSystemFavicon(): Promise<{ deleted: boolean }> {
+  const res = await http.delete<{ deleted: boolean }>('/api/system/favicon');
   return res.data;
 }

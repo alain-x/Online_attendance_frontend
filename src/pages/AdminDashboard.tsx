@@ -1931,7 +1931,16 @@ export default function AdminDashboard() {
 
     return [
       { key: 'dashboard', label: 'Dashboard' },
-      ...(role === 'ADMIN' ? [{ key: 'recorder_nav', label: 'Recorder (Take Attendance)' }] : []),
+      ...(role === 'ADMIN'
+        ? [
+            { key: 'employee_nav', label: 'Employee Dashboard' },
+            { key: 'recorder_nav', label: 'Recorder (Take Attendance)' },
+            { key: 'hr_nav', label: 'HR Dashboard' },
+            { key: 'manager_nav', label: 'Manager Dashboard' },
+            { key: 'payroll_nav', label: 'Payroll Dashboard' },
+            { key: 'auditor_nav', label: 'Auditor Dashboard' },
+          ]
+        : []),
       { key: 'reports', label: 'Reports & Analytics' },
       { key: 'workforce', label: 'Workforce Plan' },
       { key: 'staff', label: 'Staff Directory' },
@@ -1967,8 +1976,28 @@ export default function AdminDashboard() {
       sidebarItems={sidebarItems}
       activeSidebarKey={section}
       onSidebarChange={(k) => {
+        if (k === 'employee_nav') {
+          navigate('/employee');
+          return;
+        }
         if (k === 'recorder_nav') {
           navigate('/recorder');
+          return;
+        }
+        if (k === 'hr_nav') {
+          navigate('/hr');
+          return;
+        }
+        if (k === 'manager_nav') {
+          navigate('/manager');
+          return;
+        }
+        if (k === 'payroll_nav') {
+          navigate('/payroll');
+          return;
+        }
+        if (k === 'auditor_nav') {
+          navigate('/auditor');
           return;
         }
         setSection(k);
@@ -3949,9 +3978,9 @@ export default function AdminDashboard() {
                     >
                       Add New Geolocation
                     </button>
-                    <button type="button" className="w-full sm:w-auto rounded-md border px-3 py-2 text-sm text-slate-700 hover:bg-slate-50" onClick={() => showToast('Bulk add will be added next', 'success')}>
+                    {/* {<button type="button" className="w-full sm:w-auto rounded-md border px-3 py-2 text-sm text-slate-700 hover:bg-slate-50" onClick={() => showToast('Bulk add will be added next', 'success')}>
                       Bulk Add
-                    </button>
+                    </button>} */}
                     <button type="button" className="w-full sm:w-auto rounded-md border px-3 py-2 text-sm text-slate-700 hover:bg-slate-50" onClick={downloadGeofencesCsv}>
                       Download
                     </button>

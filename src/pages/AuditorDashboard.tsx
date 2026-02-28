@@ -6,6 +6,7 @@ import Toast from '../components/Toast';
 import { getPayrollSummary } from '../api/payroll';
 import { useAuth } from '../auth/AuthContext';
 import { useToast } from '../hooks/useToast';
+import { useNavigate } from 'react-router-dom';
 
 import type { PayrollSummaryResponse } from '../api/types';
 
@@ -13,6 +14,7 @@ type AuditorSection = 'overview' | 'payroll' | 'exports' | 'audit_log';
 
 export default function AuditorDashboard() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const { toast, showToast, hideToast } = useToast();
   const [section, setSection] = useState<AuditorSection>('overview');
 
@@ -29,15 +31,29 @@ export default function AuditorDashboard() {
   const [sortKey, setSortKey] = useState<'employee' | 'worked' | 'expected' | 'gross' | 'net'>('employee');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
-  const sidebarItems = useMemo(
-    () => [
+  const sidebarItems = useMemo(() => {
+    if (user?.role === 'ADMIN') {
+      return [
+        { key: 'dashboard', label: 'Dashboard' },
+        { key: 'employee_nav', label: 'Employee Dashboard' },
+        { key: 'recorder_nav', label: 'Recorder (Take Attendance)' },
+        { key: 'hr_nav', label: 'HR Dashboard' },
+        { key: 'manager_nav', label: 'Manager Dashboard' },
+        { key: 'payroll_nav', label: 'Payroll Dashboard' },
+        { key: 'auditor_nav', label: 'Auditor Dashboard' },
+        { key: 'reports', label: 'Reports & Analytics' },
+        { key: 'workforce', label: 'Workforce Plan' },
+        { key: 'staff', label: 'Staff Directory' },
+        { key: 'settings', label: 'Settings' },
+      ];
+    }
+    return [
       { key: 'overview', label: 'Overview' },
       { key: 'payroll', label: 'Payroll Summary' },
       { key: 'exports', label: 'Exports' },
       { key: 'audit_log', label: 'Audit Log' },
-    ],
-    []
-  );
+    ];
+  }, [user?.role]);
 
   useEffect(() => {
     if (user?.role !== 'AUDITOR') {
@@ -160,8 +176,35 @@ export default function AuditorDashboard() {
     <AppLayout
       title="Auditor"
       sidebarItems={sidebarItems}
-      activeSidebarKey={section}
-      onSidebarChange={(k) => setSection(k as AuditorSection)}
+      activeSidebarKey={user?.role === 'ADMIN' ? 'auditor_nav' : section}
+      onSidebarChange={(k) => {
+        if (user?.role === 'ADMIN') {
+          if (k === 'employee_nav') {
+            navigate('/employee');
+            return;
+          }
+          if (k === 'recorder_nav') {
+            navigate('/recorder');
+            return;
+          }
+          if (k === 'hr_nav') {
+            navigate('/hr');
+            return;
+          }
+          if (k === 'manager_nav') {
+            navigate('/manager');
+            return;
+          }
+          if (k === 'payroll_nav') {
+            navigate('/payroll');
+            return;
+          }
+          if (k === 'auditor_nav') return;
+          navigate('/admin', { state: { section: k } });
+          return;
+        }
+        setSection(k as AuditorSection);
+      }}
     >
       {toast && <Toast message={toast.message} type={toast.type} onClose={hideToast} />}
 

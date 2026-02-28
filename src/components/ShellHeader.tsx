@@ -14,6 +14,27 @@ export default function ShellHeader({ title, onMenuClick }: ShellHeaderProps) {
   const [profileOpen, setProfileOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement | null>(null);
 
+  function applyFavicon(url: string | null | undefined) {
+    const clean = url && url.trim() ? url.trim() : '';
+    if (!clean) return;
+
+    const withBust = (() => {
+      const bust = localStorage.getItem('systemFaviconBust');
+      if (!bust) return clean;
+      return `${clean}${clean.includes('?') ? '&' : '?'}v=${encodeURIComponent(bust)}`;
+    })();
+
+    const existing = document.querySelector<HTMLLinkElement>('link[rel~="icon"]');
+    if (existing) {
+      existing.href = withBust;
+      return;
+    }
+    const link = document.createElement('link');
+    link.rel = 'icon';
+    link.href = withBust;
+    document.head.appendChild(link);
+  }
+
   const [systemLogoError, setSystemLogoError] = useState(false);
   const [companyLogoError, setCompanyLogoError] = useState(false);
 
@@ -69,14 +90,17 @@ export default function ShellHeader({ title, onMenuClick }: ShellHeaderProps) {
       localStorage.removeItem('systemLogoUrl');
     }
     const name = localStorage.getItem('systemName');
+    const favicon = localStorage.getItem('systemFaviconUrl');
     if (!name || !ls) {
       getSystemBranding()
         .then((res) => {
           localStorage.setItem('systemLogoUrl', res.logoUrl || '');
           localStorage.setItem('systemName', res.systemName || '');
+          localStorage.setItem('systemFaviconUrl', res.faviconUrl || '');
           setSystemLogoUrlState(res.logoUrl || '');
           setSystemName(res.systemName || '');
           document.title = (res.systemName && res.systemName.trim()) ? res.systemName.trim() : 'Attendance System';
+          applyFavicon(res.faviconUrl);
           setSystemLogoError(false);
         })
         .catch(() => {});
@@ -84,6 +108,7 @@ export default function ShellHeader({ title, onMenuClick }: ShellHeaderProps) {
       setSystemName(name || '');
       setSystemLogoUrlState(ls || '');
       document.title = name && name.trim() ? name.trim() : 'Attendance System';
+      applyFavicon(favicon);
     }
   }, []);
 

@@ -6,7 +6,7 @@ import Toast from '../components/Toast';
 import { useToast } from '../hooks/useToast';
 
 import { listCompanies, registerCompany, setCompanyActive } from '../api/companies';
-import { deleteSystemBranding, deleteSystemLogo, getSystemBranding, updateSystemBranding, uploadSystemLogo } from '../api/system';
+import { deleteSystemBranding, deleteSystemFavicon, deleteSystemLogo, getSystemBranding, updateSystemBranding, uploadSystemFavicon, uploadSystemLogo } from '../api/system';
 import { generateInvoicePdf } from '../api/invoices';
 
 import type { Company } from '../api/types';
@@ -293,10 +293,13 @@ export default function SystemAdminDashboard() {
   const [section, setSection] = useState<'companies' | 'create_company' | 'billing'>('companies');
 
   const [systemLogoUrl, setSystemLogoUrl] = useState<string | null>(() => localStorage.getItem('systemLogoUrl'));
+  const [systemFaviconUrl, setSystemFaviconUrl] = useState<string | null>(() => localStorage.getItem('systemFaviconUrl'));
   const [systemName, setSystemName] = useState<string>(() => localStorage.getItem('systemName') || '');
   const [systemNameBusy, setSystemNameBusy] = useState(false);
   const [systemLogoFile, setSystemLogoFile] = useState<File | null>(null);
   const [systemLogoBusy, setSystemLogoBusy] = useState(false);
+  const [systemFaviconFile, setSystemFaviconFile] = useState<File | null>(null);
+  const [systemFaviconBusy, setSystemFaviconBusy] = useState(false);
 
   const sidebarItems = useMemo(
     () => [
@@ -372,7 +375,9 @@ export default function SystemAdminDashboard() {
       .then((res) => {
         localStorage.setItem('systemLogoUrl', res.logoUrl || '');
         localStorage.setItem('systemName', res.systemName || '');
+        localStorage.setItem('systemFaviconUrl', res.faviconUrl || '');
         setSystemLogoUrl(res.logoUrl || null);
+        setSystemFaviconUrl(res.faviconUrl || null);
         setSystemName(res.systemName || '');
       })
       .catch(() => {});
@@ -438,6 +443,39 @@ export default function SystemAdminDashboard() {
       showToast(getApiErrorMessage(e, 'Failed to remove system logo'), 'error');
     } finally {
       setSystemLogoBusy(false);
+    }
+  }
+
+  async function onUploadSystemFavicon() {
+    if (!systemFaviconFile) return;
+    setSystemFaviconBusy(true);
+    try {
+      const res = await uploadSystemFavicon(systemFaviconFile);
+      localStorage.setItem('systemFaviconUrl', res.faviconUrl || '');
+      localStorage.setItem('systemFaviconBust', String(Date.now()));
+      setSystemFaviconUrl(res.faviconUrl || null);
+      setSystemFaviconFile(null);
+      showToast('System favicon updated', 'success');
+    } catch (e: unknown) {
+      showToast(getApiErrorMessage(e, 'Failed to upload system favicon'), 'error');
+    } finally {
+      setSystemFaviconBusy(false);
+    }
+  }
+
+  async function onDeleteSystemFavicon() {
+    setSystemFaviconBusy(true);
+    try {
+      await deleteSystemFavicon();
+      localStorage.setItem('systemFaviconUrl', '');
+      localStorage.setItem('systemFaviconBust', String(Date.now()));
+      setSystemFaviconUrl(null);
+      setSystemFaviconFile(null);
+      showToast('System favicon removed', 'success');
+    } catch (e: unknown) {
+      showToast(getApiErrorMessage(e, 'Failed to remove system favicon'), 'error');
+    } finally {
+      setSystemFaviconBusy(false);
     }
   }
 
@@ -684,6 +722,49 @@ export default function SystemAdminDashboard() {
               >
                 {createCompanyBusy && <LoadingSpinner size="sm" />}
                 {createCompanyBusy ? 'Creating…' : 'Create company'}
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {section === 'companies' ? (
+          <div className="rounded-xl border bg-white p-4">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="text-sm font-semibold text-slate-900">System favicon</div>
+                <div className="mt-1 text-sm text-slate-600">Browser tab icon shown to all users.</div>
+              </div>
+              {systemFaviconUrl ? (
+                <img src={systemFaviconUrl} alt="System favicon" className="h-10 w-10 rounded-lg object-contain bg-white border" />
+              ) : (
+                <div className="h-10 w-10 rounded-lg bg-slate-100 border flex items-center justify-center text-slate-600 text-xs">N/A</div>
+              )}
+            </div>
+
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+              <input
+                type="file"
+                accept="image/*,.ico"
+                className="w-full rounded-md border px-3 py-2 text-sm"
+                onChange={(e) => setSystemFaviconFile(e.target.files && e.target.files[0] ? e.target.files[0] : null)}
+              />
+              <button
+                type="button"
+                disabled={!systemFaviconFile || systemFaviconBusy}
+                className="rounded-md bg-slate-900 px-4 py-2 text-sm text-white hover:bg-slate-800 disabled:opacity-60 flex items-center gap-2"
+                onClick={onUploadSystemFavicon}
+              >
+                {systemFaviconBusy && <LoadingSpinner size="sm" />}
+                {systemFaviconBusy ? 'Uploading...' : 'Upload favicon'}
+              </button>
+              <button
+                type="button"
+                disabled={systemFaviconBusy || !systemFaviconUrl}
+                className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-60 flex items-center gap-2"
+                onClick={onDeleteSystemFavicon}
+              >
+                {systemFaviconBusy && <LoadingSpinner size="sm" />}
+                {systemFaviconBusy ? 'Removing...' : 'Remove favicon'}
               </button>
             </div>
           </div>

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AppLayout from '../components/AppLayout';
 import { checkIn, checkOut, checkOutCompanyPurpose, endBreak, myAttendance, startBreak, verifyFace } from '../api/attendance';
@@ -630,18 +630,62 @@ export default function EmployeeDashboard() {
     }
   }
 
-  const sidebarItems = [
-    { key: 'day', label: 'Dashboard' },
-    { key: 'history', label: 'My Attendance' },
-  ];
+  const sidebarItems = useMemo(() => {
+    if (user?.role === 'ADMIN') {
+      return [
+        { key: 'dashboard', label: 'Dashboard' },
+        { key: 'employee_nav', label: 'Employee Dashboard' },
+        { key: 'recorder_nav', label: 'Recorder (Take Attendance)' },
+        { key: 'hr_nav', label: 'HR Dashboard' },
+        { key: 'manager_nav', label: 'Manager Dashboard' },
+        { key: 'payroll_nav', label: 'Payroll Dashboard' },
+        { key: 'auditor_nav', label: 'Auditor Dashboard' },
+        { key: 'reports', label: 'Reports & Analytics' },
+        { key: 'workforce', label: 'Workforce Plan' },
+        { key: 'staff', label: 'Staff Directory' },
+        { key: 'settings', label: 'Settings' },
+      ];
+    }
+    return [
+      { key: 'day', label: 'Dashboard' },
+      { key: 'history', label: 'My Attendance' },
+    ];
+  }, [user?.role]);
 
   if (initialLoading) {
     return (
       <AppLayout
         title="Employee Dashboard"
         sidebarItems={sidebarItems}
-        activeSidebarKey={section}
-        onSidebarChange={setSection}
+        activeSidebarKey={user?.role === 'ADMIN' ? 'employee_nav' : section}
+        onSidebarChange={(k) => {
+          if (user?.role === 'ADMIN') {
+            if (k === 'employee_nav') return;
+            if (k === 'recorder_nav') {
+              navigate('/recorder');
+              return;
+            }
+            if (k === 'hr_nav') {
+              navigate('/hr');
+              return;
+            }
+            if (k === 'manager_nav') {
+              navigate('/manager');
+              return;
+            }
+            if (k === 'payroll_nav') {
+              navigate('/payroll');
+              return;
+            }
+            if (k === 'auditor_nav') {
+              navigate('/auditor');
+              return;
+            }
+            navigate('/admin', { state: { section: k } });
+            return;
+          }
+          setSection(k as typeof section);
+        }}
       >
         <div className="flex items-center justify-center py-12">
           <LoadingSpinner size="lg" />
@@ -654,8 +698,35 @@ export default function EmployeeDashboard() {
     <AppLayout
       title="Employee Dashboard"
       sidebarItems={sidebarItems}
-      activeSidebarKey={section}
-      onSidebarChange={setSection}
+      activeSidebarKey={user?.role === 'ADMIN' ? 'employee_nav' : section}
+      onSidebarChange={(k) => {
+        if (user?.role === 'ADMIN') {
+          if (k === 'employee_nav') return;
+          if (k === 'recorder_nav') {
+            navigate('/recorder');
+            return;
+          }
+          if (k === 'hr_nav') {
+            navigate('/hr');
+            return;
+          }
+          if (k === 'manager_nav') {
+            navigate('/manager');
+            return;
+          }
+          if (k === 'payroll_nav') {
+            navigate('/payroll');
+            return;
+          }
+          if (k === 'auditor_nav') {
+            navigate('/auditor');
+            return;
+          }
+          navigate('/admin', { state: { section: k } });
+          return;
+        }
+        setSection(k as typeof section);
+      }}
     >
       {toast && <Toast message={toast.message} type={toast.type} onClose={hideToast} />}
 

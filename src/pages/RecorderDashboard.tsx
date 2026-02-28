@@ -371,11 +371,16 @@ export default function RecorderDashboard() {
     if (user?.role === 'ADMIN') {
       return [
         { key: 'dashboard', label: 'Dashboard' },
+        { key: 'employee_nav', label: 'Employee Dashboard' },
+        { key: 'recorder_nav', label: 'Recorder (Take Attendance)' },
+        { key: 'hr_nav', label: 'HR Dashboard' },
+        { key: 'manager_nav', label: 'Manager Dashboard' },
+        { key: 'payroll_nav', label: 'Payroll Dashboard' },
+        { key: 'auditor_nav', label: 'Auditor Dashboard' },
         { key: 'reports', label: 'Reports & Analytics' },
         { key: 'workforce', label: 'Workforce Plan' },
         { key: 'staff', label: 'Staff Directory' },
         { key: 'settings', label: 'Settings' },
-        { key: 'record', label: 'Recorder' },
       ];
     }
     return [{ key: 'record', label: 'Recorder' }];
@@ -386,9 +391,29 @@ export default function RecorderDashboard() {
       <AppLayout
         title="Recorder"
         sidebarItems={sidebarItems}
-        activeSidebarKey="record"
+        activeSidebarKey={user?.role === 'ADMIN' ? 'recorder_nav' : 'record'}
         onSidebarChange={(k) => {
-          if (k === 'record') return;
+          if (k === 'employee_nav') {
+            navigate('/employee');
+            return;
+          }
+          if (k === 'recorder_nav' || k === 'record') return;
+          if (k === 'hr_nav') {
+            navigate('/hr');
+            return;
+          }
+          if (k === 'manager_nav') {
+            navigate('/manager');
+            return;
+          }
+          if (k === 'payroll_nav') {
+            navigate('/payroll');
+            return;
+          }
+          if (k === 'auditor_nav') {
+            navigate('/auditor');
+            return;
+          }
           navigate('/admin', { state: { section: k } });
         }}
       >
@@ -403,9 +428,29 @@ export default function RecorderDashboard() {
     <AppLayout
       title="Recorder"
       sidebarItems={sidebarItems}
-      activeSidebarKey="record"
+      activeSidebarKey={user?.role === 'ADMIN' ? 'recorder_nav' : 'record'}
       onSidebarChange={(k) => {
-        if (k === 'record') return;
+        if (k === 'employee_nav') {
+          navigate('/employee');
+          return;
+        }
+        if (k === 'recorder_nav' || k === 'record') return;
+        if (k === 'hr_nav') {
+          navigate('/hr');
+          return;
+        }
+        if (k === 'manager_nav') {
+          navigate('/manager');
+          return;
+        }
+        if (k === 'payroll_nav') {
+          navigate('/payroll');
+          return;
+        }
+        if (k === 'auditor_nav') {
+          navigate('/auditor');
+          return;
+        }
         navigate('/admin', { state: { section: k } });
       }}
     >

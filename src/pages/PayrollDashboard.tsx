@@ -4,6 +4,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import Toast from '../components/Toast';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../auth/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 import { approveCompanyPurpose, listPendingCompanyPurpose, rejectCompanyPurpose } from '../api/attendance';
 import { getPayrollSummary } from '../api/payroll';
@@ -52,6 +53,7 @@ function getApiErrorMessage(err: unknown, fallback: string): string {
 
 export default function PayrollDashboard() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const { toast, showToast, hideToast } = useToast();
   const [section, setSection] = useState<'overview' | 'approvals' | 'payroll'>('overview');
 
@@ -73,6 +75,21 @@ export default function PayrollDashboard() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
   const sidebarItems = useMemo(() => {
+    if (user?.role === 'ADMIN') {
+      return [
+        { key: 'dashboard', label: 'Dashboard' },
+        { key: 'employee_nav', label: 'Employee Dashboard' },
+        { key: 'recorder_nav', label: 'Recorder (Take Attendance)' },
+        { key: 'hr_nav', label: 'HR Dashboard' },
+        { key: 'manager_nav', label: 'Manager Dashboard' },
+        { key: 'payroll_nav', label: 'Payroll Dashboard' },
+        { key: 'auditor_nav', label: 'Auditor Dashboard' },
+        { key: 'reports', label: 'Reports & Analytics' },
+        { key: 'workforce', label: 'Workforce Plan' },
+        { key: 'staff', label: 'Staff Directory' },
+        { key: 'settings', label: 'Settings' },
+      ];
+    }
     if (user?.role === 'AUDITOR') {
       return [
         { key: 'overview', label: 'Overview' },
@@ -88,10 +105,11 @@ export default function PayrollDashboard() {
   }, [user?.role]);
 
   useEffect(() => {
+    if (user?.role === 'ADMIN') return;
     if (!sidebarItems.some((x) => x.key === section)) {
       setSection((sidebarItems[0]?.key as 'overview' | 'approvals' | 'payroll') || 'overview');
     }
-  }, [section, sidebarItems]);
+  }, [section, sidebarItems, user?.role]);
 
   const [helpOpen, setHelpOpen] = useState(false);
   const [helpInput, setHelpInput] = useState('');
@@ -375,10 +393,37 @@ export default function PayrollDashboard() {
     <AppLayout
       title="Payroll"
       sidebarItems={sidebarItems}
-      activeSidebarKey={section}
-      onSidebarChange={(k) => setSection(k as 'overview' | 'approvals' | 'payroll')}
+      activeSidebarKey={user?.role === 'ADMIN' ? 'payroll_nav' : section}
+      onSidebarChange={(k) => {
+        if (user?.role === 'ADMIN') {
+          if (k === 'employee_nav') {
+            navigate('/employee');
+            return;
+          }
+          if (k === 'recorder_nav') {
+            navigate('/recorder');
+            return;
+          }
+          if (k === 'hr_nav') {
+            navigate('/hr');
+            return;
+          }
+          if (k === 'manager_nav') {
+            navigate('/manager');
+            return;
+          }
+          if (k === 'payroll_nav') return;
+          if (k === 'auditor_nav') {
+            navigate('/auditor');
+            return;
+          }
+          navigate('/admin', { state: { section: k } });
+          return;
+        }
+        setSection(k as 'overview' | 'approvals' | 'payroll');
+      }}
     >
-      {toast && <Toast message={toast.message} type={toast.type} onClose={hideToast} />}
+      {toast ? <Toast message={toast.message} type={toast.type} onClose={hideToast} /> : null}
 
       <div className="fixed bottom-6 right-6 z-40">
         {helpOpen ? (
@@ -481,23 +526,23 @@ export default function PayrollDashboard() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                   <div className="rounded-xl border bg-white p-4">
                     <div className="text-xs text-slate-500">Gross</div>
-                    <div className="mt-1 text-xl font-semibold text-slate-900">{money(payroll.totalGrossPay)}</div>
+                    <div className="mt-1 text-xl font-semibold text-slate-900">{money(payroll!.totalGrossPay)}</div>
                   </div>
                   <div className="rounded-xl border bg-white p-4">
                     <div className="text-xs text-slate-500">Net (75%)</div>
-                    <div className="mt-1 text-xl font-semibold text-slate-900">{money(payroll.totalNetPay)}</div>
+                    <div className="mt-1 text-xl font-semibold text-slate-900">{money(payroll!.totalNetPay)}</div>
                   </div>
                   <div className="rounded-xl border bg-white p-4">
                     <div className="text-xs text-slate-500">Overtime</div>
                     <div className="mt-1 text-xl font-semibold text-slate-900">{(() => {
-                      const v = minutesToHourMinute(payroll.totalOvertimeMinutes);
+                      const v = minutesToHourMinute(payroll!.totalOvertimeMinutes);
                       return `${v.h}h ${v.m}m`;
                     })()}</div>
                   </div>
                   <div className="rounded-xl border bg-white p-4">
                     <div className="text-xs text-slate-500">Deficit</div>
                     <div className="mt-1 text-xl font-semibold text-slate-900">{(() => {
-                      const v = minutesToHourMinute(payroll.totalDeficitMinutes);
+                      const v = minutesToHourMinute(payroll!.totalDeficitMinutes);
                       return `${v.h}h ${v.m}m`;
                     })()}</div>
                   </div>
@@ -511,8 +556,8 @@ export default function PayrollDashboard() {
                         <div className="text-xs text-slate-500">minutes</div>
                       </div>
                       <div className="mt-3 space-y-2">
-                        {overviewCharts.topOvertime.map((r) => {
-                          const pct = Math.max(0, Math.min(1, r.overtimeMinutes / overviewCharts.maxOvertime));
+                        {overviewCharts!.topOvertime.map((r) => {
+                          const pct = Math.max(0, Math.min(1, r.overtimeMinutes / overviewCharts!.maxOvertime));
                           return (
                             <div key={`ot_${r.employeeId}`} className="grid grid-cols-12 items-center gap-2">
                               <div className="col-span-5 text-xs text-slate-700 truncate">{r.firstName} {r.lastName}</div>
@@ -523,7 +568,7 @@ export default function PayrollDashboard() {
                             </div>
                           );
                         })}
-                        {overviewCharts.topOvertime.length === 0 ? <div className="text-sm text-slate-600">No overtime in this range.</div> : null}
+                        {overviewCharts!.topOvertime.length === 0 ? <div className="text-sm text-slate-600">No overtime in this range.</div> : null}
                       </div>
                     </div>
 
@@ -533,8 +578,8 @@ export default function PayrollDashboard() {
                         <div className="text-xs text-slate-500">minutes</div>
                       </div>
                       <div className="mt-3 space-y-2">
-                        {overviewCharts.topDeficit.map((r) => {
-                          const pct = Math.max(0, Math.min(1, r.deficitMinutes / overviewCharts.maxDeficit));
+                        {overviewCharts!.topDeficit.map((r) => {
+                          const pct = Math.max(0, Math.min(1, r.deficitMinutes / overviewCharts!.maxDeficit));
                           return (
                             <div key={`df_${r.employeeId}`} className="grid grid-cols-12 items-center gap-2">
                               <div className="col-span-5 text-xs text-slate-700 truncate">{r.firstName} {r.lastName}</div>
@@ -545,7 +590,7 @@ export default function PayrollDashboard() {
                             </div>
                           );
                         })}
-                        {overviewCharts.topDeficit.length === 0 ? <div className="text-sm text-slate-600">No deficit in this range.</div> : null}
+                        {overviewCharts!.topDeficit.length === 0 ? <div className="text-sm text-slate-600">No deficit in this range.</div> : null}
                       </div>
                     </div>
                   </div>
@@ -558,18 +603,18 @@ export default function PayrollDashboard() {
                   <div className="mt-2 space-y-2 text-sm text-slate-700">
                     <div className="rounded-lg bg-slate-50 p-3">
                       <div className="text-xs text-slate-500">Employees</div>
-                      <div className="mt-1 font-semibold text-slate-900">{payroll.rows.length}</div>
+                      <div className="mt-1 font-semibold text-slate-900">{payroll!.rows.length}</div>
                     </div>
                     <div className="rounded-lg bg-slate-50 p-3">
                       <div className="text-xs text-slate-500">Default rate</div>
-                      <div className="mt-1 font-semibold text-slate-900">{payroll.companyHourlyRateDefault != null ? money(payroll.companyHourlyRateDefault) : 'Not set'}</div>
+                      <div className="mt-1 font-semibold text-slate-900">{payroll!.companyHourlyRateDefault != null ? money(payroll!.companyHourlyRateDefault) : 'Not set'}</div>
                     </div>
                     <div className="rounded-lg bg-slate-50 p-3">
                       <div className="text-xs text-slate-500">Best target completion</div>
                       <div className="mt-1 font-semibold text-slate-900">
                         {overviewCharts && overviewCharts.topRegularPct.length > 0 ? (
                           <span>
-                            {overviewCharts.topRegularPct[0].r.firstName} {overviewCharts.topRegularPct[0].r.lastName} ({Math.round(overviewCharts.topRegularPct[0].pct * 100)}%)
+                            {overviewCharts!.topRegularPct[0].r.firstName} {overviewCharts!.topRegularPct[0].r.lastName} ({Math.round(overviewCharts!.topRegularPct[0].pct * 100)}%)
                           </span>
                         ) : (
                           '—'

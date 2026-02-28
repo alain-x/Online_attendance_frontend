@@ -7,6 +7,7 @@ import { listEmployees } from '../api/employees';
 import { getTimesheet } from '../api/analytics';
 import { useAuth } from '../auth/AuthContext';
 import { useToast } from '../hooks/useToast';
+import { useNavigate } from 'react-router-dom';
 
 import type { EmployeeResponse } from '../api/types';
 import type { TimesheetResponse, TimesheetCell } from '../api/types';
@@ -15,6 +16,7 @@ type ManagerSection = 'overview' | 'team' | 'timesheet' | 'reports' | 'workforce
 
 export default function ManagerDashboard() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const { toast, showToast, hideToast } = useToast();
   const [section, setSection] = useState<ManagerSection>('overview');
 
@@ -30,17 +32,31 @@ export default function ManagerDashboard() {
   const [timesheetError, setTimesheetError] = useState<string | null>(null);
   const [timesheet, setTimesheet] = useState<TimesheetResponse | null>(null);
 
-  const sidebarItems = useMemo(
-    () => [
+  const sidebarItems = useMemo(() => {
+    if (user?.role === 'ADMIN') {
+      return [
+        { key: 'dashboard', label: 'Dashboard' },
+        { key: 'employee_nav', label: 'Employee Dashboard' },
+        { key: 'recorder_nav', label: 'Recorder (Take Attendance)' },
+        { key: 'hr_nav', label: 'HR Dashboard' },
+        { key: 'manager_nav', label: 'Manager Dashboard' },
+        { key: 'payroll_nav', label: 'Payroll Dashboard' },
+        { key: 'auditor_nav', label: 'Auditor Dashboard' },
+        { key: 'reports', label: 'Reports & Analytics' },
+        { key: 'workforce', label: 'Workforce Plan' },
+        { key: 'staff', label: 'Staff Directory' },
+        { key: 'settings', label: 'Settings' },
+      ];
+    }
+    return [
       { key: 'overview', label: 'Overview' },
       { key: 'team', label: 'Team' },
       { key: 'timesheet', label: 'Timesheet' },
       { key: 'reports', label: 'Reports' },
       { key: 'workforce', label: 'Workforce Plan' },
       { key: 'approvals', label: 'Approvals' },
-    ],
-    []
-  );
+    ];
+  }, [user?.role]);
 
   useEffect(() => {
     if (user?.role !== 'MANAGER') {
@@ -225,8 +241,35 @@ export default function ManagerDashboard() {
     <AppLayout
       title="Manager"
       sidebarItems={sidebarItems}
-      activeSidebarKey={section}
-      onSidebarChange={(k) => setSection(k as ManagerSection)}
+      activeSidebarKey={user?.role === 'ADMIN' ? 'manager_nav' : section}
+      onSidebarChange={(k) => {
+        if (user?.role === 'ADMIN') {
+          if (k === 'employee_nav') {
+            navigate('/employee');
+            return;
+          }
+          if (k === 'recorder_nav') {
+            navigate('/recorder');
+            return;
+          }
+          if (k === 'hr_nav') {
+            navigate('/hr');
+            return;
+          }
+          if (k === 'manager_nav') return;
+          if (k === 'payroll_nav') {
+            navigate('/payroll');
+            return;
+          }
+          if (k === 'auditor_nav') {
+            navigate('/auditor');
+            return;
+          }
+          navigate('/admin', { state: { section: k } });
+          return;
+        }
+        setSection(k as ManagerSection);
+      }}
     >
       {toast && <Toast message={toast.message} type={toast.type} onClose={hideToast} />}
 
