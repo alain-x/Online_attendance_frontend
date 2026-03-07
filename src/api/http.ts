@@ -3,6 +3,19 @@ import axios from 'axios';
 function normalizeApiBaseUrl(raw: string): string {
   const trimmed = raw.trim().replace(/\/+$/, '');
 
+  const stripInvalidHttpsPort = (url: string): string => {
+    try {
+      const u = new URL(url);
+      if (u.protocol === 'https:' && u.port === '80') {
+        u.port = '';
+        return u.toString().replace(/\/+$/, '');
+      }
+    } catch {
+      // ignore
+    }
+    return url;
+  };
+
   // Avoid Mixed Content when the frontend is served over HTTPS.
   // Keep localhost/http for local dev.
   if (typeof window !== 'undefined') {
@@ -10,7 +23,12 @@ function normalizeApiBaseUrl(raw: string): string {
     const isHttpApi = trimmed.startsWith('http://');
     const isLocalhost = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(trimmed);
     if (isHttpsPage && isHttpApi && !isLocalhost) {
-      return `https://${trimmed.substring('http://'.length)}`;
+      return stripInvalidHttpsPort(`https://${trimmed.substring('http://'.length)}`);
+    }
+
+    // Even if the API is already https, make sure it isn't mis-specified as :80.
+    if (isHttpsPage && trimmed.startsWith('https://')) {
+      return stripInvalidHttpsPort(trimmed);
     }
   }
 

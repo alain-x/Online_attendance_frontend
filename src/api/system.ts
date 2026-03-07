@@ -22,14 +22,30 @@ function normalizeRelativeUrl(url: string | null): string | null {
   if (!url) return url;
   if (/^[a-zA-Z]:\\/.test(url)) return null;
   if (url.startsWith('file:')) return null;
+
+  const stripInvalidHttpsPort = (absoluteUrl: string): string => {
+    try {
+      const u = new URL(absoluteUrl);
+      if (u.protocol === 'https:' && u.port === '80') {
+        u.port = '';
+        return u.toString();
+      }
+    } catch {
+      // ignore
+    }
+    return absoluteUrl;
+  };
+
+  const safeApiBaseUrl = stripInvalidHttpsPort(API_BASE_URL);
+
   if (url.startsWith('http://') || url.startsWith('https://')) {
     if (typeof window !== 'undefined' && window.location?.protocol === 'https:' && url.startsWith('http://')) {
-      return `https://${url.substring('http://'.length)}`;
+      return stripInvalidHttpsPort(`https://${url.substring('http://'.length)}`);
     }
-    return url;
+    return stripInvalidHttpsPort(url);
   }
-  if (url.startsWith('/')) return `${API_BASE_URL}${url}`;
-  if (url.startsWith('uploads/')) return `${API_BASE_URL}/${url}`;
+  if (url.startsWith('/')) return `${safeApiBaseUrl}${url}`;
+  if (url.startsWith('uploads/')) return `${safeApiBaseUrl}/${url}`;
   return url;
 }
 

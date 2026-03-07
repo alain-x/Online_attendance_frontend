@@ -34,7 +34,14 @@ export default function LoginPage() {
   const [systemLogoUrl, setSystemLogoUrl] = useState<string | null>(() => {
     const raw = localStorage.getItem('systemLogoUrl');
     if (raw && typeof window !== 'undefined' && window.location?.protocol === 'https:' && raw.startsWith('http://')) {
-      const upgraded = `https://${raw.substring('http://'.length)}`;
+      let upgraded = `https://${raw.substring('http://'.length)}`;
+      try {
+        const u = new URL(upgraded);
+        if (u.protocol === 'https:' && u.port === '80') {
+          u.port = '';
+          upgraded = u.toString();
+        }
+      } catch {}
       localStorage.setItem('systemLogoUrl', upgraded);
       return upgraded;
     }

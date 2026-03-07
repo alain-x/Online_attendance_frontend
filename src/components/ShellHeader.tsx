@@ -42,7 +42,14 @@ export default function ShellHeader({ title, onMenuClick }: ShellHeaderProps) {
   const [systemLogoUrlState, setSystemLogoUrlState] = useState(() => {
     const raw = localStorage.getItem('systemLogoUrl') || '';
     if (typeof window !== 'undefined' && window.location?.protocol === 'https:' && raw.startsWith('http://')) {
-      const upgraded = `https://${raw.substring('http://'.length)}`;
+      let upgraded = `https://${raw.substring('http://'.length)}`;
+      try {
+        const u = new URL(upgraded);
+        if (u.protocol === 'https:' && u.port === '80') {
+          u.port = '';
+          upgraded = u.toString();
+        }
+      } catch {}
       localStorage.setItem('systemLogoUrl', upgraded);
       return upgraded;
     }
@@ -60,7 +67,17 @@ export default function ShellHeader({ title, onMenuClick }: ShellHeaderProps) {
   const sanitizedSystemLogoUrl = systemLogoUrl && (/^[a-zA-Z]:\\/.test(systemLogoUrl) || systemLogoUrl.startsWith('file:')) ? null : systemLogoUrl;
   const httpsSystemLogoUrl =
     sanitizedSystemLogoUrl && typeof window !== 'undefined' && window.location?.protocol === 'https:' && sanitizedSystemLogoUrl.startsWith('http://')
-      ? `https://${sanitizedSystemLogoUrl.substring('http://'.length)}`
+      ? (() => {
+          let upgraded = `https://${sanitizedSystemLogoUrl.substring('http://'.length)}`;
+          try {
+            const u = new URL(upgraded);
+            if (u.protocol === 'https:' && u.port === '80') {
+              u.port = '';
+              upgraded = u.toString();
+            }
+          } catch {}
+          return upgraded;
+        })()
       : sanitizedSystemLogoUrl;
   const displaySystemLogoUrl = httpsSystemLogoUrl && systemLogoBust
     ? `${httpsSystemLogoUrl}${httpsSystemLogoUrl.includes('?') ? '&' : '?'}v=${encodeURIComponent(systemLogoBust)}`
