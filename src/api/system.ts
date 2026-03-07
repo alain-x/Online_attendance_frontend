@@ -22,7 +22,12 @@ function normalizeRelativeUrl(url: string | null): string | null {
   if (!url) return url;
   if (/^[a-zA-Z]:\\/.test(url)) return null;
   if (url.startsWith('file:')) return null;
-  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    if (typeof window !== 'undefined' && window.location?.protocol === 'https:' && url.startsWith('http://')) {
+      return `https://${url.substring('http://'.length)}`;
+    }
+    return url;
+  }
   if (url.startsWith('/')) return `${API_BASE_URL}${url}`;
   if (url.startsWith('uploads/')) return `${API_BASE_URL}/${url}`;
   return url;
