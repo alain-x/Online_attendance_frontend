@@ -14,6 +14,7 @@ import StatusBadge from '../components/StatusBadge';
 import EmptyState from '../components/EmptyState';
 import { useToast } from '../hooks/useToast';
 import Toast from '../components/Toast';
+import FormsAdminSection from './FormsAdminSection';
 
 import type {
   AttendanceResponse,
@@ -1941,6 +1942,7 @@ export default function AdminDashboard() {
             { key: 'auditor_nav', label: 'Auditor Dashboard' },
           ]
         : []),
+      ...(role === 'ADMIN' ? [{ key: 'forms', label: 'Forms' }] : []),
       { key: 'reports', label: 'Reports & Analytics' },
       { key: 'workforce', label: 'Workforce Plan' },
       { key: 'staff', label: 'Staff Directory' },
@@ -3389,6 +3391,8 @@ export default function AdminDashboard() {
             ) : null}
           </div>
         ) : null}
+
+        {section === 'forms' ? <FormsAdminSection /> : null}
 
         {section === 'reports' ? (
           <div className="mt-6 grid gap-4">

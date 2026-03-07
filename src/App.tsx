@@ -10,6 +10,7 @@ import RecorderDashboard from './pages/RecorderDashboard';
 import HRDashboard from './pages/HRDashboard';
 import ManagerDashboard from './pages/ManagerDashboard';
 import AuditorDashboard from './pages/AuditorDashboard';
+import PublicFormPage from './pages/PublicFormPage';
 import ProtectedRoute from './routes/ProtectedRoute';
 import { useAuth } from './auth/AuthContext';
 
@@ -106,6 +107,8 @@ function App() {
           </ProtectedRoute>
         }
       />
+
+      <Route path="/forms/:token" element={<PublicFormPage />} />
 
       <Route path="/" element={<RoleHomeRedirect />} />
       <Route path="*" element={<Navigate to="/" replace />} />

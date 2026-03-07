@@ -194,6 +194,14 @@ export default function Sidebar({ items, activeKey, onChange, className, showBra
         <path d="M6 18h12" />
       </Icon>
     ),
+    forms: (
+      <Icon>
+        <path d="M7 3h10v18H7z" />
+        <path d="M9 7h6" />
+        <path d="M9 11h6" />
+        <path d="M9 15h4" />
+      </Icon>
+    ),
   };
 
   return (
