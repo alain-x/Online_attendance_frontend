@@ -44,6 +44,7 @@ export default function PublicFormPage() {
   const [form, setForm] = useState<FormDto | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [submittedId, setSubmittedId] = useState<number | null>(null);
 
   const [values, setValues] = useState<Record<string, any>>({});
   const [files, setFiles] = useState<Record<string, File[]>>({});
@@ -102,7 +103,10 @@ export default function PublicFormPage() {
         }
         await submitLoginRequiredForm(form.id, values, files);
       } else {
-        await submitPublicForm(token, values, files);
+        const res = await submitPublicForm(token, values, files);
+        if (res && typeof (res as any).id === 'number') {
+          setSubmittedId((res as any).id);
+        }
       }
 
       showToast('Submitted successfully', 'success');
@@ -129,6 +133,43 @@ export default function PublicFormPage() {
         <div className="w-full max-w-lg rounded-xl border bg-white p-6">
           <div className="text-lg font-semibold text-slate-900">Form unavailable</div>
           <div className="mt-2 text-sm text-slate-600">{error || 'This form does not exist or is not active.'}</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (submittedId != null) {
+    return (
+      <div className="min-h-screen bg-slate-50">
+        {toast ? <Toast message={toast.message} type={toast.type} onClose={hideToast} /> : null}
+
+        <div className="max-w-xl mx-auto px-4 sm:px-6 py-10">
+          <div className="rounded-2xl border bg-white overflow-hidden">
+            <div className="p-6 border-b">
+              <div className="flex items-start gap-4">
+                {form.companyLogoUrl ? (
+                  <img src={form.companyLogoUrl} alt="Company logo" className="h-12 w-12 rounded-lg object-cover" />
+                ) : (
+                  <div className="h-12 w-12 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-600" />
+                )}
+                <div className="flex-1">
+                  <div className="text-xl font-semibold text-slate-900">Submission received</div>
+                  <div className="mt-1 text-sm text-slate-600">Thank you. Your response has been recorded.</div>
+                  <div className="mt-2 text-xs text-slate-500">Reference: #{submittedId}</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6">
+              <button
+                type="button"
+                onClick={() => setSubmittedId(null)}
+                className="w-full rounded-md bg-slate-900 px-4 py-2.5 text-white hover:bg-slate-800"
+              >
+                Submit another response
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -178,6 +219,7 @@ export default function PublicFormPage() {
                       <input
                         value={values[f.key] ?? ''}
                         onChange={(e) => setValues((p) => ({ ...p, [f.key]: e.target.value }))}
+                        placeholder={(f as any).placeholder || undefined}
                         className="mt-1 w-full rounded-md border bg-white px-3 py-2 text-sm"
                       />
                     ) : null}
@@ -186,6 +228,7 @@ export default function PublicFormPage() {
                       <textarea
                         value={values[f.key] ?? ''}
                         onChange={(e) => setValues((p) => ({ ...p, [f.key]: e.target.value }))}
+                        placeholder={(f as any).placeholder || undefined}
                         className="mt-1 w-full rounded-md border bg-white px-3 py-2 text-sm min-h-[96px]"
                       />
                     ) : null}
@@ -195,8 +238,26 @@ export default function PublicFormPage() {
                         type="date"
                         value={values[f.key] ?? ''}
                         onChange={(e) => setValues((p) => ({ ...p, [f.key]: e.target.value }))}
+                        placeholder={(f as any).placeholder || undefined}
                         className="mt-1 w-full rounded-md border bg-white px-3 py-2 text-sm"
                       />
+                    ) : null}
+
+                    {f.type === 'SELECT' ? (
+                      <select
+                        value={values[f.key] ?? ''}
+                        onChange={(e) => setValues((p) => ({ ...p, [f.key]: e.target.value }))}
+                        className="mt-1 w-full rounded-md border bg-white px-3 py-2 text-sm"
+                      >
+                        <option value="" disabled>
+                          {(f as any).placeholder || 'Select an option'}
+                        </option>
+                        {parseOptions(f.optionsJson).map((o) => (
+                          <option key={o.value} value={o.value}>
+                            {o.label}
+                          </option>
+                        ))}
+                      </select>
                     ) : null}
 
                     {f.type === 'CHECKBOX' ? (

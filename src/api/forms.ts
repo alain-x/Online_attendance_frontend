@@ -1,6 +1,6 @@
 import http from './http';
 
-export type FieldType = 'TEXT' | 'TEXTAREA' | 'CHECKBOX' | 'RADIO' | 'DATE' | 'FILE';
+export type FieldType = 'TEXT' | 'TEXTAREA' | 'CHECKBOX' | 'RADIO' | 'SELECT' | 'DATE' | 'FILE';
 export type FileStorageMode = 'DISK' | 'DB';
 
 export type FormFieldDto = {
@@ -8,6 +8,7 @@ export type FormFieldDto = {
   key: string;
   label: string;
   description?: string | null;
+  placeholder?: string | null;
   type: FieldType;
   required: boolean;
   sortOrder: number;

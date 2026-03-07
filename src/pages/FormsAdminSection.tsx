@@ -32,6 +32,7 @@ const fieldTypeOptions: { label: string; value: FieldType }[] = [
   { label: 'Text Area', value: 'TEXTAREA' },
   { label: 'Checkbox', value: 'CHECKBOX' },
   { label: 'Radio', value: 'RADIO' },
+  { label: 'Select', value: 'SELECT' },
   { label: 'Date', value: 'DATE' },
   { label: 'File Upload', value: 'FILE' },
 ];
@@ -224,7 +225,7 @@ export default function FormsAdminSection() {
     const key = makeKey(label);
 
     let optionsJson: string | null | undefined = undefined;
-    if (type === 'RADIO') {
+    if (type === 'RADIO' || type === 'SELECT') {
       optionsJson = JSON.stringify(['Option 1', 'Option 2']);
     }
 
@@ -234,6 +235,7 @@ export default function FormsAdminSection() {
         key,
         label,
         description: '',
+        placeholder: '',
         type,
         required: false,
         sortOrder: p.length,
@@ -501,7 +503,19 @@ export default function FormsAdminSection() {
                           className="mt-1 w-full rounded-md border bg-white px-3 py-2 text-sm"
                         />
                       </div>
-                      {f.type === 'RADIO' ? (
+                      {f.type === 'TEXT' || f.type === 'TEXTAREA' || f.type === 'DATE' || f.type === 'SELECT' ? (
+                        <div>
+                          <div className="text-xs font-medium text-slate-700">Placeholder (optional)</div>
+                          <input
+                            value={(f as any).placeholder || ''}
+                            onChange={(e) => updateField(idx, { placeholder: e.target.value } as any)}
+                            className="mt-1 w-full rounded-md border bg-white px-3 py-2 text-sm"
+                            placeholder={f.type === 'DATE' ? 'YYYY-MM-DD' : 'Enter a hint…'}
+                          />
+                        </div>
+                      ) : null}
+
+                      {f.type === 'RADIO' || f.type === 'SELECT' ? (
                         <div>
                           <div className="text-xs font-medium text-slate-700">Options JSON</div>
                           <input
