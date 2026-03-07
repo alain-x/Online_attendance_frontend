@@ -31,7 +31,15 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [systemLogoUrl, setSystemLogoUrl] = useState<string | null>(() => localStorage.getItem('systemLogoUrl'));
+  const [systemLogoUrl, setSystemLogoUrl] = useState<string | null>(() => {
+    const raw = localStorage.getItem('systemLogoUrl');
+    if (raw && typeof window !== 'undefined' && window.location?.protocol === 'https:' && raw.startsWith('http://')) {
+      const upgraded = `https://${raw.substring('http://'.length)}`;
+      localStorage.setItem('systemLogoUrl', upgraded);
+      return upgraded;
+    }
+    return raw;
+  });
 
   useEffect(() => {
     let cancelled = false;

@@ -39,7 +39,15 @@ export default function ShellHeader({ title, onMenuClick }: ShellHeaderProps) {
   const [companyLogoError, setCompanyLogoError] = useState(false);
 
   const [systemName, setSystemName] = useState(() => localStorage.getItem('systemName') || '');
-  const [systemLogoUrlState, setSystemLogoUrlState] = useState(() => localStorage.getItem('systemLogoUrl') || '');
+  const [systemLogoUrlState, setSystemLogoUrlState] = useState(() => {
+    const raw = localStorage.getItem('systemLogoUrl') || '';
+    if (typeof window !== 'undefined' && window.location?.protocol === 'https:' && raw.startsWith('http://')) {
+      const upgraded = `https://${raw.substring('http://'.length)}`;
+      localStorage.setItem('systemLogoUrl', upgraded);
+      return upgraded;
+    }
+    return raw;
+  });
 
   const logoLetter = (user?.companySlug || 'A').trim().charAt(0).toUpperCase();
   const logoUrlRaw = user?.companyLogoUrl || null;
@@ -50,9 +58,13 @@ export default function ShellHeader({ title, onMenuClick }: ShellHeaderProps) {
   const systemLogoUrl = systemLogoUrlState || localStorage.getItem('systemLogoUrl');
   const systemLogoBust = localStorage.getItem('systemLogoBust');
   const sanitizedSystemLogoUrl = systemLogoUrl && (/^[a-zA-Z]:\\/.test(systemLogoUrl) || systemLogoUrl.startsWith('file:')) ? null : systemLogoUrl;
-  const displaySystemLogoUrl = sanitizedSystemLogoUrl && systemLogoBust
-    ? `${sanitizedSystemLogoUrl}${sanitizedSystemLogoUrl.includes('?') ? '&' : '?'}v=${encodeURIComponent(systemLogoBust)}`
-    : sanitizedSystemLogoUrl;
+  const httpsSystemLogoUrl =
+    sanitizedSystemLogoUrl && typeof window !== 'undefined' && window.location?.protocol === 'https:' && sanitizedSystemLogoUrl.startsWith('http://')
+      ? `https://${sanitizedSystemLogoUrl.substring('http://'.length)}`
+      : sanitizedSystemLogoUrl;
+  const displaySystemLogoUrl = httpsSystemLogoUrl && systemLogoBust
+    ? `${httpsSystemLogoUrl}${httpsSystemLogoUrl.includes('?') ? '&' : '?'}v=${encodeURIComponent(systemLogoBust)}`
+    : httpsSystemLogoUrl;
 
   const companyContextLabel = localStorage.getItem('companyContextLabel');
   const companyContextIdRaw = localStorage.getItem('companyContextId');
