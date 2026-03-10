@@ -8,8 +8,10 @@ import { useToast } from '../hooks/useToast';
 import { listCompanies, registerCompany, setCompanyActive } from '../api/companies';
 import { deleteSystemBranding, deleteSystemFavicon, deleteSystemLogo, getSystemBranding, updateSystemBranding, uploadSystemFavicon, uploadSystemLogo } from '../api/system';
 import { generateInvoicePdf } from '../api/invoices';
+import { createAdminPlan, deleteAdminPlan, getAdminPesapalSettings, listAdminPlans, updateAdminPesapalSettings, updateAdminPlan } from '../api/billing';
 
 import type { Company } from '../api/types';
+import type { PesapalEnvironment, PesapalSettingsResponse, SubscriptionPlan, UpsertSubscriptionPlanRequest } from '../api/types';
 
 function getApiErrorMessage(err: unknown, fallback: string): string {
   const e = err as { response?: { data?: { message?: string } }; message?: string };
@@ -331,6 +333,26 @@ export default function SystemAdminDashboard() {
   const [storedInvoices, setStoredInvoices] = useState<StoredInvoice[]>(() => loadStoredInvoices());
   const [invoiceSearch, setInvoiceSearch] = useState('');
 
+  const [billingTab, setBillingTab] = useState<'invoices' | 'pesapal'>('invoices');
+
+  const [pesapalLoading, setPesapalLoading] = useState(false);
+  const [pesapalSaving, setPesapalSaving] = useState(false);
+  const [pesapalSettings, setPesapalSettings] = useState<PesapalSettingsResponse | null>(null);
+  const [pesapalEnabled, setPesapalEnabled] = useState(false);
+  const [pesapalEnv, setPesapalEnv] = useState<PesapalEnvironment>('LIVE');
+  const [pesapalConsumerKey, setPesapalConsumerKey] = useState('');
+  const [pesapalConsumerSecret, setPesapalConsumerSecret] = useState('');
+  const [pesapalIpnUrl, setPesapalIpnUrl] = useState('');
+  const [pesapalCallbackUrl, setPesapalCallbackUrl] = useState('');
+
+  const [plansLoading, setPlansLoading] = useState(false);
+  const [plansBusyId, setPlansBusyId] = useState<number | null>(null);
+  const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
+  const [newPlanName, setNewPlanName] = useState('Monthly');
+  const [newPlanPrice, setNewPlanPrice] = useState<number>(0);
+  const [newPlanDurationMonths, setNewPlanDurationMonths] = useState<number>(1);
+  const [newPlanActive, setNewPlanActive] = useState<boolean>(true);
+
   async function refreshCompanies() {
     setLoading(true);
     try {
@@ -383,6 +405,130 @@ export default function SystemAdminDashboard() {
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  async function refreshPesapalSettings() {
+    setPesapalLoading(true);
+    try {
+      const s = await getAdminPesapalSettings();
+      setPesapalSettings(s);
+      setPesapalEnabled(!!s.enabled);
+      setPesapalEnv(s.environment || 'LIVE');
+      setPesapalConsumerKey(s.consumerKey || '');
+      setPesapalConsumerSecret('');
+      setPesapalIpnUrl(s.ipnUrl || '');
+      setPesapalCallbackUrl(s.callbackUrl || '');
+    } catch (e: unknown) {
+      showToast(getApiErrorMessage(e, 'Failed to load Pesapal settings'), 'error');
+    } finally {
+      setPesapalLoading(false);
+    }
+  }
+
+  async function refreshPlans() {
+    setPlansLoading(true);
+    try {
+      const res = await listAdminPlans();
+      setPlans(res);
+    } catch (e: unknown) {
+      showToast(getApiErrorMessage(e, 'Failed to load plans'), 'error');
+    } finally {
+      setPlansLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (section !== 'billing') return;
+    refreshPesapalSettings().catch(() => {});
+    refreshPlans().catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [section]);
+
+  async function onSavePesapalSettings() {
+    setPesapalSaving(true);
+    try {
+      const payload: any = {
+        enabled: pesapalEnabled,
+        environment: pesapalEnv,
+        consumerKey: pesapalConsumerKey.trim(),
+        ipnUrl: pesapalIpnUrl.trim(),
+        callbackUrl: pesapalCallbackUrl.trim(),
+      };
+      if (pesapalConsumerSecret.trim()) {
+        payload.consumerSecret = pesapalConsumerSecret.trim();
+      }
+      const s = await updateAdminPesapalSettings(payload);
+      setPesapalSettings(s);
+      setPesapalConsumerSecret('');
+      showToast('Pesapal settings saved', 'success');
+    } catch (e: unknown) {
+      showToast(getApiErrorMessage(e, 'Failed to save Pesapal settings'), 'error');
+    } finally {
+      setPesapalSaving(false);
+    }
+  }
+
+  async function onCreatePlan() {
+    const payload: UpsertSubscriptionPlanRequest = {
+      name: newPlanName.trim(),
+      price: Number(newPlanPrice),
+      durationMonths: Number(newPlanDurationMonths),
+      active: !!newPlanActive,
+    };
+    if (!payload.name) {
+      showToast('Plan name is required', 'error');
+      return;
+    }
+    if (!Number.isFinite(payload.price) || payload.price < 0) {
+      showToast('Plan price must be >= 0', 'error');
+      return;
+    }
+    if (!Number.isFinite(payload.durationMonths) || payload.durationMonths <= 0) {
+      showToast('Duration months must be > 0', 'error');
+      return;
+    }
+    setPlansBusyId(-1);
+    try {
+      const created = await createAdminPlan(payload);
+      setPlans((prev) => [created, ...prev]);
+      showToast('Plan created', 'success');
+    } catch (e: unknown) {
+      showToast(getApiErrorMessage(e, 'Failed to create plan'), 'error');
+    } finally {
+      setPlansBusyId(null);
+    }
+  }
+
+  async function onSavePlan(p: SubscriptionPlan) {
+    setPlansBusyId(p.id);
+    try {
+      const payload: UpsertSubscriptionPlanRequest = {
+        name: p.name,
+        price: Number(p.price),
+        durationMonths: Number(p.durationMonths),
+        active: !!p.active,
+      };
+      const updated = await updateAdminPlan(p.id, payload);
+      setPlans((prev) => prev.map((x) => (x.id === p.id ? updated : x)));
+      showToast('Plan saved', 'success');
+    } catch (e: unknown) {
+      showToast(getApiErrorMessage(e, 'Failed to save plan'), 'error');
+    } finally {
+      setPlansBusyId(null);
+    }
+  }
+
+  async function onDeletePlan(id: number) {
+    setPlansBusyId(id);
+    try {
+      await deleteAdminPlan(id);
+      setPlans((prev) => prev.filter((x) => x.id !== id));
+      showToast('Plan deleted', 'success');
+    } catch (e: unknown) {
+      showToast(getApiErrorMessage(e, 'Failed to delete plan'), 'error');
+    } finally {
+      setPlansBusyId(null);
+    }
+  }
 
   async function onSaveSystemName() {
     setSystemNameBusy(true);
@@ -1030,6 +1176,20 @@ export default function SystemAdminDashboard() {
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
+                  className={billingTab === 'invoices' ? 'rounded-md bg-slate-900 px-3 py-2 text-sm text-white hover:bg-slate-800' : 'rounded-md border px-3 py-2 text-sm hover:bg-slate-50'}
+                  onClick={() => setBillingTab('invoices')}
+                >
+                  Invoices
+                </button>
+                <button
+                  type="button"
+                  className={billingTab === 'pesapal' ? 'rounded-md bg-slate-900 px-3 py-2 text-sm text-white hover:bg-slate-800' : 'rounded-md border px-3 py-2 text-sm hover:bg-slate-50'}
+                  onClick={() => setBillingTab('pesapal')}
+                >
+                  Pesapal Settings
+                </button>
+                <button
+                  type="button"
                   className="rounded-md border px-3 py-2 text-sm hover:bg-slate-50"
                   onClick={() => {
                     setStoredInvoices([]);
@@ -1041,6 +1201,216 @@ export default function SystemAdminDashboard() {
                 </button>
               </div>
             </div>
+
+            {billingTab === 'pesapal' ? (
+              <div className="mt-5 space-y-4">
+                <div className="rounded-xl border bg-slate-50 p-4">
+                  <div className="text-sm font-semibold text-slate-900">Pesapal (Production)</div>
+                  <div className="mt-1 text-sm text-slate-600">Save your keys here. They are stored encrypted in the backend database.</div>
+
+                  {pesapalLoading ? (
+                    <div className="mt-4 flex items-center gap-2 text-sm text-slate-600">
+                      <LoadingSpinner size="sm" />
+                      Loading settings…
+                    </div>
+                  ) : (
+                    <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div className="md:col-span-2 flex flex-wrap items-center gap-3">
+                        <label className="inline-flex items-center gap-2 text-sm text-slate-700">
+                          <input type="checkbox" checked={pesapalEnabled} onChange={(e) => setPesapalEnabled(e.target.checked)} />
+                          Enabled
+                        </label>
+
+                        <div className="flex items-center gap-2">
+                          <div className="text-sm text-slate-700">Environment</div>
+                          <select className="rounded-md border bg-white px-3 py-2 text-sm" value={pesapalEnv} onChange={(e) => setPesapalEnv(e.target.value as PesapalEnvironment)}>
+                            <option value="LIVE">LIVE</option>
+                            <option value="SANDBOX">SANDBOX</option>
+                          </select>
+                        </div>
+
+                        {pesapalSettings?.consumerSecretMasked ? <div className="text-xs text-slate-600">Secret saved: {pesapalSettings.consumerSecretMasked}</div> : null}
+                      </div>
+
+                      <div>
+                        <label className="text-sm font-medium text-slate-700">Consumer Key</label>
+                        <input className="mt-1 w-full rounded-md border bg-white px-3 py-2 text-sm" value={pesapalConsumerKey} onChange={(e) => setPesapalConsumerKey(e.target.value)} />
+                      </div>
+
+                      <div>
+                        <label className="text-sm font-medium text-slate-700">Consumer Secret</label>
+                        <input
+                          type="password"
+                          className="mt-1 w-full rounded-md border bg-white px-3 py-2 text-sm"
+                          value={pesapalConsumerSecret}
+                          onChange={(e) => setPesapalConsumerSecret(e.target.value)}
+                          placeholder={pesapalSettings?.consumerSecretMasked ? 'Leave blank to keep current secret' : 'Paste secret'}
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-sm font-medium text-slate-700">IPN URL</label>
+                        <input className="mt-1 w-full rounded-md border bg-white px-3 py-2 text-sm" value={pesapalIpnUrl} onChange={(e) => setPesapalIpnUrl(e.target.value)} />
+                      </div>
+
+                      <div>
+                        <label className="text-sm font-medium text-slate-700">Callback URL</label>
+                        <input className="mt-1 w-full rounded-md border bg-white px-3 py-2 text-sm" value={pesapalCallbackUrl} onChange={(e) => setPesapalCallbackUrl(e.target.value)} />
+                      </div>
+
+                      <div className="md:col-span-2 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          className="rounded-md bg-slate-900 px-4 py-2 text-sm text-white hover:bg-slate-800 disabled:opacity-60"
+                          disabled={pesapalSaving}
+                          onClick={onSavePesapalSettings}
+                        >
+                          {pesapalSaving ? 'Saving…' : 'Save Pesapal Settings'}
+                        </button>
+                        <button
+                          type="button"
+                          className="rounded-md border px-4 py-2 text-sm hover:bg-slate-50 disabled:opacity-60"
+                          disabled={pesapalLoading || pesapalSaving}
+                          onClick={() => {
+                            refreshPesapalSettings().catch(() => {});
+                            refreshPlans().catch(() => {});
+                          }}
+                        >
+                          Refresh
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="rounded-xl border bg-white p-4">
+                  <div className="text-sm font-semibold text-slate-900">Subscription Plans</div>
+                  <div className="mt-1 text-sm text-slate-600">Create monthly/yearly plans and set prices (KES).</div>
+
+                  <div className="mt-4 grid grid-cols-1 md:grid-cols-4 gap-3">
+                    <div>
+                      <label className="text-sm font-medium text-slate-700">Name</label>
+                      <input className="mt-1 w-full rounded-md border bg-white px-3 py-2 text-sm" value={newPlanName} onChange={(e) => setNewPlanName(e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-slate-700">Price</label>
+                      <input type="number" className="mt-1 w-full rounded-md border bg-white px-3 py-2 text-sm" value={newPlanPrice} onChange={(e) => setNewPlanPrice(Number(e.target.value))} />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-slate-700">Duration months</label>
+                      <input
+                        type="number"
+                        className="mt-1 w-full rounded-md border bg-white px-3 py-2 text-sm"
+                        value={newPlanDurationMonths}
+                        onChange={(e) => setNewPlanDurationMonths(Number(e.target.value))}
+                      />
+                    </div>
+                    <div className="flex items-end gap-2">
+                      <label className="inline-flex items-center gap-2 text-sm text-slate-700 mb-2">
+                        <input type="checkbox" checked={newPlanActive} onChange={(e) => setNewPlanActive(e.target.checked)} />
+                        Active
+                      </label>
+                      <button
+                        type="button"
+                        className="ml-auto rounded-md bg-slate-900 px-4 py-2 text-sm text-white hover:bg-slate-800 disabled:opacity-60"
+                        disabled={plansBusyId === -1}
+                        onClick={onCreatePlan}
+                      >
+                        {plansBusyId === -1 ? 'Creating…' : 'Add Plan'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {plansLoading ? (
+                    <div className="mt-4 flex items-center gap-2 text-sm text-slate-600">
+                      <LoadingSpinner size="sm" />
+                      Loading plans…
+                    </div>
+                  ) : plans.length === 0 ? (
+                    <div className="mt-4 text-sm text-slate-600">No plans yet.</div>
+                  ) : (
+                    <div className="mt-4 overflow-x-auto">
+                      <table className="min-w-[900px] w-full text-sm">
+                        <thead className="bg-slate-50 text-slate-600">
+                          <tr>
+                            <th className="px-4 py-2 text-left">Name</th>
+                            <th className="px-4 py-2 text-left">Price</th>
+                            <th className="px-4 py-2 text-left">Months</th>
+                            <th className="px-4 py-2 text-left">Currency</th>
+                            <th className="px-4 py-2 text-left">Active</th>
+                            <th className="px-4 py-2 text-left">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y">
+                          {plans.map((p) => {
+                            const busy = plansBusyId === p.id;
+                            return (
+                              <tr key={p.id} className="hover:bg-slate-50/50">
+                                <td className="px-4 py-3">
+                                  <input
+                                    className="w-full rounded-md border bg-white px-3 py-2 text-sm"
+                                    value={p.name}
+                                    onChange={(e) => setPlans((prev) => prev.map((x) => (x.id === p.id ? { ...x, name: e.target.value } : x)))}
+                                  />
+                                  <div className="mt-1 text-xs text-slate-500">ID: {p.id}</div>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <input
+                                    type="number"
+                                    className="w-full rounded-md border bg-white px-3 py-2 text-sm"
+                                    value={p.price}
+                                    onChange={(e) => setPlans((prev) => prev.map((x) => (x.id === p.id ? { ...x, price: Number(e.target.value) } : x)))}
+                                  />
+                                </td>
+                                <td className="px-4 py-3">
+                                  <input
+                                    type="number"
+                                    className="w-full rounded-md border bg-white px-3 py-2 text-sm"
+                                    value={p.durationMonths}
+                                    onChange={(e) => setPlans((prev) => prev.map((x) => (x.id === p.id ? { ...x, durationMonths: Number(e.target.value) } : x)))}
+                                  />
+                                </td>
+                                <td className="px-4 py-3 font-mono text-xs text-slate-700">{p.currency || 'KES'}</td>
+                                <td className="px-4 py-3">
+                                  <input
+                                    type="checkbox"
+                                    checked={!!p.active}
+                                    onChange={(e) => setPlans((prev) => prev.map((x) => (x.id === p.id ? { ...x, active: e.target.checked } : x)))}
+                                  />
+                                </td>
+                                <td className="px-4 py-3">
+                                  <div className="flex flex-wrap gap-2">
+                                    <button
+                                      type="button"
+                                      className="rounded-md bg-slate-900 px-3 py-2 text-xs text-white hover:bg-slate-800 disabled:opacity-60"
+                                      disabled={busy}
+                                      onClick={() => onSavePlan(p)}
+                                    >
+                                      {busy ? 'Saving…' : 'Save'}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="rounded-md border px-3 py-2 text-xs hover:bg-slate-50 disabled:opacity-60"
+                                      disabled={busy}
+                                      onClick={() => onDeletePlan(p.id)}
+                                    >
+                                      Delete
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : null}
+
+            {billingTab === 'invoices' ? (
+              <>
 
             <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
               <div className="md:col-span-1">
@@ -1297,6 +1667,8 @@ export default function SystemAdminDashboard() {
                 </div>
               )}
             </div>
+              </>
+            ) : null}
           </div>
         ) : null}
 

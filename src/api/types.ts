@@ -323,6 +323,46 @@ export type UserResponse = {
   companySlug: string | null;
 };
 
+export type PesapalEnvironment = 'SANDBOX' | 'LIVE';
+
+export type PesapalSettingsResponse = {
+  enabled: boolean;
+  environment: PesapalEnvironment;
+  consumerKey: string | null;
+  consumerSecretMasked: string | null;
+  ipnId: string | null;
+  ipnUrl: string | null;
+  callbackUrl: string | null;
+  updatedAt: string | null;
+};
+
+export type UpdatePesapalSettingsRequest = {
+  enabled: boolean;
+  environment: PesapalEnvironment;
+  consumerKey?: string;
+  consumerSecret?: string;
+  ipnUrl?: string;
+  callbackUrl?: string;
+};
+
+export type SubscriptionPlan = {
+  id: number;
+  name: string;
+  price: number;
+  durationMonths: number;
+  currency: string;
+  active: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type UpsertSubscriptionPlanRequest = {
+  name: string;
+  price: number;
+  durationMonths: number;
+  active: boolean;
+};
+
 export type CreateUserRequest = {
   username: string;
   email: string;
