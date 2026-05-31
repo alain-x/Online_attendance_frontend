@@ -13,6 +13,9 @@ function normalizeCompany(c: Company): Company {
   if (logoUrl && /\/api\/companies\/\d+\/logo$/.test(logoUrl)) {
     logoUrl = `${logoUrl}/image`;
   }
+  if (logoUrl && (logoUrl.startsWith('/uploads/') || logoUrl.startsWith('uploads/'))) {
+    logoUrl = `/api/companies/${c.id}/logo/image`;
+  }
   if (logoUrl && logoUrl.startsWith('/')) {
     return { ...c, logoUrl: `${API_BASE_URL}${logoUrl}` };
   }

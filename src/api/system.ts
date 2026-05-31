@@ -44,8 +44,10 @@ function normalizeRelativeUrl(url: string | null): string | null {
     }
     return stripInvalidHttpsPort(url);
   }
+  if (url.startsWith('/uploads/') || url.startsWith('uploads/')) {
+    return null;
+  }
   if (url.startsWith('/')) return `${safeApiBaseUrl}${url}`;
-  if (url.startsWith('uploads/')) return `${safeApiBaseUrl}/${url}`;
   return url;
 }
 
