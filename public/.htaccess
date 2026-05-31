@@ -2,6 +2,7 @@ Options -MultiViews
 RewriteEngine On
 RewriteBase /
 RewriteRule ^index\.html$ - [L]
+RewriteRule ^(manifest\.json|robots\.txt|favicon\.ico|static/.+)$ - [L]
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule . /index.html [L]

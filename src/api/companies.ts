@@ -9,7 +9,10 @@ import type {
 } from './types';
 
 function normalizeCompany(c: Company): Company {
-  const logoUrl = c.logoUrl;
+  let logoUrl = c.logoUrl;
+  if (logoUrl && /\/api\/companies\/\d+\/logo$/.test(logoUrl)) {
+    logoUrl = `${logoUrl}/image`;
+  }
   if (logoUrl && logoUrl.startsWith('/')) {
     return { ...c, logoUrl: `${API_BASE_URL}${logoUrl}` };
   }
