@@ -4,7 +4,10 @@ import { useAuth } from '../auth/AuthContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Toast from '../components/Toast';
 import { getPublicForm, submitLoginRequiredForm, submitPublicForm, type FormDto, type FormFieldDto } from '../api/forms';
+import { getSystemBranding } from '../api/system';
 import { useToast } from '../hooks/useToast';
+
+const DEFAULT_SYSTEM_NAME = 'Attendance System';
 
 function parseOptions(optionsJson?: string | null): { label: string; value: string }[] {
   if (!optionsJson) return [];
@@ -48,8 +51,26 @@ export default function PublicFormPage() {
 
   const [values, setValues] = useState<Record<string, any>>({});
   const [files, setFiles] = useState<Record<string, File[]>>({});
+  const [systemName, setSystemName] = useState(
+    () => localStorage.getItem('systemName')?.trim() || DEFAULT_SYSTEM_NAME
+  );
 
   const fields = useMemo(() => (form?.fields || []).slice().sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)), [form]);
+
+  useEffect(() => {
+    let cancelled = false;
+    getSystemBranding()
+      .then((res) => {
+        if (cancelled) return;
+        const name = res.systemName?.trim() || DEFAULT_SYSTEM_NAME;
+        localStorage.setItem('systemName', res.systemName || '');
+        setSystemName(name);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -328,7 +349,7 @@ export default function PublicFormPage() {
         </div>
 
         <div className="mt-4 text-xs text-slate-500 text-center">
-          Powered by Attendance System
+          Powered by {systemName}
         </div>
       </div>
     </div>
