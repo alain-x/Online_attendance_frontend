@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { login as loginApi } from '../api/auth';
+import { API_BASE_URL } from '../api/http';
 import { useAuth } from '../auth/AuthContext';
 import { getSystemBranding } from '../api/system';
 
@@ -119,7 +120,7 @@ export default function LoginPage() {
       } else if (e2 instanceof Error && e2.message === 'Login response did not include a token') {
         setError('Login succeeded but no token was returned by the server.');
       } else {
-        setError('Cannot reach server. Is the backend running on port 8080?');
+        setError(`Cannot reach the server at ${API_BASE_URL}. The backend may be starting up — wait a minute and try again.`);
       }
     } finally {
       setLoading(false);
