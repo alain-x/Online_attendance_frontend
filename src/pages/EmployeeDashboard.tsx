@@ -9,8 +9,9 @@ import EmptyState from '../components/EmptyState';
 import { useToast } from '../hooks/useToast';
 import Toast from '../components/Toast';
 import { useAuth } from '../auth/AuthContext';
+import { getMyProfile, profileImageDownloadUrl, updateMyProfile } from '../api/employees';
 
-import type { AttendanceResponse } from '../api/types';
+import type { AttendanceResponse, EmployeeResponse } from '../api/types';
 import { detectFaceInFile, detectFaceInImage } from '../utils/faceDetection';
 
 function blobToFile(blob: Blob, filename: string): File {
@@ -40,7 +41,11 @@ export default function EmployeeDashboard() {
   const navigate = useNavigate();
   const { user, refreshMe } = useAuth();
   const { toast, showToast, hideToast } = useToast();
-  const [section, setSection] = useState('day');
+  const [section, setSection] = useState<'day' | 'history' | 'profile'>('day');
+  const [profile, setProfile] = useState<EmployeeResponse | null>(null);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileForm, setProfileForm] = useState({ mobile: '', department: '', designation: '', category: '' });
   const [history, setHistory] = useState<AttendanceResponse[]>([]);
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
@@ -648,9 +653,55 @@ export default function EmployeeDashboard() {
     }
     return [
       { key: 'day', label: 'Dashboard' },
+      { key: 'profile', label: 'My Profile' },
       { key: 'history', label: 'My Attendance' },
     ];
   }, [user?.role]);
+
+  useEffect(() => {
+    if (section !== 'profile') return;
+    let cancelled = false;
+    (async () => {
+      setProfileLoading(true);
+      try {
+        const data = await getMyProfile();
+        if (cancelled) return;
+        setProfile(data);
+        setProfileForm({
+          mobile: data.mobile || '',
+          department: data.department || '',
+          designation: data.designation || '',
+          category: data.category || '',
+        });
+      } catch (err: unknown) {
+        if (!cancelled) showToast(getApiErrorMessage(err, 'Failed to load profile'), 'error');
+      } finally {
+        if (!cancelled) setProfileLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [section, showToast]);
+
+  async function saveProfile() {
+    setProfileSaving(true);
+    try {
+      const updated = await updateMyProfile({
+        mobile: profileForm.mobile,
+        department: profileForm.department,
+        designation: profileForm.designation,
+        category: profileForm.category,
+      });
+      setProfile(updated);
+      showToast('Profile updated', 'success');
+      await refreshMe();
+    } catch (err: unknown) {
+      showToast(getApiErrorMessage(err, 'Failed to update profile'), 'error');
+    } finally {
+      setProfileSaving(false);
+    }
+  }
 
   if (initialLoading) {
     return (
@@ -937,6 +988,96 @@ export default function EmployeeDashboard() {
         </div>
       )}
 
+      {section === 'profile' ? (
+        <div className="mt-6 rounded-xl border bg-white p-4 sm:p-6 max-w-2xl">
+          <div className="text-lg font-semibold text-slate-900">My profile</div>
+          {profileLoading ? (
+            <div className="mt-6 flex justify-center py-8">
+              <LoadingSpinner size="lg" />
+            </div>
+          ) : profile ? (
+            <div className="mt-4 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                {profile.profileImageUrl || user?.profileImageUrl ? (
+                  <img
+                    src={profile.profileImageUrl || user?.profileImageUrl || ''}
+                    alt="Profile"
+                    className="h-20 w-20 rounded-full object-cover border"
+                  />
+                ) : (
+                  <div className="h-20 w-20 rounded-full bg-slate-200 flex items-center justify-center text-slate-600 text-xl font-semibold">
+                    {(profile.firstName || user?.username || '?').charAt(0).toUpperCase()}
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <div className="font-medium text-slate-900">
+                    {profile.firstName} {profile.lastName}
+                  </div>
+                  <div className="text-sm text-slate-600">{profile.employeeCode}</div>
+                  {profile.profileImageUrl ? (
+                    <a
+                      href={profileImageDownloadUrl(profile.id)}
+                      className="mt-2 inline-block text-sm text-blue-600 hover:underline"
+                      download
+                    >
+                      Download profile photo
+                    </a>
+                  ) : (
+                    <p className="mt-2 text-xs text-slate-500">Enroll your face on the dashboard to add a profile photo.</p>
+                  )}
+                </div>
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <label className="text-sm">
+                  <span className="font-medium text-slate-700">Mobile</span>
+                  <input
+                    value={profileForm.mobile}
+                    onChange={(e) => setProfileForm((p) => ({ ...p, mobile: e.target.value }))}
+                    className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+                  />
+                </label>
+                <label className="text-sm">
+                  <span className="font-medium text-slate-700">Department</span>
+                  <input
+                    value={profileForm.department}
+                    onChange={(e) => setProfileForm((p) => ({ ...p, department: e.target.value }))}
+                    className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+                  />
+                </label>
+                <label className="text-sm">
+                  <span className="font-medium text-slate-700">Designation</span>
+                  <input
+                    value={profileForm.designation}
+                    onChange={(e) => setProfileForm((p) => ({ ...p, designation: e.target.value }))}
+                    className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+                  />
+                </label>
+                <label className="text-sm">
+                  <span className="font-medium text-slate-700">Category</span>
+                  <input
+                    value={profileForm.category}
+                    onChange={(e) => setProfileForm((p) => ({ ...p, category: e.target.value }))}
+                    className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+                  />
+                </label>
+              </div>
+              <button
+                type="button"
+                onClick={saveProfile}
+                disabled={profileSaving}
+                className="rounded-md bg-slate-900 px-4 py-2 text-sm text-white hover:bg-slate-800 disabled:opacity-60"
+              >
+                {profileSaving ? 'Saving…' : 'Save changes'}
+              </button>
+            </div>
+          ) : (
+            <p className="mt-4 text-sm text-slate-600">Profile not available.</p>
+          )}
+        </div>
+      ) : null}
+
+      {section === 'day' ? (
+      <>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <div className="text-2xl font-bold text-slate-900">Employee Dashboard</div>
@@ -1004,7 +1145,6 @@ export default function EmployeeDashboard() {
         </div>
       </div>
 
-      {section === 'day' ? (
         <div>
           <div className="mt-4 grid gap-4 md:grid-cols-2">
             <div className="rounded-xl border bg-white p-4">
@@ -1168,9 +1308,10 @@ export default function EmployeeDashboard() {
             </div>
           </div>
         </div>
+      </>
       ) : null}
 
-      {error ? <div className="mt-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
+      {error && section === 'day' ? <div className="mt-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
 
       {section === 'history' ? (
         <div className="mt-6 rounded-xl border bg-white">

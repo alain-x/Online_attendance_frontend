@@ -54,6 +54,7 @@ export default function PublicFormPage() {
   const [systemName, setSystemName] = useState(
     () => localStorage.getItem('systemName')?.trim() || DEFAULT_SYSTEM_NAME
   );
+  const [logoError, setLogoError] = useState(false);
 
   const fields = useMemo(() => (form?.fields || []).slice().sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)), [form]);
 
@@ -82,6 +83,7 @@ export default function PublicFormPage() {
         const data = await getPublicForm(token);
         if (!mounted) return;
         setForm(data);
+        setLogoError(false);
       } catch (e: unknown) {
         if (!mounted) return;
         setError(getErrorMessage(e, 'Failed to load form'));
@@ -166,15 +168,20 @@ export default function PublicFormPage() {
 
         <div className="max-w-xl mx-auto px-4 sm:px-6 py-10">
           <div className="rounded-2xl border bg-white overflow-hidden">
-            <div className="p-6 border-b">
-              <div className="flex items-start gap-4">
-                {form.companyLogoUrl ? (
-                  <img src={form.companyLogoUrl} alt="Company logo" className="h-12 w-12 rounded-lg object-cover" />
+            <div className="p-6 sm:p-8 border-b">
+              <div className="flex flex-col items-center text-center gap-3">
+                {form.companyLogoUrl && !logoError ? (
+                  <img
+                    src={form.companyLogoUrl}
+                    alt="Company logo"
+                    className="h-14 w-14 sm:h-16 sm:w-16 rounded-xl object-contain"
+                    onError={() => setLogoError(true)}
+                  />
                 ) : (
-                  <div className="h-12 w-12 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-600" />
+                  <div className="h-14 w-14 sm:h-16 sm:w-16 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600" />
                 )}
-                <div className="flex-1">
-                  <div className="text-xl font-semibold text-slate-900">Submission received</div>
+                <div>
+                  <div className="text-xl sm:text-2xl font-semibold text-slate-900">Submission received</div>
                   <div className="mt-1 text-sm text-slate-600">Thank you. Your response has been recorded.</div>
                   <div className="mt-2 text-xs text-slate-500">Reference: #{submittedId}</div>
                 </div>
@@ -202,26 +209,31 @@ export default function PublicFormPage() {
 
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
         <div className="rounded-2xl border bg-white overflow-hidden">
-          <div className="p-6 border-b">
-            <div className="flex items-start gap-4">
-              {form.companyLogoUrl ? (
-                <img src={form.companyLogoUrl} alt="Company logo" className="h-12 w-12 rounded-lg object-cover" />
+          <div className="p-6 sm:p-8 border-b">
+            <div className="flex flex-col items-center text-center gap-3 max-w-xl mx-auto">
+              {form.companyLogoUrl && !logoError ? (
+                <img
+                  src={form.companyLogoUrl}
+                  alt="Company logo"
+                  className="h-16 w-16 sm:h-20 sm:w-20 rounded-xl object-contain"
+                  onError={() => setLogoError(true)}
+                />
               ) : (
-                <div className="h-12 w-12 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-600" />
+                <div className="h-16 w-16 sm:h-20 sm:w-20 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600" />
               )}
-              <div className="flex-1">
-                <div className="text-2xl font-bold text-slate-900">{form.title}</div>
-                {form.description ? <div className="mt-1 text-sm text-slate-600">{form.description}</div> : null}
+              <div className="w-full">
+                <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">{form.title}</h1>
+                {form.description ? <p className="mt-2 text-sm sm:text-base text-slate-600">{form.description}</p> : null}
                 {form.loginRequired ? (
-                  <div className="mt-2 text-xs text-slate-500">Login required to submit</div>
+                  <p className="mt-2 text-xs text-slate-500">Login required to submit</p>
                 ) : (
-                  <div className="mt-2 text-xs text-slate-500">Public form</div>
+                  <p className="mt-2 text-xs text-slate-500">Public form</p>
                 )}
               </div>
             </div>
           </div>
 
-          <div className="p-6 space-y-4">
+          <div className="p-4 sm:p-6 space-y-4">
             {fields.length === 0 ? (
               <div className="text-sm text-slate-600">This form has no fields yet.</div>
             ) : (

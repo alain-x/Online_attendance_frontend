@@ -1,4 +1,19 @@
-import http from './http';
+import http, { API_BASE_URL } from './http';
+
+function normalizeFormCompanyLogo(form: FormDto): FormDto {
+  let logoUrl = form.companyLogoUrl;
+  if (!logoUrl) return form;
+  if (/^\/api\/companies\/\d+\/logo$/.test(logoUrl)) {
+    logoUrl = `${logoUrl}/image`;
+  }
+  if (logoUrl.startsWith('/uploads/') || logoUrl.startsWith('uploads/')) {
+    logoUrl = `/api/companies/${form.companyId}/logo/image`;
+  }
+  if (logoUrl.startsWith('/')) {
+    return { ...form, companyLogoUrl: `${API_BASE_URL}${logoUrl}` };
+  }
+  return form;
+}
 
 export type FieldType = 'TEXT' | 'TEXTAREA' | 'CHECKBOX' | 'RADIO' | 'SELECT' | 'DATE' | 'FILE';
 export type FileStorageMode = 'DISK' | 'DB';
@@ -89,7 +104,7 @@ export async function listFormSubmissions(formId: number): Promise<SubmissionDto
 
 export async function getPublicForm(token: string): Promise<FormDto> {
   const res = await http.get<FormDto>(`/api/public/forms/${token}`);
-  return res.data;
+  return normalizeFormCompanyLogo(res.data);
 }
 
 export async function submitPublicForm(token: string, answers: Record<string, any>, files: Record<string, File[]>) {

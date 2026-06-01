@@ -18,9 +18,12 @@ export async function me(): Promise<MeResponse> {
     if (!url) return url;
     if (/^[a-zA-Z]:\\/.test(url)) return null;
     if (url.startsWith('file:')) return null;
+    if (/^\/api\/companies\/\d+\/logo$/.test(url)) {
+      return `${API_BASE_URL}${url}/image`;
+    }
     if (url.startsWith('http://') || url.startsWith('https://')) return url;
     if (url.startsWith('/')) return `${API_BASE_URL}${url}`;
-    if (url.startsWith('uploads/')) return `${API_BASE_URL}/${url}`;
+    if (url.startsWith('uploads/')) return null;
     return url;
   };
   return {
