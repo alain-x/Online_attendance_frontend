@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import AppLayout from '../components/AppLayout';
 import { createCompany, deleteCompany, listCompanies, updateCompany, uploadCompanyLogo } from '../api/companies';
+import { companyLogoDisplayUrl } from '../api/logoUrls';
 import { createEmployee, deleteEmployee, listEmployees, updateEmployee } from '../api/employees';
 import { createLocation, deleteLocation, listLocations, updateLocation } from '../api/locations';
 import { adminBulkImportTimesheet, adminCreateAttendance, adminDeleteAttendance, adminUpdateAttendance, listAttendanceByEmployee, todayAttendance } from '../api/attendance';
@@ -217,7 +218,7 @@ export default function AdminDashboard() {
   const [settingsTab, setSettingsTab] = useState<'company' | 'holidays'>('company');
 
   const companyLogoLetter = (user?.companySlug || 'A').trim().charAt(0).toUpperCase();
-  const companyLogoUrl = user?.companyLogoUrl || null;
+  const [headerLogoError, setHeaderLogoError] = useState(false);
   const companyTitle = (user as any)?.companyName || user?.companySlug || '';
 
   const [selectedYear, setSelectedYear] = useState<number>(() => new Date().getUTCFullYear());
@@ -655,6 +656,12 @@ export default function AdminDashboard() {
     if (!user?.companyId) return null;
     return companies.find((c) => c.id === user.companyId) || null;
   }, [companies, user?.companyId]);
+
+  const companyLogoUrl = useMemo(() => {
+    const id = user?.companyId;
+    if (!id) return user?.companyLogoUrl || null;
+    return companyLogoDisplayUrl(id, currentCompany?.logoUrl || user?.companyLogoUrl);
+  }, [user?.companyId, user?.companyLogoUrl, currentCompany?.logoUrl]);
 
   const viewableCompanies = useMemo(() => {
     if (!user?.companyId) return [] as Company[];
@@ -1667,6 +1674,7 @@ export default function AdminDashboard() {
       setEditCompanyForm((f) => ({ ...f, logoUrl: (updated.logoUrl || '').trim() }));
       await refreshCompanies();
       await refreshMe();
+      setHeaderLogoError(false);
       localStorage.setItem('companyLogoBust', String(Date.now()));
       showToast('Logo uploaded successfully', 'success');
       setEditCompanyLogoFile(null);
@@ -1686,7 +1694,12 @@ export default function AdminDashboard() {
       const payload: UpdateCompanyRequest = {};
       if (editCompanyForm.name.trim()) payload.name = editCompanyForm.name.trim();
       if (editCompanyForm.slug.trim()) payload.slug = editCompanyForm.slug.trim().toLowerCase().replace(/\s+/g, '-');
-      payload.logoUrl = editCompanyForm.logoUrl.trim() ? editCompanyForm.logoUrl.trim() : null;
+      const logoField = editCompanyForm.logoUrl.trim();
+      if (!logoField) {
+        payload.logoUrl = null;
+      } else if (!/\/api\/companies\/\d+\/logo/i.test(logoField)) {
+        payload.logoUrl = logoField;
+      }
       if (editCompanyForm.hourlyRateDefault.trim()) {
         const n = Number(editCompanyForm.hourlyRateDefault);
         if (!Number.isNaN(n) && n >= 0) {
@@ -3133,11 +3146,12 @@ export default function AdminDashboard() {
               </div>
 
               <div className="mt-4 flex items-center gap-4">
-                {companyLogoUrl ? (
+                {companyLogoUrl && !headerLogoError ? (
                   <img
                     src={`${companyLogoUrl}${localStorage.getItem('companyLogoBust') ? `${companyLogoUrl.includes('?') ? '&' : '?'}v=${encodeURIComponent(localStorage.getItem('companyLogoBust') || '')}` : ''}`}
                     alt={user?.companySlug || 'Company logo'}
-                    className="h-12 w-12 rounded-xl object-cover"
+                    className="h-12 w-12 rounded-xl object-contain border bg-white"
+                    onError={() => setHeaderLogoError(true)}
                   />
                 ) : (
                   <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-white font-bold text-xl">
@@ -3221,12 +3235,20 @@ export default function AdminDashboard() {
                           <td className="px-4 py-2 font-medium text-slate-900">
                             <div className="flex items-center gap-2">
                               {c.logoUrl ? (
-                                <img src={c.logoUrl} alt={c.name} className="h-8 w-8 rounded-lg object-cover" />
-                              ) : (
+                                <img
+                                  src={c.logoUrl}
+                                  alt={c.name}
+                                  className="h-8 w-8 rounded-lg object-contain border bg-white"
+                                  onError={(e) => {
+                                    (e.currentTarget as HTMLImageElement).style.display = 'none';
+                                  }}
+                                />
+                              ) : null}
+                              {!c.logoUrl ? (
                                 <div className="h-8 w-8 rounded-lg bg-slate-200 flex items-center justify-center text-slate-700 text-sm font-semibold">
                                   {logoLetter}
                                 </div>
-                              )}
+                              ) : null}
                               <span>{c.name}</span>
                               {isCurrent ? (
                                 <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">Current</span>

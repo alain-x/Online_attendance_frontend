@@ -1,4 +1,5 @@
-import http, { API_BASE_URL } from './http';
+import http from './http';
+import { companyLogoDisplayUrl } from './logoUrls';
 
 import type {
   Company,
@@ -9,17 +10,8 @@ import type {
 } from './types';
 
 function normalizeCompany(c: Company): Company {
-  let logoUrl = c.logoUrl;
-  if (logoUrl && /\/api\/companies\/\d+\/logo$/.test(logoUrl)) {
-    logoUrl = `${logoUrl}/image`;
-  }
-  if (logoUrl && (logoUrl.startsWith('/uploads/') || logoUrl.startsWith('uploads/'))) {
-    logoUrl = `/api/companies/${c.id}/logo/image`;
-  }
-  if (logoUrl && logoUrl.startsWith('/')) {
-    return { ...c, logoUrl: `${API_BASE_URL}${logoUrl}` };
-  }
-  return c;
+  const logoUrl = companyLogoDisplayUrl(c.id, c.logoUrl);
+  return logoUrl ? { ...c, logoUrl } : { ...c, logoUrl: null };
 }
 
 export async function registerCompany(payload: RegisterCompanyRequest): Promise<RegisterCompanyResponse> {

@@ -1,4 +1,5 @@
 import http, { API_BASE_URL } from './http';
+import { companyLogoDisplayUrl } from './logoUrls';
 
 import type { LoginResponse, MeResponse } from './types';
 
@@ -18,17 +19,27 @@ export async function me(): Promise<MeResponse> {
     if (!url) return url;
     if (/^[a-zA-Z]:\\/.test(url)) return null;
     if (url.startsWith('file:')) return null;
-    if (/^\/api\/companies\/\d+\/logo$/.test(url)) {
-      return `${API_BASE_URL}${url}/image`;
+    if (url.startsWith('uploads/') || url.startsWith('/uploads/')) return null;
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      const match = url.match(/\/api\/companies\/(\d+)\/logo/);
+      if (match) {
+        return companyLogoDisplayUrl(Number(match[1]), url);
+      }
+      return url;
     }
-    if (url.startsWith('http://') || url.startsWith('https://')) return url;
-    if (url.startsWith('/')) return `${API_BASE_URL}${url}`;
-    if (url.startsWith('uploads/')) return null;
+    if (url.startsWith('/')) {
+      return `${API_BASE_URL}${url}`;
+    }
     return url;
   };
+
+  const companyId = res.data.companyId;
+  const resolvedCompanyLogo =
+    companyId != null ? companyLogoDisplayUrl(companyId, logoUrl) : toAbsolute(logoUrl);
+
   return {
     ...res.data,
-    companyLogoUrl: toAbsolute(logoUrl),
+    companyLogoUrl: resolvedCompanyLogo ?? toAbsolute(logoUrl),
     profileImageUrl: toAbsolute(profileImageUrl),
   };
 }

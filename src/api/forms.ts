@@ -1,18 +1,9 @@
-import http, { API_BASE_URL } from './http';
+import http from './http';
+import { companyLogoDisplayUrl } from './logoUrls';
 
 function normalizeFormCompanyLogo(form: FormDto): FormDto {
-  let logoUrl = form.companyLogoUrl;
-  if (!logoUrl) return form;
-  if (/^\/api\/companies\/\d+\/logo$/.test(logoUrl)) {
-    logoUrl = `${logoUrl}/image`;
-  }
-  if (logoUrl.startsWith('/uploads/') || logoUrl.startsWith('uploads/')) {
-    logoUrl = `/api/companies/${form.companyId}/logo/image`;
-  }
-  if (logoUrl.startsWith('/')) {
-    return { ...form, companyLogoUrl: `${API_BASE_URL}${logoUrl}` };
-  }
-  return form;
+  const logoUrl = companyLogoDisplayUrl(form.companyId, form.companyLogoUrl);
+  return logoUrl ? { ...form, companyLogoUrl: logoUrl } : form;
 }
 
 export type FieldType = 'TEXT' | 'TEXTAREA' | 'CHECKBOX' | 'RADIO' | 'SELECT' | 'DATE' | 'FILE';
