@@ -249,10 +249,21 @@ export default function EmployeeDashboard() {
       const descriptorJson = faceResult.descriptor ? JSON.stringify(faceResult.descriptor) : undefined;
       await enrollFace(descriptorJson, enrollImage);
       setEnrollImage(null);
-      showToast('Face enrolled successfully', 'success');
+      stopEnrollCamera();
+      setShowFaceModal(false);
+      showToast('Face registered successfully! Your profile has been updated.', 'success');
+      // Reload profile to show updated image
+      const updatedProfile = await getMyProfile();
+      setProfile(updatedProfile);
+      setProfileForm({
+        mobile: updatedProfile.mobile || '',
+        department: updatedProfile.department || '',
+        designation: updatedProfile.designation || '',
+        category: updatedProfile.category || '',
+      });
       await refreshMe();
     } catch (e: unknown) {
-      const errorMsg = getApiErrorMessage(e, 'Face enroll failed');
+      const errorMsg = getApiErrorMessage(e, 'Face registration failed');
       setError(errorMsg);
       showToast(errorMsg, 'error');
     } finally {
@@ -642,6 +653,7 @@ export default function EmployeeDashboard() {
   }, [user?.role]);
 
   const [profileImagePreview, setProfileImagePreview] = useState<string | null>(null);
+  const [showFaceModal, setShowFaceModal] = useState(false);
 
   useEffect(() => {
     if (section !== 'profile') {
@@ -999,107 +1011,365 @@ export default function EmployeeDashboard() {
       )}
 
       {section === 'profile' ? (
-        <div className="mt-6 rounded-xl border bg-white p-4 sm:p-6 max-w-2xl">
-          <div className="text-lg font-semibold text-slate-900">My profile</div>
-          {profileLoading ? (
-            <div className="mt-6 flex justify-center py-8">
-              <LoadingSpinner size="lg" />
-            </div>
-          ) : profile ? (
-            <div className="mt-4">
-              <div className="flex flex-col sm:flex-row sm:items-start gap-5">
-                <div className="flex flex-col items-center gap-2">
-                  <div className="relative">
-                    {profileImagePreview ? (
-                      <img
-                        src={profileImagePreview}
-                        alt="Profile preview"
-                        className="h-24 w-24 sm:h-28 sm:w-28 rounded-full object-cover border shadow-sm"
-                        referrerPolicy="no-referrer"
-                        onError={() => setProfileImagePreview(null)}
-                      />
-                    ) : (
-                      <div className="h-24 w-24 sm:h-28 sm:w-28 rounded-full bg-gradient-to-br from-slate-200 to-slate-300 flex items-center justify-center text-slate-600 text-2xl font-bold ring-1 ring-slate-300 shadow-sm">
-                        {(profile.firstName || user?.username || '?').charAt(0).toUpperCase()}
+        <div className="mt-6 space-y-6">
+          {/* Profile Card */}
+          <div className="rounded-xl border bg-white overflow-hidden">
+            {profileLoading ? (
+              <div className="flex justify-center py-12">
+                <LoadingSpinner size="lg" />
+              </div>
+            ) : profile ? (
+              <>
+                {/* Header with background gradient */}
+                <div className="bg-gradient-to-r from-slate-900 to-slate-800 px-6 py-8 sm:px-8">
+                  <div className="flex flex-col sm:flex-row sm:items-end gap-6">
+                    {/* Profile Image Card */}
+                    <div className="flex flex-col items-center">
+                      <div className="relative">
+                        {profileImagePreview ? (
+                          <div className="relative">
+                            <img
+                              src={profileImagePreview}
+                              alt="Profile"
+                              className="h-32 w-32 sm:h-40 sm:w-40 rounded-full object-cover border-4 border-white shadow-lg"
+                              referrerPolicy="no-referrer"
+                              onError={() => setProfileImagePreview(null)}
+                            />
+                            {/* Face enrolled badge */}
+                            <div className="absolute bottom-0 right-0 bg-emerald-500 rounded-full p-2 border-4 border-white shadow-lg">
+                              <svg className="h-6 w-6 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                              </svg>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="relative">
+                            <div className="h-32 w-32 sm:h-40 sm:w-40 rounded-full bg-gradient-to-br from-slate-300 to-slate-400 flex items-center justify-center text-slate-600 text-5xl font-bold border-4 border-white shadow-lg">
+                              {(profile.firstName || user?.username || '?').charAt(0).toUpperCase()}
+                            </div>
+                            {/* Not enrolled badge */}
+                            <div className="absolute bottom-0 right-0 bg-amber-500 rounded-full p-2 border-4 border-white shadow-lg">
+                              <svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4v2m0 4v2m0-14h.01M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" />
+                              </svg>
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    )}
+                      <div className="mt-4 text-center text-white">
+                        <div className="text-sm font-medium opacity-90">
+                          {profileImagePreview ? (
+                            <span className="inline-flex items-center gap-1 bg-emerald-600 px-3 py-1 rounded-full text-xs">
+                              <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                              </svg>
+                              Face Registered
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 bg-amber-600 px-3 py-1 rounded-full text-xs">
+                              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4v.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                              Not Registered
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* User Info */}
+                    <div className="flex-1 sm:text-left text-center">
+                      <h1 className="text-2xl sm:text-3xl font-bold text-white">
+                        {profile.firstName} {profile.lastName}
+                      </h1>
+                      <p className="mt-1 text-slate-300 text-sm">@{profile.username}</p>
+                      <p className="mt-1 text-slate-300 text-sm font-medium">{profile.employeeCode}</p>
+                      <div className="mt-4 flex flex-wrap gap-3 justify-center sm:justify-start">
+                        <button
+                          type="button"
+                          onClick={() => setShowFaceModal(true)}
+                          className="inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-sm font-medium text-slate-900 hover:bg-slate-50 transition-colors shadow-md"
+                        >
+                          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+                          </svg>
+                          {profileImagePreview ? 'Change Face' : 'Register Face'}
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex flex-wrap items-center justify-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setSection('day')}
-                      className="rounded-md bg-slate-900 px-3 py-1.5 text-sm text-white hover:bg-slate-800"
-                    >
-                      Change photo
-                    </button>
-                  </div>
-                  <p className="text-[11px] text-slate-500 text-center max-w-[220px]">
-                    Profile image comes from your enrolled face. Use <strong>Take photo</strong> or <strong>Upload image</strong> in the face enrollment card to update it.
-                  </p>
                 </div>
 
-                <div className="flex-1 min-w-0">
-                  <div className="rounded-xl border bg-white">
-                    <div className="px-4 py-3 border-b bg-slate-50">
-                      <div className="font-semibold text-slate-900 text-base">
-                        {profile.firstName} {profile.lastName}
+                {/* Details Section */}
+                <div className="p-6 sm:p-8">
+                  <h2 className="text-lg font-semibold text-slate-900 mb-6">Personal Information</h2>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-2">Mobile Number</label>
+                      <input
+                        value={profileForm.mobile}
+                        onChange={(e) => setProfileForm((p) => ({ ...p, mobile: e.target.value }))}
+                        className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm text-slate-900 focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all"
+                        placeholder="Enter mobile number"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-2">Department</label>
+                      <input
+                        value={profileForm.department}
+                        onChange={(e) => setProfileForm((p) => ({ ...p, department: e.target.value }))}
+                        className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm text-slate-900 focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all"
+                        placeholder="Enter department"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-2">Designation</label>
+                      <input
+                        value={profileForm.designation}
+                        onChange={(e) => setProfileForm((p) => ({ ...p, designation: e.target.value }))}
+                        className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm text-slate-900 focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all"
+                        placeholder="Enter designation"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-2">Category</label>
+                      <input
+                        value={profileForm.category}
+                        onChange={(e) => setProfileForm((p) => ({ ...p, category: e.target.value }))}
+                        className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm text-slate-900 focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all"
+                        placeholder="Enter category"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="mt-8 flex gap-3 justify-end border-t pt-6">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setProfileForm({
+                          mobile: profile.mobile || '',
+                          department: profile.department || '',
+                          designation: profile.designation || '',
+                          category: profile.category || '',
+                        });
+                      }}
+                      className="rounded-lg border border-slate-300 bg-white px-6 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                    >
+                      Reset
+                    </button>
+                    <button
+                      type="button"
+                      onClick={saveProfile}
+                      disabled={profileFormSaving}
+                      className="rounded-lg bg-slate-900 px-6 py-2.5 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                    >
+                      {profileFormSaving && <LoadingSpinner size="sm" className="text-white" />}
+                      {profileFormSaving ? 'Saving…' : 'Save Changes'}
+                    </button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="px-6 py-12 text-center">
+                <p className="text-sm text-slate-600">Profile not available.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : null}
+
+      {/* Face Registration Modal */}
+      {showFaceModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="face-modal-title">
+          <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-xl border bg-white shadow-2xl">
+            {/* Modal Header */}
+            <div className="sticky top-0 bg-gradient-to-r from-slate-900 to-slate-800 px-6 py-5 border-b flex items-center justify-between">
+              <div>
+                <h2 id="face-modal-title" className="text-xl font-bold text-white">Register Your Face</h2>
+                <p className="mt-1 text-sm text-slate-300">Update your profile with a clear, front-facing photo</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowFaceModal(false);
+                  stopEnrollCamera();
+                  setEnrollImage(null);
+                }}
+                className="text-slate-400 hover:text-white transition-colors"
+              >
+                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 sm:p-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Take Photo Option */}
+                <div className="rounded-lg border-2 border-dashed border-slate-300 p-6">
+                  <div className="flex flex-col items-center">
+                    <svg className="h-12 w-12 text-slate-400 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    <h3 className="font-semibold text-slate-900 mb-1">Take a Photo</h3>
+                    <p className="text-sm text-slate-600 text-center mb-4">Use your webcam to capture your face</p>
+                    
+                    {enrollCameraOn ? (
+                      <div className="w-full space-y-3">
+                        <video
+                          ref={enrollVideoRef}
+                          autoPlay
+                          playsInline
+                          muted
+                          className="w-full rounded-lg border-2 border-slate-300 bg-slate-900 max-h-64 object-cover"
+                        />
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={stopEnrollCamera}
+                            className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={captureEnrollPhoto}
+                            className="flex-1 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2"
+                          >
+                            <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
+                            </svg>
+                            Capture
+                          </button>
+                        </div>
                       </div>
-                      <div className="text-xs text-slate-600 mt-0.5">@{profile.username} · {profile.employeeCode}</div>
-                    </div>
-                    <div className="p-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                      <label className="text-sm">
-                        <span className="font-medium text-slate-700">Mobile</span>
-                        <input
-                          value={profileForm.mobile}
-                          onChange={(e) => setProfileForm((p) => ({ ...p, mobile: e.target.value }))}
-                          className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
-                        />
-                      </label>
-                      <label className="text-sm">
-                        <span className="font-medium text-slate-700">Department</span>
-                        <input
-                          value={profileForm.department}
-                          onChange={(e) => setProfileForm((p) => ({ ...p, department: e.target.value }))}
-                          className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
-                        />
-                      </label>
-                      <label className="text-sm">
-                        <span className="font-medium text-slate-700">Designation</span>
-                        <input
-                          value={profileForm.designation}
-                          onChange={(e) => setProfileForm((p) => ({ ...p, designation: e.target.value }))}
-                          className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
-                        />
-                      </label>
-                      <label className="text-sm">
-                        <span className="font-medium text-slate-700">Category</span>
-                        <input
-                          value={profileForm.category}
-                          onChange={(e) => setProfileForm((p) => ({ ...p, category: e.target.value }))}
-                          className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
-                        />
-                      </label>
-                    </div>
-                    <div className="px-4 py-3 border-t bg-slate-50 flex items-center justify-between">
-                      <div className="text-xs text-slate-600">Last saved automatically when changing details.</div>
+                    ) : enrollImage ? (
+                      <div className="w-full space-y-3">
+                        <div className="text-sm text-emerald-600 font-medium">✓ Photo ready</div>
+                        <button
+                          type="button"
+                          onClick={startEnrollCamera}
+                          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                        >
+                          Take Another
+                        </button>
+                      </div>
+                    ) : (
                       <button
                         type="button"
-                        onClick={saveProfile}
-                        disabled={profileFormSaving}
-                        className="rounded-md bg-slate-900 px-4 py-2 text-sm text-white hover:bg-slate-800 disabled:opacity-60"
+                        onClick={startEnrollCamera}
+                        className="w-full rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-slate-800 transition-colors"
                       >
-                        {profileFormSaving ? 'Saving…' : 'Save changes'}
+                        Open Camera
                       </button>
-                    </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Upload Image Option */}
+                <div className="rounded-lg border-2 border-dashed border-slate-300 p-6">
+                  <div className="flex flex-col items-center">
+                    <svg className="h-12 w-12 text-slate-400 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3v-6" />
+                    </svg>
+                    <h3 className="font-semibold text-slate-900 mb-1">Upload Image</h3>
+                    <p className="text-sm text-slate-600 text-center mb-4">Choose an image from your device</p>
+
+                    {enrollImage && !enrollCameraOn ? (
+                      <div className="w-full space-y-3">
+                        <div className="text-sm text-emerald-600 font-medium">✓ Image ready</div>
+                        <div className="text-xs text-slate-600 truncate">{enrollImage.name}</div>
+                        <button
+                          type="button"
+                          onClick={() => enrollFileInputRef.current?.click()}
+                          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                        >
+                          Choose Different
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => enrollFileInputRef.current?.click()}
+                        className="w-full rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-slate-800 transition-colors"
+                      >
+                        Choose File
+                      </button>
+                    )}
+                    <input
+                      ref={enrollFileInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) setEnrollImage(f);
+                        e.target.value = '';
+                      }}
+                    />
                   </div>
                 </div>
               </div>
+
+              {/* Preview Section */}
+              {enrollImage && !enrollCameraOn && (
+                <div className="mt-6 pt-6 border-t">
+                  <h3 className="text-sm font-semibold text-slate-900 mb-3">Preview</h3>
+                  <div className="flex justify-center mb-4">
+                    <img
+                      src={URL.createObjectURL(enrollImage)}
+                      alt="Preview"
+                      className="max-h-48 rounded-lg border border-slate-300 object-cover"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {error && (
+                <div className="mt-6 rounded-lg bg-red-50 border border-red-200 p-4">
+                  <div className="flex gap-3">
+                    <svg className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                    </svg>
+                    <p className="text-sm text-red-800">{error}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Footer Actions */}
+              <div className="mt-8 flex gap-3 justify-end border-t pt-6">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowFaceModal(false);
+                    stopEnrollCamera();
+                    setEnrollImage(null);
+                    setError(null);
+                  }}
+                  className="rounded-lg border border-slate-300 bg-white px-6 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={doEnrollFace}
+                  disabled={loading || !enrollImage}
+                  className="rounded-lg bg-emerald-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                >
+                  {loading && <LoadingSpinner size="sm" className="text-white" />}
+                  {loading ? 'Registering…' : 'Register Face'}
+                </button>
+              </div>
             </div>
-          ) : (
-            <p className="mt-4 text-sm text-slate-600">Profile not available.</p>
-          )}
+          </div>
         </div>
-      ) : null}
+      )}
 
       {section === 'day' ? (
       <>
