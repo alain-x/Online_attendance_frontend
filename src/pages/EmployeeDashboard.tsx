@@ -9,10 +9,9 @@ import EmptyState from '../components/EmptyState';
 import { useToast } from '../hooks/useToast';
 import Toast from '../components/Toast';
 import { useAuth } from '../auth/AuthContext';
-import { deleteMyProfileImage, getMyProfile, updateMyProfile, updateMyProfileImage } from '../api/employees';
+import { getMyProfile, updateMyProfile } from '../api/employees';
 
 import type { AttendanceResponse, EmployeeResponse } from '../api/types';
-import { API_BASE_URL } from '../api/http';
 import { detectFaceInImage, detectFaceInFile } from '../utils/faceDetection';
 import { getApiErrorMessage } from '../utils/error';
 import { getCurrentPosition } from '../utils/geo';
@@ -643,20 +642,10 @@ export default function EmployeeDashboard() {
   }, [user?.role]);
 
   const [profileImagePreview, setProfileImagePreview] = useState<string | null>(null);
-  const [profileImageFile, setProfileImageFile] = useState<File | null>(null);
-  const profileImageInputRef = useRef<HTMLInputElement>(null);
-  const [profileImageSaving, setProfileImageSaving] = useState(false);
-  const [imageRemoving, setImageRemoving] = useState(false);
-
-  function clearProfileImageState() {
-    setProfileImagePreview(null);
-    setProfileImageFile(null);
-    if (profileImageInputRef.current) profileImageInputRef.current.value = '';
-  }
 
   useEffect(() => {
     if (section !== 'profile') {
-      clearProfileImageState();
+      setProfileImagePreview(null);
     }
   }, [section]);
 
@@ -669,46 +658,7 @@ export default function EmployeeDashboard() {
     }
   }, [profile?.id, profile?.profileImageUrl]);
 
-  async function handleProfileImageFile(file: File) {
-    if (!file) return;
-    setProfileImageFile(file);
-    const objectUrl = URL.createObjectURL(file);
-    setProfileImagePreview(objectUrl);
-  }
 
-  async function uploadProfileImage() {
-    if (!profileImageFile) return;
-    setProfileImageSaving(true);
-    try {
-      const res = await updateMyProfileImage(profileImageFile);
-      setProfileImageFile(null);
-      if (profileImageInputRef.current) profileImageInputRef.current.value = '';
-      if (res.profileImageUrl) {
-        setProfileImagePreview(res.profileImageUrl.startsWith('/') ? `${API_BASE_URL}${res.profileImageUrl}` : res.profileImageUrl);
-      }
-      showToast('Profile photo updated', 'success');
-      await refreshMe();
-    } catch (e: unknown) {
-      showToast(getApiErrorMessage(e, 'Failed to update photo'), 'error');
-      clearProfileImageState();
-    } finally {
-      setProfileImageSaving(false);
-    }
-  }
-
-  async function removeProfileImage() {
-    setImageRemoving(true);
-    try {
-      await deleteMyProfileImage();
-      clearProfileImageState();
-      showToast('Profile photo removed', 'success');
-      await refreshMe();
-    } catch (e: unknown) {
-      showToast(getApiErrorMessage(e, 'Failed to remove photo'), 'error');
-    } finally {
-      setImageRemoving(false);
-    }
-  }
 
   const hasFaceEnrollment = profile && (profile as unknown as { faceEnrolled?: boolean }).faceEnrolled === true;
 
@@ -1077,45 +1027,14 @@ export default function EmployeeDashboard() {
                   <div className="flex flex-wrap items-center justify-center gap-2">
                     <button
                       type="button"
-                      onClick={() => profileImageInputRef.current?.click()}
-                      className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+                      onClick={() => setSection('day')}
+                      className="rounded-md bg-slate-900 px-3 py-1.5 text-sm text-white hover:bg-slate-800"
                     >
-                      Upload
+                      Change photo
                     </button>
-                    {profileImagePreview ? (
-                      <button
-                        type="button"
-                        onClick={removeProfileImage}
-                        disabled={imageRemoving}
-                        className="rounded-md border border-red-200 bg-white px-3 py-1.5 text-sm text-red-700 hover:bg-red-50 disabled:opacity-60"
-                      >
-                        Remove
-                      </button>
-                    ) : null}
                   </div>
-                  <input
-                    ref={profileImageInputRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => {
-                      const f = e.target.files?.[0];
-                      if (f) handleProfileImageFile(f);
-                      e.target.value = '';
-                    }}
-                  />
-                    {profileImagePreview && profileImageFile ? (
-                      <button
-                        type="button"
-                        onClick={uploadProfileImage}
-                        disabled={profileImageSaving}
-                        className="rounded-md bg-slate-900 px-3 py-1.5 text-sm text-white hover:bg-slate-800 disabled:opacity-60"
-                      >
-                        {profileImageSaving ? 'Saving…' : 'Save photo'}
-                      </button>
-                    ) : null}
                   <p className="text-[11px] text-slate-500 text-center max-w-[220px]">
-                    Profile image is tied to your enrolled face. Your face photo from enrollment will appear here automatically.
+                    Profile image comes from your enrolled face. Use <strong>Take photo</strong> or <strong>Upload image</strong> in the face enrollment card to update it.
                   </p>
                 </div>
 
