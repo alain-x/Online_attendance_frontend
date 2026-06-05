@@ -252,9 +252,24 @@ export default function EmployeeDashboard() {
       stopEnrollCamera();
       setShowFaceModal(false);
       showToast('Face registered successfully! Your profile has been updated.', 'success');
+      
+      // Wait a moment for backend to process
+      await new Promise(r => setTimeout(r, 500));
+      
       // Reload profile to show updated image
       const updatedProfile = await getMyProfile();
       setProfile(updatedProfile);
+      
+      // Force update image preview with cache buster
+      if (updatedProfile.profileImageUrl) {
+        const imageUrl = updatedProfile.profileImageUrl;
+        // Add cache buster to force fresh image load
+        const cacheBustedUrl = imageUrl.includes('?') 
+          ? `${imageUrl}&t=${Date.now()}` 
+          : `${imageUrl}?t=${Date.now()}`;
+        setProfileImagePreview(cacheBustedUrl);
+      }
+      
       setProfileForm({
         mobile: updatedProfile.mobile || '',
         department: updatedProfile.department || '',
@@ -664,7 +679,12 @@ export default function EmployeeDashboard() {
   useEffect(() => {
     if (!profile) return;
     if (profile.profileImageUrl) {
-      setProfileImagePreview(profile.profileImageUrl ?? null);
+      // Add cache buster to ensure fresh image load
+      const imageUrl = profile.profileImageUrl;
+      const cacheBustedUrl = imageUrl.includes('?') 
+        ? `${imageUrl}&t=${Date.now()}` 
+        : `${imageUrl}?t=${Date.now()}`;
+      setProfileImagePreview(cacheBustedUrl);
     } else {
       setProfileImagePreview(null);
     }

@@ -78,6 +78,7 @@ export type EmployeeResponse = {
   username: string;
   email?: string | null;
   role: Role;
+  faceEnrolled?: boolean;
   hourlyRateOverride?: number | null;
 };
 
