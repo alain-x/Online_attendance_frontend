@@ -12,6 +12,7 @@ import { useAuth } from '../auth/AuthContext';
 import { deleteMyProfileImage, getMyProfile, updateMyProfile, updateMyProfileImage } from '../api/employees';
 
 import type { AttendanceResponse, EmployeeResponse } from '../api/types';
+import { API_BASE_URL } from '../api/http';
 import { detectFaceInImage, detectFaceInFile } from '../utils/faceDetection';
 import { getApiErrorMessage } from '../utils/error';
 import { getCurrentPosition } from '../utils/geo';
@@ -683,7 +684,7 @@ export default function EmployeeDashboard() {
       setProfileImageFile(null);
       if (profileImageInputRef.current) profileImageInputRef.current.value = '';
       if (res.profileImageUrl) {
-        setProfileImagePreview(res.profileImageUrl);
+        setProfileImagePreview(res.profileImageUrl.startsWith('/') ? `${API_BASE_URL}${res.profileImageUrl}` : res.profileImageUrl);
       }
       showToast('Profile photo updated', 'success');
       await refreshMe();
@@ -736,6 +737,12 @@ export default function EmployeeDashboard() {
       cancelled = true;
     };
   }, [section, showToast]);
+
+  useEffect(() => {
+    if (profile?.profileImageUrl) {
+      setProfileImagePreview(profile.profileImageUrl);
+    }
+  }, [profile?.profileImageUrl]);
 
   async function saveProfile() {
     setProfileFormSaving(true);
