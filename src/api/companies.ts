@@ -57,8 +57,6 @@ export async function deleteCompany(id: number): Promise<{ deleted: boolean }> {
 export async function uploadCompanyLogo(id: number, file: File): Promise<Company> {
   const form = new FormData();
   form.append('file', file);
-  const res = await http.post<Company>(`/api/companies/${id}/logo`, form, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  });
+  const res = await http.post<Company>(`/api/companies/${id}/logo`, form);
   return normalizeCompany(res.data);
 }

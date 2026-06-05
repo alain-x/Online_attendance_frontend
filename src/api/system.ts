@@ -67,9 +67,7 @@ export async function getSystemLogo(): Promise<SystemLogoResponse> {
 export async function uploadSystemLogo(file: File): Promise<SystemLogoResponse> {
   const form = new FormData();
   form.append('file', file);
-  const res = await http.post<SystemLogoResponse>('/api/system/logo', form, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  });
+  const res = await http.post<SystemLogoResponse>('/api/system/logo', form);
   return normalizeLogoUrl(res.data);
 }
 
@@ -86,9 +84,7 @@ export async function getSystemFavicon(): Promise<SystemFaviconResponse> {
 export async function uploadSystemFavicon(file: File): Promise<SystemFaviconResponse> {
   const form = new FormData();
   form.append('file', file);
-  const res = await http.post<SystemFaviconResponse>('/api/system/favicon', form, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  });
+  const res = await http.post<SystemFaviconResponse>('/api/system/favicon', form);
   return normalizeFaviconUrl(res.data);
 }
 

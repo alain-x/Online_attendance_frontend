@@ -104,9 +104,7 @@ export async function submitPublicForm(token: string, answers: Record<string, an
   Object.entries(files || {}).forEach(([k, list]) => {
     (list || []).forEach((f) => fd.append(k, f));
   });
-  const res = await http.post(`/api/public/forms/${token}/submit`, fd, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  });
+  const res = await http.post(`/api/public/forms/${token}/submit`, fd);
   return res.data;
 }
 
@@ -116,8 +114,6 @@ export async function submitLoginRequiredForm(formId: number, answers: Record<st
   Object.entries(files || {}).forEach(([k, list]) => {
     (list || []).forEach((f) => fd.append(k, f));
   });
-  const res = await http.post(`/api/forms/${formId}/submit`, fd, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  });
+  const res = await http.post(`/api/forms/${formId}/submit`, fd);
   return res.data;
 }

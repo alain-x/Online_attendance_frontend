@@ -20,9 +20,7 @@ export async function checkIn(
   form.append('latitude', String(latitude));
   form.append('longitude', String(longitude));
   if (descriptorJson) form.append('descriptor', descriptorJson);
-  const res = await http.post<AttendanceResponse>('/api/attendance/check-in', form, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  });
+  const res = await http.post<AttendanceResponse>('/api/attendance/check-in', form);
   return res.data;
 }
 
@@ -39,9 +37,7 @@ export async function recorderCheckIn(
   form.append('latitude', String(latitude));
   form.append('longitude', String(longitude));
   if (descriptorJson) form.append('descriptor', descriptorJson);
-  const res = await http.post<AttendanceResponse>('/api/attendance/recorder/check-in', form, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  });
+  const res = await http.post<AttendanceResponse>('/api/attendance/recorder/check-in', form);
   return res.data;
 }
 
@@ -58,9 +54,7 @@ export async function recorderCheckOut(
   form.append('latitude', String(latitude));
   form.append('longitude', String(longitude));
   if (descriptorJson) form.append('descriptor', descriptorJson);
-  const res = await http.post<AttendanceResponse>('/api/attendance/recorder/check-out', form, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  });
+  const res = await http.post<AttendanceResponse>('/api/attendance/recorder/check-out', form);
   return res.data;
 }
 
@@ -77,9 +71,7 @@ export async function checkOutCompanyPurpose(
   form.append('longitude', String(longitude));
   form.append('note', note);
   if (descriptorJson) form.append('descriptor', descriptorJson);
-  const res = await http.post<AttendanceResponse>('/api/attendance/check-out/company-purpose', form, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  });
+  const res = await http.post<AttendanceResponse>('/api/attendance/check-out/company-purpose', form);
   return res.data;
 }
 
@@ -113,9 +105,7 @@ export async function checkOut(
   form.append('latitude', String(latitude));
   form.append('longitude', String(longitude));
   if (descriptorJson) form.append('descriptor', descriptorJson);
-  const res = await http.post<AttendanceResponse>('/api/attendance/check-out', form, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  });
+  const res = await http.post<AttendanceResponse>('/api/attendance/check-out', form);
   return res.data;
 }
 

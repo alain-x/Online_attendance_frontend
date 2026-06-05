@@ -30,9 +30,7 @@ export function profileImageUrl(employeeId: number): string {
 export async function updateMyProfileImage(imageFile: File): Promise<{ message: string; profileImageUrl: string | null }> {
   const form = new FormData();
   form.append('image', imageFile);
-  const res = await http.post('/api/employees/me/profile/image', form, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  });
+  const res = await http.post('/api/employees/me/profile/image', form);
   return res.data;
 }
 
