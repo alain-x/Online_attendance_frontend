@@ -30,6 +30,8 @@ async function ensureFaceApiScriptLoaded(): Promise<void> {
 
     const s = document.createElement('script');
     s.setAttribute('data-faceapi', 'true');
+    s.integrity = 'sha384-gzn2n++arkvyhdNLmUf1s6F5NZ8iAbZ7FhIt+Zw7Jlf1n/vNTmZ3+cYr7S4ogyco';
+    s.crossOrigin = 'anonymous';
     s.async = true;
     s.src = 'https://unpkg.com/face-api.js@0.22.2/dist/face-api.min.js';
     s.onload = () => resolve();

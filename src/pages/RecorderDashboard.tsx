@@ -10,25 +10,8 @@ import { recorderCheckIn, recorderCheckOut, todayAttendance } from '../api/atten
 import { enrollFaceForEmployee } from '../api/face';
 import type { EmployeeResponse } from '../api/types';
 import { detectFaceInImage } from '../utils/faceDetection';
-
-function getApiErrorMessage(err: unknown, fallback: string): string {
-  const e = err as { response?: { data?: { message?: string } }; message?: string };
-  return e?.response?.data?.message || e?.message || fallback;
-}
-
-function getCurrentPosition(): Promise<GeolocationPosition> {
-  return new Promise<GeolocationPosition>((resolve, reject) => {
-    if (!navigator.geolocation) {
-      reject(new Error('Geolocation not supported'));
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => resolve(pos),
-      (err) => reject(err),
-      { enableHighAccuracy: true, timeout: 10000 }
-    );
-  });
-}
+import { getApiErrorMessage } from '../utils/error';
+import { getCurrentPosition } from '../utils/geo';
 
 export default function RecorderDashboard() {
   const { toast, showToast, hideToast } = useToast();

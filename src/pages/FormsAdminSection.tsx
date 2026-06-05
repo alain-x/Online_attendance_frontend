@@ -15,11 +15,7 @@ import {
 import LoadingSpinner from '../components/LoadingSpinner';
 import Toast from '../components/Toast';
 import { useToast } from '../hooks/useToast';
-
-function getApiErrorMessage(err: unknown, fallback: string): string {
-  const e = err as { response?: { data?: { message?: string } }; message?: string };
-  return e?.response?.data?.message || e?.message || fallback;
-}
+import { getApiErrorMessage } from '../utils/error';
 
 function makeKey(label: string) {
   const base = (label || 'field').trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');

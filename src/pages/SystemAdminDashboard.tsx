@@ -12,20 +12,9 @@ import { createAdminPlan, deleteAdminPlan, getAdminPesapalSettings, listAdminPla
 
 import type { Company } from '../api/types';
 import type { PesapalEnvironment, PesapalSettingsResponse, SubscriptionPlan, UpsertSubscriptionPlanRequest } from '../api/types';
-
-function getApiErrorMessage(err: unknown, fallback: string): string {
-  const e = err as { response?: { data?: { message?: string } }; message?: string };
-  return e?.response?.data?.message || e?.message || fallback;
-}
-
-function fmtDate(d: Date): string {
-  return d.toISOString().slice(0, 10);
-}
-
-function money(n: number): string {
-  if (!Number.isFinite(n)) return '0.00';
-  return n.toFixed(2);
-}
+import { getApiErrorMessage } from '../utils/error';
+import { money } from '../utils/currency';
+import { fmtDate } from '../utils/date';
 
 type InvoiceDraft = {
   kind: 'invoice' | 'receipt';
@@ -99,6 +88,15 @@ function loadStoredInvoices(): StoredInvoice[] {
 
 function saveStoredInvoices(next: StoredInvoice[]) {
   localStorage.setItem(INVOICE_STORAGE_KEY, JSON.stringify(next));
+}
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 function buildInvoiceNumber(companySlug: string): string {
@@ -231,7 +229,7 @@ function navigatePdfIntoPlaceholderWindow(w: Window, blob: Blob) {
 function renderInvoiceHtml(d: InvoiceDraft): string {
   const kindLabel = d.kind === 'invoice' ? 'Invoice' : 'Receipt';
   const statusBadge = d.status === 'PAID' ? '<span class="badge">PAID</span>' : '<span class="badge">UNPAID</span>';
-  const dueLine = d.kind === 'invoice' ? `<div class="muted">Due date</div><div><strong>${d.dueDate}</strong></div>` : '';
+  const dueLine = d.kind === 'invoice' ? `<div class="muted">Due date</div><div><strong>${escapeHtml(d.dueDate)}</strong></div>` : '';
 
   return `
     <div class="row">
@@ -242,10 +240,10 @@ function renderInvoiceHtml(d: InvoiceDraft): string {
       </div>
       <div style="min-width:260px">
         <div class="muted">${kindLabel} number</div>
-        <div><strong>${d.invoiceNumber}</strong></div>
+        <div><strong>${escapeHtml(d.invoiceNumber)}</strong></div>
         <div style="height:10px"></div>
         <div class="muted">Issue date</div>
-        <div><strong>${d.issueDate}</strong></div>
+        <div><strong>${escapeHtml(d.issueDate)}</strong></div>
         ${dueLine}
       </div>
     </div>
@@ -255,13 +253,13 @@ function renderInvoiceHtml(d: InvoiceDraft): string {
     <div class="row">
       <div style="min-width:260px">
         <div class="muted">Bill to</div>
-        <div><strong>${d.companyName}</strong></div>
-        <div class="muted">Company slug: ${d.companySlug}</div>
+        <div><strong>${escapeHtml(d.companyName)}</strong></div>
+        <div class="muted">Company slug: ${escapeHtml(d.companySlug)}</div>
       </div>
       <div style="min-width:260px">
         <div class="muted">Plan</div>
-        <div><strong>${d.planName}</strong></div>
-        <div class="muted">Currency: ${d.currency}</div>
+        <div><strong>${escapeHtml(d.planName)}</strong></div>
+        <div class="muted">Currency: ${escapeHtml(d.currency)}</div>
       </div>
     </div>
 
@@ -274,18 +272,18 @@ function renderInvoiceHtml(d: InvoiceDraft): string {
       </thead>
       <tbody>
         <tr>
-          <td>${d.planName} subscription</td>
-          <td class="right">${money(d.amount)} ${d.currency}</td>
+          <td>${escapeHtml(d.planName)} subscription</td>
+          <td class="right">${money(d.amount)} ${escapeHtml(d.currency)}</td>
         </tr>
         <tr>
           <td class="right" colspan="1"><span class="muted">Total</span></td>
-          <td class="right total">${money(d.amount)} ${d.currency}</td>
+          <td class="right total">${money(d.amount)} ${escapeHtml(d.currency)}</td>
         </tr>
       </tbody>
     </table>
 
     <div style="margin-top:14px" class="muted">Note</div>
-    <div>${d.note || '-'}</div>
+    <div>${escapeHtml(d.note || '-')}</div>
   `;
 }
 

@@ -1,18 +1,20 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
-import LoginPage from './pages/LoginPage';
-import RegisterCompanyPage from './pages/RegisterCompanyPage';
-import EmployeeDashboard from './pages/EmployeeDashboard';
-import AdminDashboard from './pages/AdminDashboard';
-import PayrollDashboard from './pages/PayrollDashboard';
-import SystemAdminDashboard from './pages/SystemAdminDashboard';
-import RecorderDashboard from './pages/RecorderDashboard';
-import HRDashboard from './pages/HRDashboard';
-import ManagerDashboard from './pages/ManagerDashboard';
-import AuditorDashboard from './pages/AuditorDashboard';
-import PublicFormPage from './pages/PublicFormPage';
-import ProtectedRoute from './routes/ProtectedRoute';
 import { useAuth } from './auth/AuthContext';
+import ProtectedRoute from './routes/ProtectedRoute';
+import LoadingSpinner from './components/LoadingSpinner';
+
+const LoginPage = lazy(() => import('./pages/LoginPage'));
+const RegisterCompanyPage = lazy(() => import('./pages/RegisterCompanyPage'));
+const EmployeeDashboard = lazy(() => import('./pages/EmployeeDashboard'));
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
+const PayrollDashboard = lazy(() => import('./pages/PayrollDashboard'));
+const SystemAdminDashboard = lazy(() => import('./pages/SystemAdminDashboard'));
+const RecorderDashboard = lazy(() => import('./pages/RecorderDashboard'));
+const HRDashboard = lazy(() => import('./pages/HRDashboard'));
+const ManagerDashboard = lazy(() => import('./pages/ManagerDashboard'));
+const AuditorDashboard = lazy(() => import('./pages/AuditorDashboard'));
+const PublicFormPage = lazy(() => import('./pages/PublicFormPage'));
 
 function RoleHomeRedirect() {
   const { user, loading } = useAuth();
@@ -30,89 +32,95 @@ function RoleHomeRedirect() {
   return <Navigate to="/admin" replace />;
 }
 
+function SuspenseWrapper({ children }: { children: React.ReactNode }) {
+  return <Suspense fallback={<LoadingSpinner />}>{children}</Suspense>;
+}
+
 function App() {
   return (
-    <Routes>
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/register" element={<RegisterCompanyPage />} />
+    <SuspenseWrapper>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterCompanyPage />} />
 
-      <Route
-        path="/employee"
-        element={
-          <ProtectedRoute roles={["EMPLOYEE", "RECORDER", "ADMIN"]}>
-            <EmployeeDashboard />
-          </ProtectedRoute>
-        }
-      />
+        <Route
+          path="/employee"
+          element={
+            <ProtectedRoute roles={['EMPLOYEE', 'RECORDER', 'ADMIN']}>
+              <EmployeeDashboard />
+            </ProtectedRoute>
+          }
+        />
 
-      <Route
-        path="/recorder"
-        element={
-          <ProtectedRoute roles={["RECORDER", "ADMIN"]}>
-            <RecorderDashboard />
-          </ProtectedRoute>
-        }
-      />
+        <Route
+          path="/recorder"
+          element={
+            <ProtectedRoute roles={['RECORDER', 'ADMIN']}>
+              <RecorderDashboard />
+            </ProtectedRoute>
+          }
+        />
 
-      <Route
-        path="/admin"
-        element={
-          <ProtectedRoute roles={["ADMIN", "HR", "MANAGER"]}>
-            <AdminDashboard />
-          </ProtectedRoute>
-        }
-      />
+        <Route
+          path="/admin"
+          element={
+            <ProtectedRoute roles={['ADMIN', 'HR', 'MANAGER']}>
+              <AdminDashboard />
+            </ProtectedRoute>
+          }
+        />
 
-      <Route
-        path="/hr"
-        element={
-          <ProtectedRoute roles={["HR", "ADMIN"]}>
-            <HRDashboard />
-          </ProtectedRoute>
-        }
-      />
+        <Route
+          path="/hr"
+          element={
+            <ProtectedRoute roles={['HR', 'ADMIN']}>
+              <HRDashboard />
+            </ProtectedRoute>
+          }
+        />
 
-      <Route
-        path="/manager"
-        element={
-          <ProtectedRoute roles={["MANAGER", "ADMIN"]}>
-            <ManagerDashboard />
-          </ProtectedRoute>
-        }
-      />
+        <Route
+          path="/manager"
+          element={
+            <ProtectedRoute roles={['MANAGER', 'ADMIN']}>
+              <ManagerDashboard />
+            </ProtectedRoute>
+          }
+        />
 
-      <Route
-        path="/payroll"
-        element={
-          <ProtectedRoute roles={["ADMIN", "HR", "MANAGER", "PAYROLL", "AUDITOR"]}>
-            <PayrollDashboard />
-          </ProtectedRoute>
-        }
-      />
+        <Route
+          path="/payroll"
+          element={
+            <ProtectedRoute roles={['ADMIN', 'HR', 'MANAGER', 'PAYROLL', 'AUDITOR']}>
+              <PayrollDashboard />
+            </ProtectedRoute>
+          }
+        />
 
-      <Route
-        path="/auditor"
-        element={
-          <ProtectedRoute roles={["AUDITOR", "ADMIN"]}>
-            <AuditorDashboard />
-          </ProtectedRoute>
-        }
-      />
+        <Route
+          path="/auditor"
+          element={
+            <ProtectedRoute roles={['AUDITOR', 'ADMIN']}>
+              <AuditorDashboard />
+            </ProtectedRoute>
+          }
+        />
 
-      <Route
-        path="/system-admin"
-        element={
-          <ProtectedRoute roles={["SYSTEM_ADMIN"]}>
-            <SystemAdminDashboard />
-          </ProtectedRoute>
-        }
-      />
+        <Route
+          path="/system-admin"
+          element={
+            <ProtectedRoute roles={['SYSTEM_ADMIN']}>
+              <SystemAdminDashboard />
+            </ProtectedRoute>
+          }
+        />
 
-      <Route path="/forms/:token" element={<PublicFormPage />} />
+        <Route path="/forms/:token" element={<PublicFormPage />} />
 
-      <Route path="/" element={<RoleHomeRedirect />} />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+        <Route path="/" element={<RoleHomeRedirect />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </SuspenseWrapper>
   );
 }
 

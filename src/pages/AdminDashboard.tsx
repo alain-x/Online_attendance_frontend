@@ -13,6 +13,8 @@ import { useAuth } from '../auth/AuthContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 import StatusBadge from '../components/StatusBadge';
 import EmptyState from '../components/EmptyState';
+import { getApiErrorMessage } from '../utils/error';
+import { utcDateString } from '../utils/date';
 import { useToast } from '../hooks/useToast';
 import Toast from '../components/Toast';
 import FormsAdminSection from './FormsAdminSection';
@@ -175,15 +177,6 @@ function minutesToHourMinute(mins: number): { h: number; m: number } {
   const h = Math.floor(n / 60);
   const m = n % 60;
   return { h, m };
-}
-
-function utcDateString(d: Date): string {
-  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())).toISOString().slice(0, 10);
-}
-
-function getApiErrorMessage(err: unknown, fallback: string): string {
-  const e = err as { response?: { data?: { message?: string } } };
-  return e?.response?.data?.message || fallback;
 }
 
 type TabButtonProps = {

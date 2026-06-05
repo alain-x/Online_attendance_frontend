@@ -40,8 +40,8 @@ export const API_BASE_URL = normalizeApiBaseUrl(
 );
 
 const http = axios.create({
-  // Support both names to avoid misconfiguration
   baseURL: API_BASE_URL,
+  timeout: 30000,
 });
 
 http.interceptors.request.use((config) => {
@@ -61,5 +61,19 @@ http.interceptors.request.use((config) => {
   }
   return config;
 });
+
+http.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('companyContextId');
+      if (typeof window !== 'undefined') {
+        window.location.href = '/login';
+      }
+    }
+    return Promise.reject(error);
+  }
+);
 
 export default http;

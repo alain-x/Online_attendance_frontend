@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { getSystemBranding } from '../api/system';
+import { applyFavicon } from '../utils/favicon';
 
 type ShellHeaderProps = {
   title?: string;
@@ -13,27 +14,7 @@ export default function ShellHeader({ title, onMenuClick }: ShellHeaderProps) {
   const navigate = useNavigate();
   const [profileOpen, setProfileOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement | null>(null);
-
-  function applyFavicon(url: string | null | undefined) {
-    const clean = url && url.trim() ? url.trim() : '';
-    if (!clean) return;
-
-    const withBust = (() => {
-      const bust = localStorage.getItem('systemFaviconBust');
-      if (!bust) return clean;
-      return `${clean}${clean.includes('?') ? '&' : '?'}v=${encodeURIComponent(bust)}`;
-    })();
-
-    const existing = document.querySelector<HTMLLinkElement>('link[rel~="icon"]');
-    if (existing) {
-      existing.href = withBust;
-      return;
-    }
-    const link = document.createElement('link');
-    link.rel = 'icon';
-    link.href = withBust;
-    document.head.appendChild(link);
-  }
+  const [avatarError, setAvatarError] = useState(false);
 
   const [systemLogoError, setSystemLogoError] = useState(false);
   const [companyLogoError, setCompanyLogoError] = useState(false);
@@ -89,6 +70,11 @@ export default function ShellHeader({ title, onMenuClick }: ShellHeaderProps) {
   const isBranchView = user?.companyId != null && companyContextId != null && companyContextId !== user.companyId;
 
   const userInitial = (user?.username || 'U').trim().charAt(0).toUpperCase();
+  const resolvedAvatarSrc = (() => {
+    const url = user?.profileImageUrl;
+    if (!url || avatarError) return null;
+    return url;
+  })();
 
   useEffect(() => {
     if (!profileOpen) return;
@@ -201,17 +187,21 @@ export default function ShellHeader({ title, onMenuClick }: ShellHeaderProps) {
             <div className="relative" ref={profileRef}>
               <button
                 type="button"
-                onClick={() => setProfileOpen((v) => !v)}
+                onClick={() => {
+                  setAvatarError(false);
+                  setProfileOpen((v) => !v);
+                }}
                 className="inline-flex items-center gap-2 rounded-full bg-white/10 pl-1 pr-2 py-1 hover:bg-white/15 transition-colors"
                 aria-label="Open user profile"
                 aria-expanded={profileOpen}
               >
-                {user.profileImageUrl ? (
+                {resolvedAvatarSrc ? (
                   <img
-                    src={user.profileImageUrl}
+                    src={resolvedAvatarSrc}
                     alt={user.username}
                     className="h-9 w-9 rounded-full object-cover bg-white/20 ring-2 ring-white/25"
                     referrerPolicy="no-referrer"
+                    onError={() => setAvatarError(true)}
                   />
                 ) : (
                   <div className="h-9 w-9 rounded-full bg-white/20 flex items-center justify-center font-semibold ring-2 ring-white/25">
@@ -234,12 +224,28 @@ export default function ShellHeader({ title, onMenuClick }: ShellHeaderProps) {
               {profileOpen ? (
                 <div className="absolute right-0 mt-2 w-64 overflow-hidden rounded-xl border border-slate-200 bg-white text-slate-900 shadow-xl">
                   <div className="px-4 py-3 bg-slate-50 border-b">
-                    <div className="text-sm font-semibold">{user.username}</div>
-                    <div className="mt-0.5 text-xs text-slate-600">{user.role}</div>
+                    <div className="flex items-center gap-3">
+                      {resolvedAvatarSrc ? (
+                        <img
+                          src={resolvedAvatarSrc}
+                          alt={user.username}
+                          className="h-10 w-10 rounded-full object-cover ring-2 ring-white"
+                          onError={() => setAvatarError(true)}
+                        />
+                      ) : (
+                        <div className="h-10 w-10 rounded-full bg-slate-200 flex items-center justify-center text-slate-700 font-semibold">
+                          {userInitial}
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <div className="text-sm font-semibold text-slate-900 truncate">{user.username}</div>
+                        <div className="text-[11px] text-slate-600">{user.role}</div>
+                      </div>
+                    </div>
                     {user.companySlug ? (
-                      <div className="mt-2 text-xs text-slate-600">
+                      <div className="mt-2 text-[11px] text-slate-600">
                         Viewing: <span className="font-medium text-slate-900">{companyContextLabel || user.companySlug}</span>
-                        {isBranchView ? <span className="ml-2 rounded-full bg-slate-200 px-2 py-0.5 text-[11px] font-medium">Branch</span> : null}
+                        {isBranchView ? <span className="ml-2 rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-medium">Branch</span> : null}
                       </div>
                     ) : null}
                   </div>

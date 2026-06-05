@@ -10,45 +10,15 @@ import { approveCompanyPurpose, listPendingCompanyPurpose, rejectCompanyPurpose 
 import { getPayrollSummary } from '../api/payroll';
 
 import type { AttendanceResponse, PayrollSummaryResponse } from '../api/types';
+import { getApiErrorMessage } from '../utils/error';
+import { money } from '../utils/currency';
+import { addUtcDays, utcDateString, startOfUtcMonth, endOfUtcMonth, startOfUtcWeekMonday } from '../utils/date';
 
 function minutesToHourMinute(mins: number): { h: number; m: number } {
   const n = Number(mins || 0);
   const h = Math.floor(n / 60);
   const m = n % 60;
   return { h, m };
-}
-
-function utcDateString(d: Date): string {
-  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())).toISOString().slice(0, 10);
-}
-
-function addUtcDays(d: Date, days: number): Date {
-  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + days));
-}
-
-function startOfUtcMonth(d: Date): Date {
-  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1));
-}
-
-function endOfUtcMonth(d: Date): Date {
-  return addUtcDays(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1)), -1);
-}
-
-function startOfUtcWeekMonday(d: Date): Date {
-  // Monday = 1, Sunday = 0
-  const day = d.getUTCDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  return addUtcDays(d, diff);
-}
-
-function money(n: number): string {
-  if (!Number.isFinite(n)) return '0.00';
-  return n.toFixed(2);
-}
-
-function getApiErrorMessage(err: unknown, fallback: string): string {
-  const e = err as { response?: { data?: { message?: string } }; message?: string };
-  return e?.response?.data?.message || e?.message || fallback;
 }
 
 export default function PayrollDashboard() {

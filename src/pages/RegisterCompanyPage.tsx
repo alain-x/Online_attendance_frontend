@@ -4,11 +4,7 @@ import { registerCompany } from '../api/companies';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { useToast } from '../hooks/useToast';
 import Toast from '../components/Toast';
-
-function getApiErrorMessage(err: unknown, fallback: string): string {
-  const e = err as { response?: { data?: { message?: string } } };
-  return e?.response?.data?.message || fallback;
-}
+import { getApiErrorMessage } from '../utils/error';
 
 export default function RegisterCompanyPage() {
   const navigate = useNavigate();

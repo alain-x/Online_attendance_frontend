@@ -9,32 +9,15 @@ import EmptyState from '../components/EmptyState';
 import { useToast } from '../hooks/useToast';
 import Toast from '../components/Toast';
 import { useAuth } from '../auth/AuthContext';
-import { getMyProfile, profileImageDownloadUrl, updateMyProfile } from '../api/employees';
+import { deleteMyProfileImage, getMyProfile, updateMyProfile, updateMyProfileImage } from '../api/employees';
 
 import type { AttendanceResponse, EmployeeResponse } from '../api/types';
-import { detectFaceInFile, detectFaceInImage } from '../utils/faceDetection';
+import { detectFaceInImage, detectFaceInFile } from '../utils/faceDetection';
+import { getApiErrorMessage } from '../utils/error';
+import { getCurrentPosition } from '../utils/geo';
 
 function blobToFile(blob: Blob, filename: string): File {
   return new File([blob], filename, { type: blob.type || 'image/jpeg' });
-}
-
-function getApiErrorMessage(err: unknown, fallback: string): string {
-  const e = err as { response?: { data?: { message?: string } }; message?: string };
-  return e?.response?.data?.message || e?.message || fallback;
-}
-
-function getCurrentPosition(): Promise<GeolocationPosition> {
-  return new Promise<GeolocationPosition>((resolve, reject) => {
-    if (!navigator.geolocation) {
-      reject(new Error('Geolocation not supported'));
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => resolve(pos),
-      (err) => reject(err),
-      { enableHighAccuracy: true, timeout: 10000 }
-    );
-  });
 }
 
 export default function EmployeeDashboard() {
@@ -44,7 +27,7 @@ export default function EmployeeDashboard() {
   const [section, setSection] = useState<'day' | 'history' | 'profile'>('day');
   const [profile, setProfile] = useState<EmployeeResponse | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
-  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileFormSaving, setProfileFormSaving] = useState(false);
   const [profileForm, setProfileForm] = useState({ mobile: '', department: '', designation: '', category: '' });
   const [history, setHistory] = useState<AttendanceResponse[]>([]);
   const [loading, setLoading] = useState(false);
@@ -658,6 +641,76 @@ export default function EmployeeDashboard() {
     ];
   }, [user?.role]);
 
+  const [profileImagePreview, setProfileImagePreview] = useState<string | null>(null);
+  const [profileImageFile, setProfileImageFile] = useState<File | null>(null);
+  const profileImageInputRef = useRef<HTMLInputElement>(null);
+  const [profileImageSaving, setProfileImageSaving] = useState(false);
+  const [imageRemoving, setImageRemoving] = useState(false);
+
+  function clearProfileImageState() {
+    setProfileImagePreview(null);
+    setProfileImageFile(null);
+    if (profileImageInputRef.current) profileImageInputRef.current.value = '';
+  }
+
+  useEffect(() => {
+    if (section !== 'profile') {
+      clearProfileImageState();
+    }
+  }, [section]);
+
+  useEffect(() => {
+    if (!profile) return;
+    if (profile.profileImageUrl) {
+      setProfileImagePreview(profile.profileImageUrl ?? null);
+    } else {
+      setProfileImagePreview(null);
+    }
+  }, [profile?.id, profile?.profileImageUrl]);
+
+  async function handleProfileImageFile(file: File) {
+    if (!file) return;
+    setProfileImageFile(file);
+    const objectUrl = URL.createObjectURL(file);
+    setProfileImagePreview(objectUrl);
+  }
+
+  async function uploadProfileImage() {
+    if (!profileImageFile) return;
+    setProfileImageSaving(true);
+    try {
+      const res = await updateMyProfileImage(profileImageFile);
+      setProfileImageFile(null);
+      if (profileImageInputRef.current) profileImageInputRef.current.value = '';
+      if (res.profileImageUrl) {
+        setProfileImagePreview(res.profileImageUrl);
+      }
+      showToast('Profile photo updated', 'success');
+      await refreshMe();
+    } catch (e: unknown) {
+      showToast(getApiErrorMessage(e, 'Failed to update photo'), 'error');
+      clearProfileImageState();
+    } finally {
+      setProfileImageSaving(false);
+    }
+  }
+
+  async function removeProfileImage() {
+    setImageRemoving(true);
+    try {
+      await deleteMyProfileImage();
+      clearProfileImageState();
+      showToast('Profile photo removed', 'success');
+      await refreshMe();
+    } catch (e: unknown) {
+      showToast(getApiErrorMessage(e, 'Failed to remove photo'), 'error');
+    } finally {
+      setImageRemoving(false);
+    }
+  }
+
+  const hasFaceEnrollment = profile && (profile as unknown as { faceEnrolled?: boolean }).faceEnrolled === true;
+
   useEffect(() => {
     if (section !== 'profile') return;
     let cancelled = false;
@@ -685,7 +738,7 @@ export default function EmployeeDashboard() {
   }, [section, showToast]);
 
   async function saveProfile() {
-    setProfileSaving(true);
+    setProfileFormSaving(true);
     try {
       const updated = await updateMyProfile({
         mobile: profileForm.mobile,
@@ -699,7 +752,7 @@ export default function EmployeeDashboard() {
     } catch (err: unknown) {
       showToast(getApiErrorMessage(err, 'Failed to update profile'), 'error');
     } finally {
-      setProfileSaving(false);
+      setProfileFormSaving(false);
     }
   }
 
@@ -996,79 +1049,125 @@ export default function EmployeeDashboard() {
               <LoadingSpinner size="lg" />
             </div>
           ) : profile ? (
-            <div className="mt-4 space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-                {profile.profileImageUrl || user?.profileImageUrl ? (
-                  <img
-                    src={profile.profileImageUrl || user?.profileImageUrl || ''}
-                    alt="Profile"
-                    className="h-20 w-20 rounded-full object-cover border"
-                  />
-                ) : (
-                  <div className="h-20 w-20 rounded-full bg-slate-200 flex items-center justify-center text-slate-600 text-xl font-semibold">
-                    {(profile.firstName || user?.username || '?').charAt(0).toUpperCase()}
+            <div className="mt-4">
+              <div className="flex flex-col sm:flex-row sm:items-start gap-5">
+                <div className="flex flex-col items-center gap-2">
+                  <div className="relative">
+                    {profileImagePreview ? (
+                      <img
+                        src={profileImagePreview}
+                        alt="Profile preview"
+                        className="h-24 w-24 sm:h-28 sm:w-28 rounded-full object-cover border shadow-sm"
+                        referrerPolicy="no-referrer"
+                        onError={() => setProfileImagePreview(null)}
+                      />
+                    ) : (
+                      <div className="h-24 w-24 sm:h-28 sm:w-28 rounded-full bg-gradient-to-br from-slate-200 to-slate-300 flex items-center justify-center text-slate-600 text-2xl font-bold ring-1 ring-slate-300 shadow-sm">
+                        {(profile.firstName || user?.username || '?').charAt(0).toUpperCase()}
+                      </div>
+                    )}
                   </div>
-                )}
-                <div className="min-w-0">
-                  <div className="font-medium text-slate-900">
-                    {profile.firstName} {profile.lastName}
-                  </div>
-                  <div className="text-sm text-slate-600">{profile.employeeCode}</div>
-                  {profile.profileImageUrl ? (
-                    <a
-                      href={profileImageDownloadUrl(profile.id)}
-                      className="mt-2 inline-block text-sm text-blue-600 hover:underline"
-                      download
+                  <div className="flex flex-wrap items-center justify-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => profileImageInputRef.current?.click()}
+                      className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
                     >
-                      Download profile photo
-                    </a>
-                  ) : (
-                    <p className="mt-2 text-xs text-slate-500">Enroll your face on the dashboard to add a profile photo.</p>
-                  )}
+                      Upload
+                    </button>
+                    {profileImagePreview ? (
+                      <button
+                        type="button"
+                        onClick={removeProfileImage}
+                        disabled={imageRemoving}
+                        className="rounded-md border border-red-200 bg-white px-3 py-1.5 text-sm text-red-700 hover:bg-red-50 disabled:opacity-60"
+                      >
+                        Remove
+                      </button>
+                    ) : null}
+                  </div>
+                  <input
+                    ref={profileImageInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) handleProfileImageFile(f);
+                      e.target.value = '';
+                    }}
+                  />
+                    {profileImagePreview && profileImageFile ? (
+                      <button
+                        type="button"
+                        onClick={uploadProfileImage}
+                        disabled={profileImageSaving}
+                        className="rounded-md bg-slate-900 px-3 py-1.5 text-sm text-white hover:bg-slate-800 disabled:opacity-60"
+                      >
+                        {profileImageSaving ? 'Saving…' : 'Save photo'}
+                      </button>
+                    ) : null}
+                  <p className="text-[11px] text-slate-500 text-center max-w-[220px]">
+                    Profile image is tied to your enrolled face. Your face photo from enrollment will appear here automatically.
+                  </p>
+                </div>
+
+                <div className="flex-1 min-w-0">
+                  <div className="rounded-xl border bg-white">
+                    <div className="px-4 py-3 border-b bg-slate-50">
+                      <div className="font-semibold text-slate-900 text-base">
+                        {profile.firstName} {profile.lastName}
+                      </div>
+                      <div className="text-xs text-slate-600 mt-0.5">@{profile.username} · {profile.employeeCode}</div>
+                    </div>
+                    <div className="p-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <label className="text-sm">
+                        <span className="font-medium text-slate-700">Mobile</span>
+                        <input
+                          value={profileForm.mobile}
+                          onChange={(e) => setProfileForm((p) => ({ ...p, mobile: e.target.value }))}
+                          className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+                        />
+                      </label>
+                      <label className="text-sm">
+                        <span className="font-medium text-slate-700">Department</span>
+                        <input
+                          value={profileForm.department}
+                          onChange={(e) => setProfileForm((p) => ({ ...p, department: e.target.value }))}
+                          className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+                        />
+                      </label>
+                      <label className="text-sm">
+                        <span className="font-medium text-slate-700">Designation</span>
+                        <input
+                          value={profileForm.designation}
+                          onChange={(e) => setProfileForm((p) => ({ ...p, designation: e.target.value }))}
+                          className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+                        />
+                      </label>
+                      <label className="text-sm">
+                        <span className="font-medium text-slate-700">Category</span>
+                        <input
+                          value={profileForm.category}
+                          onChange={(e) => setProfileForm((p) => ({ ...p, category: e.target.value }))}
+                          className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+                        />
+                      </label>
+                    </div>
+                    <div className="px-4 py-3 border-t bg-slate-50 flex items-center justify-between">
+                      <div className="text-xs text-slate-600">Last saved automatically when changing details.</div>
+                      <button
+                        type="button"
+                        onClick={saveProfile}
+                        disabled={profileFormSaving}
+                        className="rounded-md bg-slate-900 px-4 py-2 text-sm text-white hover:bg-slate-800 disabled:opacity-60"
+                      >
+                        {profileFormSaving ? 'Saving…' : 'Save changes'}
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <label className="text-sm">
-                  <span className="font-medium text-slate-700">Mobile</span>
-                  <input
-                    value={profileForm.mobile}
-                    onChange={(e) => setProfileForm((p) => ({ ...p, mobile: e.target.value }))}
-                    className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
-                  />
-                </label>
-                <label className="text-sm">
-                  <span className="font-medium text-slate-700">Department</span>
-                  <input
-                    value={profileForm.department}
-                    onChange={(e) => setProfileForm((p) => ({ ...p, department: e.target.value }))}
-                    className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
-                  />
-                </label>
-                <label className="text-sm">
-                  <span className="font-medium text-slate-700">Designation</span>
-                  <input
-                    value={profileForm.designation}
-                    onChange={(e) => setProfileForm((p) => ({ ...p, designation: e.target.value }))}
-                    className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
-                  />
-                </label>
-                <label className="text-sm">
-                  <span className="font-medium text-slate-700">Category</span>
-                  <input
-                    value={profileForm.category}
-                    onChange={(e) => setProfileForm((p) => ({ ...p, category: e.target.value }))}
-                    className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
-                  />
-                </label>
-              </div>
-              <button
-                type="button"
-                onClick={saveProfile}
-                disabled={profileSaving}
-                className="rounded-md bg-slate-900 px-4 py-2 text-sm text-white hover:bg-slate-800 disabled:opacity-60"
-              >
-                {profileSaving ? 'Saving…' : 'Save changes'}
-              </button>
             </div>
           ) : (
             <p className="mt-4 text-sm text-slate-600">Profile not available.</p>

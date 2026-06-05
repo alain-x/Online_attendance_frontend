@@ -73,6 +73,8 @@ export type EmployeeResponse = {
   designation?: string | null;
   category?: string | null;
   profileImageUrl?: string | null;
+  _profileImageAvailable?: boolean;
+  _companyLogoUrl?: string | null;
   username: string;
   email?: string | null;
   role: Role;
@@ -107,6 +109,13 @@ export type UpdateEmployeeRequest = {
   role?: Role;
   enabled?: boolean;
   hourlyRateOverride?: number | null;
+};
+
+export type UpdateMyProfileRequest = {
+  mobile?: string;
+  department?: string;
+  designation?: string;
+  category?: string;
 };
 
 export type WorkLocation = {

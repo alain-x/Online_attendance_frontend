@@ -1,27 +1,49 @@
 import http, { API_BASE_URL } from './http';
 
-import type { CreateEmployeeRequest, EmployeeResponse, UpdateEmployeeRequest } from './types';
-
-export type UpdateMyProfileRequest = {
-  mobile?: string | null;
-  department?: string | null;
-  designation?: string | null;
-  category?: string | null;
-};
+import type {
+  CreateEmployeeRequest,
+  EmployeeResponse,
+  UpdateEmployeeRequest,
+  UpdateMyProfileRequest,
+} from './types';
 
 function normalizeEmployee(e: EmployeeResponse): EmployeeResponse {
   let profileImageUrl = e.profileImageUrl;
   if (profileImageUrl && (profileImageUrl.startsWith('/uploads/') || profileImageUrl.startsWith('uploads/'))) {
-    profileImageUrl = `/api/employees/${e.id}/profile/image`;
+    profileImageUrl = `${API_BASE_URL}/api/employees/${e.id}/profile/image`;
   }
   if (profileImageUrl && profileImageUrl.startsWith('/')) {
-    return { ...e, profileImageUrl: `${API_BASE_URL}${profileImageUrl}` };
+    profileImageUrl = `${API_BASE_URL}${profileImageUrl}`;
   }
-  return e;
+  const hasImage = Boolean(profileImageUrl && !profileImageUrl.includes('null') && !profileImageUrl.startsWith('data:'));
+  return { ...e, profileImageUrl: profileImageUrl || (hasImage ? undefined : null), _profileImageAvailable: hasImage || !profileImageUrl };
 }
 
 export function profileImageDownloadUrl(employeeId: number): string {
   return `${API_BASE_URL}/api/employees/${employeeId}/profile/image?download=true`;
+}
+
+export function profileImageUrl(employeeId: number): string {
+  return `${API_BASE_URL}/api/employees/${employeeId}/profile/image`;
+}
+
+export async function updateMyProfileImage(imageFile: File): Promise<{ message: string; profileImageUrl: string | null }> {
+  const form = new FormData();
+  form.append('image', imageFile);
+  const res = await http.post('/api/employees/me/profile/image', form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return res.data;
+}
+
+export async function deleteMyProfileImage(): Promise<{ message: string }> {
+  const res = await http.delete('/api/employees/me/profile/image');
+  return res.data;
+}
+
+export async function getMyProfileImageUrl(): Promise<{ profileImageUrl: string | null }> {
+  const res = await http.get('/api/employees/me/profile/image-url');
+  return res.data;
 }
 
 export async function getMyProfile(): Promise<EmployeeResponse> {
