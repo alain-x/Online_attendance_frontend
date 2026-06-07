@@ -16,19 +16,26 @@ const ManagerDashboard = lazy(() => import('./pages/ManagerDashboard'));
 const AuditorDashboard = lazy(() => import('./pages/AuditorDashboard'));
 const PublicFormPage = lazy(() => import('./pages/PublicFormPage'));
 
+const SportsClubPage = lazy(() => import('./pages/sports/SportsClubPage'));
+const PlayerDashboard = lazy(() => import('./pages/PlayerDashboard'));
+const ParentDashboard = lazy(() => import('./pages/ParentDashboard'));
+
 function RoleHomeRedirect() {
   const { user, loading } = useAuth();
 
   if (loading) return null;
   if (!user) return <Navigate to="/login" replace />;
 
-  if (user.role === 'SYSTEM_ADMIN') return <Navigate to="/system-admin" replace />;
+  if (user.role === 'SYSTEM_ADMIN') return <Navigate to="/sports" replace />;
   if (user.role === 'AUDITOR') return <Navigate to="/auditor" replace />;
   if (user.role === 'PAYROLL') return <Navigate to="/payroll" replace />;
   if (user.role === 'RECORDER') return <Navigate to="/recorder" replace />;
   if (user.role === 'EMPLOYEE') return <Navigate to="/employee" replace />;
   if (user.role === 'HR') return <Navigate to="/hr" replace />;
   if (user.role === 'MANAGER') return <Navigate to="/manager" replace />;
+  if (user.role === 'ADMIN' || user.role === 'CLUB_ADMIN' || user.role === 'COACH' || user.role === 'TEAM_MANAGER') return <Navigate to="/sports" replace />;
+  if (user.role === 'PLAYER') return <Navigate to="/player" replace />;
+  if (user.role === 'PARENT') return <Navigate to="/parent" replace />;
   return <Navigate to="/admin" replace />;
 }
 
@@ -111,6 +118,33 @@ function App() {
           element={
             <ProtectedRoute roles={['SYSTEM_ADMIN']}>
               <SystemAdminDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/sports"
+          element={
+            <ProtectedRoute roles={['CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'ADMIN']}>
+              <SportsClubPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/player"
+          element={
+            <ProtectedRoute roles={['PLAYER', 'CLUB_ADMIN', 'COACH']}>
+              <PlayerDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/parent"
+          element={
+            <ProtectedRoute roles={['PARENT', 'CLUB_ADMIN']}>
+              <ParentDashboard />
             </ProtectedRoute>
           }
         />

@@ -247,7 +247,8 @@ export default function EmployeeDashboard() {
         return;
       }
       const descriptorJson = faceResult.descriptor ? JSON.stringify(faceResult.descriptor) : undefined;
-      await enrollFace(descriptorJson, enrollImage);
+      const enrollResponse = await enrollFace(descriptorJson, enrollImage);
+      console.log('Face enrollment response:', enrollResponse);
       setEnrollImage(null);
       stopEnrollCamera();
       setShowFaceModal(false);
@@ -258,6 +259,7 @@ export default function EmployeeDashboard() {
       
       // Reload profile to show updated image
       const updatedProfile = await getMyProfile();
+      console.log('Updated profile after enrollment:', updatedProfile);
       setProfile(updatedProfile);
       
       // Force update image preview with cache buster
@@ -267,7 +269,10 @@ export default function EmployeeDashboard() {
         const cacheBustedUrl = imageUrl.includes('?') 
           ? `${imageUrl}&t=${Date.now()}` 
           : `${imageUrl}?t=${Date.now()}`;
+        console.log('Setting profile image preview:', cacheBustedUrl);
         setProfileImagePreview(cacheBustedUrl);
+      } else {
+        console.warn('No profileImageUrl in updated profile');
       }
       
       setProfileForm({
@@ -1053,7 +1058,11 @@ export default function EmployeeDashboard() {
                               alt="Profile"
                               className="h-32 w-32 sm:h-40 sm:w-40 rounded-full object-cover border-4 border-white shadow-lg"
                               referrerPolicy="no-referrer"
-                              onError={() => setProfileImagePreview(null)}
+                              onError={(e) => {
+                                console.error('Profile image failed to load:', profileImagePreview);
+                                setProfileImagePreview(null);
+                              }}
+                              onLoad={() => console.log('Profile image loaded successfully:', profileImagePreview)}
                             />
                             {/* Face enrolled badge */}
                             <div className="absolute bottom-0 right-0 bg-emerald-500 rounded-full p-2 border-4 border-white shadow-lg">

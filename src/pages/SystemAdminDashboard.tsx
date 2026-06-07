@@ -303,6 +303,7 @@ export default function SystemAdminDashboard() {
 
   const sidebarItems = useMemo(
     () => [
+      { key: 'sports_club_nav', label: 'Sports Club' },
       { key: 'companies', label: 'Companies' },
       { key: 'create_company', label: 'Create Company' },
       { key: 'billing', label: 'Billing (Invoices & Receipts)' },
@@ -744,7 +745,7 @@ export default function SystemAdminDashboard() {
   }
 
   return (
-    <AppLayout title="" sidebarItems={sidebarItems} activeSidebarKey={section} onSidebarChange={(k) => setSection(k as any)}>
+    <AppLayout title="" sidebarItems={sidebarItems} activeSidebarKey={section} onSidebarChange={(k) => { if (k === 'sports_club_nav') { navigate('/sports'); return; } setSection(k as any); }}>
       {toast && <Toast message={toast.message} type={toast.type} onClose={hideToast} />}
 
       <div className="space-y-4">
@@ -752,7 +753,10 @@ export default function SystemAdminDashboard() {
           <div className="text-sm font-semibold text-slate-900">Quick navigation</div>
           <div className="mt-1 text-sm text-slate-600">Open any dashboard with full access.</div>
           <div className="mt-3 flex flex-wrap gap-2">
-            <button type="button" className="rounded-md bg-slate-900 px-3 py-2 text-sm text-white hover:bg-slate-800" onClick={() => navigate('/admin')}>
+            <button type="button" className="rounded-md bg-slate-900 px-3 py-2 text-sm text-white hover:bg-slate-800" onClick={() => navigate('/sports')}>
+              Sports Club
+            </button>
+            <button type="button" className="rounded-md border px-3 py-2 text-sm hover:bg-slate-50" onClick={() => navigate('/admin')}>
               Admin
             </button>
             <button type="button" className="rounded-md border px-3 py-2 text-sm hover:bg-slate-50" onClick={() => navigate('/payroll')}>

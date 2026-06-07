@@ -202,6 +202,48 @@ export default function Sidebar({ items, activeKey, onChange, className, showBra
         <path d="M9 15h4" />
       </Icon>
     ),
+    employee_nav: (
+      <Icon>
+        <path d="M16 7a4 4 0 11-8 0 4 4 0 018 0z" />
+        <path d="M12 14a8 8 0 00-8 8h16a8 8 0 00-8-8z" />
+      </Icon>
+    ),
+    recorder_nav: (
+      <Icon>
+        <circle cx="12" cy="12" r="9" />
+        <circle cx="12" cy="12" r="3" />
+      </Icon>
+    ),
+    hr_nav: (
+      <Icon>
+        <path d="M17 21a4 4 0 00-4-4H7a4 4 0 00-4 4" />
+        <path d="M10 13a4 4 0 100-8 4 4 0 000 8z" />
+      </Icon>
+    ),
+    manager_nav: (
+      <Icon>
+        <path d="M12 1v22" />
+        <path d="M17 5H9.5a3.5 3.5 0 000 7H14a3.5 3.5 0 010 7H6" />
+      </Icon>
+    ),
+    payroll_nav: (
+      <Icon>
+        <path d="M4 19V5" />
+        <path d="M4 19h16" />
+        <path d="M8 15l3-3 3 2 4-6" />
+      </Icon>
+    ),
+    auditor_nav: (
+      <Icon>
+        <path d="M10 2h4" />
+        <path d="M12 14v-4" />
+        <path d="M12 14h3" />
+        <path d="M6 6h12" />
+        <path d="M6 10h6" />
+        <path d="M6 14h4" />
+        <path d="M6 18h12" />
+      </Icon>
+    ),
   };
 
   return (
