@@ -14,12 +14,14 @@ import PaymentsPage from './PaymentsPage';
 import UsersPage from './UsersPage';
 import AttendanceSection from './AttendanceSection';
 import SportsPage from './SportsPage';
+import { useChatNotifier } from './useChatNotifier';
 
 export default function SportsClubPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [section, setSection] = useState('dashboard');
+  const { totalUnread, clearUnread } = useChatNotifier();
 
   useEffect(() => {
     const state = location.state as { section?: string } | null;
@@ -42,7 +44,7 @@ export default function SportsClubPage() {
       { key: 'matches', label: 'Matches' },
       { key: 'evaluations', label: 'Evaluations' },
       { key: 'schedule', label: 'Schedule' },
-      { key: 'chat', label: 'Chat' },
+      { key: 'chat', label: 'Chat', badge: totalUnread },
       { key: 'payments', label: 'Payments' },
       { key: 'attendance', label: 'Attendance' },
     ];
@@ -98,7 +100,7 @@ export default function SportsClubPage() {
       {section === 'matches' && <MatchesPage />}
       {section === 'evaluations' && <EvaluationsPage />}
       {section === 'schedule' && <SchedulePage />}
-      {section === 'chat' && <ChatPage />}
+      {section === 'chat' && <ChatPage onUnreadCleared={clearUnread} />}
       {section === 'payments' && <PaymentsPage />}
       {section === 'attendance' && <AttendanceSection />}
       {section === 'users' && <UsersPage />}

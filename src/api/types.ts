@@ -740,6 +740,9 @@ export type ChatMessage = {
   fileSize: number | null;
   mimeType: string | null;
   createdAt: string;
+  parentMessageId: number | null;
+  parentContent: string | null;
+  parentSenderName: string | null;
 };
 
 export type SendMessageRequest = {
@@ -749,6 +752,7 @@ export type SendMessageRequest = {
   fileName?: string;
   fileSize?: number;
   mimeType?: string;
+  parentMessageId?: number;
 };
 
 export type ChatParticipant = {

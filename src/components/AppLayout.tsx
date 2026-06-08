@@ -5,6 +5,7 @@ import Sidebar from './Sidebar';
 type SidebarItem = {
   key: string;
   label: string;
+  badge?: number;
 };
 
 type AppLayoutProps = {

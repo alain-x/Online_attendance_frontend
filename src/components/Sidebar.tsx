@@ -4,6 +4,7 @@ import { useAuth } from '../auth/AuthContext';
 type SidebarItem = {
   key: string;
   label: string;
+  badge?: number;
 };
 
 type ItemProps = {
@@ -11,9 +12,10 @@ type ItemProps = {
   label: string;
   onClick: () => void;
   icon?: React.ReactNode;
+  badge?: number;
 };
 
-function Item({ active, label, onClick, icon }: ItemProps) {
+function Item({ active, label, onClick, icon, badge }: ItemProps) {
   return (
     <button
       type="button"
@@ -26,6 +28,11 @@ function Item({ active, label, onClick, icon }: ItemProps) {
     >
       {icon && <span className="text-lg">{icon}</span>}
       <span className="truncate">{label}</span>
+      {(badge ?? 0) > 0 && (
+        <span className="ml-auto bg-red-500 text-white text-[10px] font-bold min-w-[18px] h-[18px] flex items-center justify-center rounded-full px-1">
+          {badge! > 99 ? '99+' : badge}
+        </span>
+      )}
     </button>
   );
 }
@@ -278,6 +285,7 @@ export default function Sidebar({ items, activeKey, onChange, className, showBra
             active={it.key === activeKey}
             onClick={() => onChange(it.key)}
             icon={icons[it.key]}
+            badge={it.badge}
           />
         ))}
       </div>

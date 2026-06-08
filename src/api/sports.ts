@@ -292,6 +292,9 @@ export async function addChatParticipant(roomId: number, userId: number): Promis
 export async function removeChatParticipant(roomId: number, userId: number): Promise<void> {
   await http.delete(`/api/sports/chat/rooms/${roomId}/participants/${userId}`);
 }
+export async function deleteChatMessage(roomId: number, messageId: number): Promise<void> {
+  await http.delete(`/api/sports/chat/rooms/${roomId}/messages/${messageId}`);
+}
 
 export async function getMyChildren(): Promise<ParentLink[]> {
   const res = await http.get<ParentLink[]>('/api/sports/parents/my-children');
