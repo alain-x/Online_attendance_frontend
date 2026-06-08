@@ -745,50 +745,6 @@ export default function PayrollDashboard() {
           )}
         </div>
       ) : null}
-              </div>
-
-              <div className="grid gap-4">
-                <div className="rounded-xl border bg-white p-4">
-                  <div className="text-sm font-semibold text-slate-900">Insights</div>
-                  <div className="mt-2 space-y-2 text-sm text-slate-700">
-                    <div className="rounded-lg bg-slate-50 p-3">
-                      <div className="text-xs text-slate-500">Employees</div>
-                      <div className="mt-1 font-semibold text-slate-900">{payroll!.rows.length}</div>
-                    </div>
-                    <div className="rounded-lg bg-slate-50 p-3">
-                      <div className="text-xs text-slate-500">Default rate</div>
-                      <div className="mt-1 font-semibold text-slate-900">{payroll!.companyHourlyRateDefault != null ? money(payroll!.companyHourlyRateDefault) : 'Not set'}</div>
-                    </div>
-                    <div className="rounded-lg bg-slate-50 p-3">
-                      <div className="text-xs text-slate-500">Best target completion</div>
-                      <div className="mt-1 font-semibold text-slate-900">
-                        {overviewCharts && overviewCharts.topRegularPct.length > 0 ? (
-                          <span>
-                            {overviewCharts!.topRegularPct[0].r.firstName} {overviewCharts!.topRegularPct[0].r.lastName} ({Math.round(overviewCharts!.topRegularPct[0].pct * 100)}%)
-                          </span>
-                        ) : (
-                          '—'
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="rounded-xl border bg-white p-4">
-                  <div className="text-sm font-semibold text-slate-900">Next actions</div>
-                  <div className="mt-2 text-sm text-slate-600">
-                    Approve company-purpose clock-outs to include them as paid hours. Use Payroll Summary to export or audit calculations.
-                  </div>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="rounded-xl border bg-white px-4 py-10 text-center text-sm text-slate-600">
-              No payroll data yet. Select a range and click Refresh.
-            </div>
-          )}
-        </div>
-      ) : null}
 
       {section === 'approvals' ? (
         <div className="space-y-4">
