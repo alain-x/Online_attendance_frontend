@@ -2181,8 +2181,8 @@ export default function AdminDashboard() {
                     <p className="text-xs text-slate-500">{getMonthRangeLabel(selectedYear, selectedMonth)}</p>
                   </div>
                   {effectiveHome.monthClockIns && effectiveHome.monthClockIns.length > 0 ? (
-                    <div className="h-64">
-                      <ResponsiveContainer width="100%" height="100%">
+                    <div className="h-64 min-w-0">
+                      <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                         <BarChart data={effectiveHome.monthClockIns.map((d: { day: string; count: number }) => ({
                           day: typeof d.day === 'string' && d.day.length === 10 ? d.day.slice(8) : d.day,
                           Count: d.count,
@@ -2209,8 +2209,8 @@ export default function AdminDashboard() {
                       <p className="text-xs text-slate-500">{new Date().toLocaleDateString()}</p>
                     </div>
                     <div className="flex items-center gap-4">
-                      <div className="h-36 w-36 shrink-0">
-                        <ResponsiveContainer width="100%" height="100%">
+                      <div className="h-36 w-36 shrink-0 min-w-0">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                           <PieChart>
                             <Pie data={[
                               { name: 'Present', value: effectiveHome.presentToday },

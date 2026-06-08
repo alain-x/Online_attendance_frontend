@@ -271,8 +271,8 @@ export default function AuditorDashboard() {
             <div className="grid gap-6 lg:grid-cols-2">
               <div className="rounded-xl border bg-white p-5">
                 <h3 className="mb-4 font-semibold text-slate-900">Top Employees by Hours</h3>
-                <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
+                <div className="h-64 min-w-0">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                     <BarChart
                       data={(payroll?.rows ?? []).slice(0, 10).sort((a, b) => b.workedMinutes - a.workedMinutes).map((r) => ({
                         name: `${r.firstName} ${r.lastName}`.length > 14 ? `${r.firstName} ${r.lastName}`.slice(0, 13) + '\u2026' : `${r.firstName} ${r.lastName}`,
@@ -293,8 +293,8 @@ export default function AuditorDashboard() {
 
               <div className="rounded-xl border bg-white p-5">
                 <h3 className="mb-4 font-semibold text-slate-900">Pay Distribution</h3>
-                <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
+                <div className="h-64 min-w-0">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                     <PieChart>
                       <Pie
                         data={(payroll?.rows ?? []).slice(0, 8).map((r, idx) => ({

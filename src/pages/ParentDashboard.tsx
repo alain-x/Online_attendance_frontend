@@ -191,8 +191,8 @@ export default function ParentDashboard() {
               <div className="rounded-xl border bg-white p-5">
                 <h3 className="mb-4 font-semibold text-slate-900">Payment Status</h3>
                 <div className="flex items-center gap-6">
-                  <div className="h-40 w-40 shrink-0">
-                    <ResponsiveContainer width="100%" height="100%">
+                  <div className="h-40 w-40 shrink-0 min-w-0">
+                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                       <PieChart>
                         <Pie data={[
                           { name: 'Paid', value: paymentStats.paid },

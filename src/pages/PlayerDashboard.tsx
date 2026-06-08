@@ -260,8 +260,8 @@ export default function PlayerDashboard() {
                 <p className="text-xs text-slate-500">Stats across seasons</p>
               </div>
               {seasonStatsData.length > 0 ? (
-                <div className="h-72">
-                  <ResponsiveContainer width="100%" height="100%">
+                <div className="h-72 min-w-0">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                     <BarChart data={seasonStatsData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                       <XAxis dataKey="season" tick={{ fontSize: 11, fill: '#64748b' }} />
@@ -288,8 +288,8 @@ export default function PlayerDashboard() {
                     <h3 className="font-semibold text-slate-900">Skill Assessment</h3>
                     <p className="text-xs text-slate-500">{latestEval?.period} - {latestEval?.teamName}</p>
                   </div>
-                  <div className="h-56">
-                    <ResponsiveContainer width="100%" height="100%">
+                  <div className="h-56 min-w-0">
+                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                       <RadarChart data={latestEvalCriteria}>
                         <PolarGrid stroke="#e2e8f0" />
                         <PolarAngleAxis dataKey="criterion" tick={{ fontSize: 10, fill: '#64748b' }} />
@@ -309,8 +309,8 @@ export default function PlayerDashboard() {
                     <p className="text-xs text-slate-500">{completedMatches.length} completed matches</p>
                   </div>
                   <div className="flex items-center gap-4">
-                    <div className="h-40 w-40 shrink-0">
-                      <ResponsiveContainer width="100%" height="100%">
+                    <div className="h-40 w-40 shrink-0 min-w-0">
+                      <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                         <PieChart>
                           <Pie data={winLossDraw} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={35} outerRadius={65} paddingAngle={3}>
                             {winLossDraw.map((entry, i) => (
@@ -344,8 +344,8 @@ export default function PlayerDashboard() {
                   <h3 className="font-semibold text-slate-900">Performance Rating Trend</h3>
                   <p className="text-xs text-slate-500">Coach evaluation scores over time</p>
                 </div>
-                <div className="h-56">
-                  <ResponsiveContainer width="100%" height="100%">
+                <div className="h-56 min-w-0">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                     <LineChart data={ratingTrendData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                       <XAxis dataKey="period" tick={{ fontSize: 10, fill: '#64748b' }} />
@@ -498,8 +498,8 @@ export default function PlayerDashboard() {
                 <h3 className="font-semibold text-slate-900">Season Comparison - All Stats</h3>
                 <p className="text-xs text-slate-500">Complete performance breakdown by season</p>
               </div>
-              <div className="h-80">
-                <ResponsiveContainer width="100%" height="100%">
+              <div className="h-80 min-w-0">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                   <BarChart data={seasonStatsData} margin={{ top: 10, right: 30, left: 0, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                     <XAxis dataKey="season" tick={{ fontSize: 12, fill: '#64748b' }} />
@@ -524,8 +524,8 @@ export default function PlayerDashboard() {
                 <h3 className="font-semibold text-slate-900">Training Attendance Rate</h3>
                 <p className="text-xs text-slate-500">Percentage of sessions attended</p>
               </div>
-              <div className="h-56">
-                <ResponsiveContainer width="100%" height="100%">
+              <div className="h-56 min-w-0">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                   <BarChart data={seasonStatsData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                     <XAxis dataKey="season" tick={{ fontSize: 11, fill: '#64748b' }} />
@@ -546,8 +546,8 @@ export default function PlayerDashboard() {
                 <p className="text-xs text-slate-500">Coach rating trend</p>
               </div>
               {ratingTrendData.length > 1 ? (
-                <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
+                <div className="h-64 min-w-0">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                     <LineChart data={ratingTrendData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                       <XAxis dataKey="period" tick={{ fontSize: 11, fill: '#64748b' }} />

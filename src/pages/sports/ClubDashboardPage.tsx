@@ -100,8 +100,8 @@ export default function ClubDashboardPage({ onNavigate }: ClubDashboardPageProps
       <div className="mt-8 grid gap-6 lg:grid-cols-2">
         <div className="rounded-xl border bg-white p-5">
           <h3 className="mb-4 font-semibold text-slate-900">Club Overview</h3>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
+          <div className="h-64 min-w-0">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
               <BarChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                 <XAxis dataKey="name" tick={{ fontSize: 12, fill: '#64748b' }} />
@@ -118,8 +118,8 @@ export default function ClubDashboardPage({ onNavigate }: ClubDashboardPageProps
         <div className="rounded-xl border bg-white p-5">
           <h3 className="mb-4 font-semibold text-slate-900">Upcoming Activities</h3>
           {hasUpcoming ? (
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
+            <div className="h-64 min-w-0">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                 <PieChart>
                   <Pie
                     data={upcomingData}

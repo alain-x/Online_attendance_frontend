@@ -268,8 +268,8 @@ export default function HRDashboard() {
             <div className="grid gap-6 lg:grid-cols-2">
               <div className="rounded-xl border bg-white p-5">
                 <h3 className="mb-4 font-semibold text-slate-900">Staff by Department</h3>
-                <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
+                <div className="h-64 min-w-0">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                     <BarChart data={staffDepartmentOptions.slice(0, 10).map((d) => ({
                       name: d.length > 12 ? d.slice(0, 12) + '\u2026' : d,
                       count: employees.filter((e) => (e.department || '').trim() === d).length,
@@ -286,8 +286,8 @@ export default function HRDashboard() {
 
               <div className="rounded-xl border bg-white p-5">
                 <h3 className="mb-4 font-semibold text-slate-900">Department Distribution</h3>
-                <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
+                <div className="h-64 min-w-0">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                     <PieChart>
                       <Pie
                         data={staffDepartmentOptions.slice(0, 8).map((d, idx) => ({

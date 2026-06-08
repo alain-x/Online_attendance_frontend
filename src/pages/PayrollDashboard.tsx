@@ -585,8 +585,8 @@ export default function PayrollDashboard() {
                 <div className="rounded-xl border bg-white p-5">
                   <h3 className="mb-4 font-semibold text-slate-900">Pay Distribution</h3>
                   <div className="flex items-center gap-6">
-                    <div className="h-44 w-44 shrink-0">
-                      <ResponsiveContainer width="100%" height="100%">
+                    <div className="h-44 w-44 shrink-0 min-w-0">
+                      <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                         <PieChart>
                           <Pie data={[
                             { name: 'Regular Pay', value: Math.max(0, Number(payroll.totalGrossPay) - Number(payroll.totalNetPay)) },
@@ -669,8 +669,8 @@ export default function PayrollDashboard() {
                   <div className="rounded-xl border bg-white p-5">
                     <h3 className="mb-4 font-semibold text-slate-900">Top Overtime (minutes)</h3>
                     {overviewCharts.topOvertime.length > 0 ? (
-                      <div className="h-56">
-                        <ResponsiveContainer width="100%" height="100%">
+                      <div className="h-56 min-w-0">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                           <BarChart data={overviewCharts.topOvertime.slice(0, 8).map((r: any) => ({
                             name: `${r.firstName} ${r.lastName}`.length > 12 ? `${r.firstName} ${r.lastName}`.slice(0, 12) + '\u2026' : `${r.firstName} ${r.lastName}`,
                             Overtime: r.overtimeMinutes,
@@ -690,8 +690,8 @@ export default function PayrollDashboard() {
                   <div className="rounded-xl border bg-white p-5">
                     <h3 className="mb-4 font-semibold text-slate-900">Top Deficit (minutes)</h3>
                     {overviewCharts.topDeficit.length > 0 ? (
-                      <div className="h-56">
-                        <ResponsiveContainer width="100%" height="100%">
+                      <div className="h-56 min-w-0">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                           <BarChart data={overviewCharts.topDeficit.slice(0, 8).map((r: any) => ({
                             name: `${r.firstName} ${r.lastName}`.length > 12 ? `${r.firstName} ${r.lastName}`.slice(0, 12) + '\u2026' : `${r.firstName} ${r.lastName}`,
                             Deficit: r.deficitMinutes,
