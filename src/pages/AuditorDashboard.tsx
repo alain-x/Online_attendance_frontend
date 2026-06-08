@@ -7,6 +7,7 @@ import { getPayrollSummary } from '../api/payroll';
 import { useAuth } from '../auth/AuthContext';
 import { useToast } from '../hooks/useToast';
 import { useNavigate } from 'react-router-dom';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
 import type { PayrollSummaryResponse } from '../api/types';
 
@@ -104,8 +105,8 @@ export default function AuditorDashboard() {
   }
 
   useEffect(() => {
-    if (section !== 'payroll') return;
-    loadPayroll();
+    if (section !== 'payroll' && section !== 'overview') return;
+    if (!payroll) loadPayroll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [section]);
 
@@ -221,52 +222,147 @@ export default function AuditorDashboard() {
         </div>
 
         {section === 'overview' ? (
-          <div className="grid gap-4 lg:grid-cols-12">
-            <div className="lg:col-span-8 grid gap-4">
-              <div className="rounded-xl border bg-white p-4 shadow-sm">
-                <div className="text-sm font-semibold text-slate-900">Audit focus</div>
-                <div className="mt-1 text-sm text-slate-600">Track payroll summaries and export compliance datasets.</div>
-                <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                  <div className="rounded-lg border bg-slate-50 p-3">
-                    <div className="text-xs font-medium text-slate-600">Payroll runs</div>
-                    <div className="mt-1 text-2xl font-bold text-slate-900">—</div>
-                    <div className="mt-1 text-xs text-slate-500">Coming soon</div>
+          <div className="space-y-6">
+            <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-800 via-slate-700 to-slate-600 p-6 sm:p-8">
+              <div className="absolute -right-8 -top-8 h-40 w-40 rounded-full bg-white/5 blur-2xl" />
+              <div className="absolute -bottom-6 -left-6 h-32 w-32 rounded-full bg-white/5 blur-xl" />
+              <div className="relative">
+                <h1 className="text-2xl font-bold text-white sm:text-3xl">Auditor Overview</h1>
+                <p className="mt-1 text-sm text-slate-300">Read-only access to payroll, compliance, and export controls.</p>
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div className="rounded-xl bg-gradient-to-br from-slate-600 to-slate-700 p-5 text-white shadow-lg">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-3xl font-bold">{payroll ? Math.round(payroll.totalWorkedMinutes / 60) : '\u2014'}</div>
+                    <div className="mt-1 text-sm font-medium text-white/80">Total Hours</div>
                   </div>
-                  <div className="rounded-lg border bg-slate-50 p-3">
-                    <div className="text-xs font-medium text-slate-600">Export jobs</div>
-                    <div className="mt-1 text-2xl font-bold text-slate-900">—</div>
-                    <div className="mt-1 text-xs text-slate-500">Coming soon</div>
-                  </div>
-                  <div className="rounded-lg border bg-slate-50 p-3">
-                    <div className="text-xs font-medium text-slate-600">Flags</div>
-                    <div className="mt-1 text-2xl font-bold text-slate-900">—</div>
-                    <div className="mt-1 text-xs text-slate-500">Coming soon</div>
-                  </div>
+                  <svg className="h-10 w-10 text-white/30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
                 </div>
               </div>
-
-              <div className="rounded-xl border bg-white p-4 shadow-sm">
-                <div className="text-sm font-semibold text-slate-900">Quick actions</div>
-                <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                  <button type="button" className="rounded-lg border bg-white px-4 py-3 text-left hover:bg-slate-50" onClick={() => setSection('payroll')}>
-                    <div className="text-sm font-medium text-slate-900">View payroll summary</div>
-                    <div className="mt-1 text-xs text-slate-600">Review totals, overtime, and salary figures.</div>
-                  </button>
-                  <button type="button" className="rounded-lg border bg-white px-4 py-3 text-left hover:bg-slate-50" onClick={() => setSection('exports')}>
-                    <div className="text-sm font-medium text-slate-900">Export data</div>
-                    <div className="mt-1 text-xs text-slate-600">Download compliance exports and audit packs.</div>
-                  </button>
+              <div className="rounded-xl bg-gradient-to-br from-emerald-600 to-emerald-700 p-5 text-white shadow-lg">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-3xl font-bold">{payroll ? payroll.totalGrossPay.toFixed(2) : '\u2014'}</div>
+                    <div className="mt-1 text-sm font-medium text-white/80">Total Gross Pay</div>
+                  </div>
+                  <svg className="h-10 w-10 text-white/30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+              </div>
+              <div className="rounded-xl bg-gradient-to-br from-amber-600 to-amber-700 p-5 text-white shadow-lg">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-3xl font-bold">{payroll ? payroll.rows.length : '\u2014'}</div>
+                    <div className="mt-1 text-sm font-medium text-white/80">Employees Audited</div>
+                  </div>
+                  <svg className="h-10 w-10 text-white/30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                  </svg>
                 </div>
               </div>
             </div>
 
-            <div className="lg:col-span-4 grid gap-4">
-              <div className="rounded-xl border bg-white p-4 shadow-sm">
-                <div className="text-sm font-semibold text-slate-900">Compliance notes</div>
-                <div className="mt-1 text-sm text-slate-600">Store audit notes and export evidence.</div>
-                <div className="mt-3">
-                  <EmptyState title="Coming soon" description="Audit notes and compliance evidence features will be added here." />
+            <div className="grid gap-6 lg:grid-cols-2">
+              <div className="rounded-xl border bg-white p-5">
+                <h3 className="mb-4 font-semibold text-slate-900">Top Employees by Hours</h3>
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={(payroll?.rows ?? []).slice(0, 10).sort((a, b) => b.workedMinutes - a.workedMinutes).map((r) => ({
+                        name: `${r.firstName} ${r.lastName}`.length > 14 ? `${r.firstName} ${r.lastName}`.slice(0, 13) + '\u2026' : `${r.firstName} ${r.lastName}`,
+                        hours: Math.round(r.workedMinutes / 60),
+                      }))}
+                      margin={{ top: 10, right: 20, left: 0, bottom: 5 }}
+                      layout="vertical"
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                      <XAxis type="number" tick={{ fontSize: 11, fill: '#64748b' }} />
+                      <YAxis type="category" dataKey="name" tick={{ fontSize: 10, fill: '#64748b' }} width={110} />
+                      <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                      <Bar dataKey="hours" fill="#64748b" radius={[0, 4, 4, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
                 </div>
+              </div>
+
+              <div className="rounded-xl border bg-white p-5">
+                <h3 className="mb-4 font-semibold text-slate-900">Pay Distribution</h3>
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={(payroll?.rows ?? []).slice(0, 8).map((r, idx) => ({
+                          name: `${r.firstName} ${r.lastName}`,
+                          value: r.netPay,
+                        }))}
+                        cx="50%" cy="50%" innerRadius={55} outerRadius={85} paddingAngle={3}
+                        dataKey="value"
+                        label={({ name, percent }: { name?: string; percent?: number }) => `${((percent ?? 0) * 100).toFixed(0)}%`}
+                      >
+                        {(payroll?.rows ?? []).slice(0, 8).map((_, idx) => (
+                          <Cell key={idx} fill={['#64748b', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'][idx % 8]} />
+                        ))}
+                      </Pie>
+                      <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid #e2e8f0' }} formatter={(val) => typeof val === 'number' ? val.toFixed(2) : val} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-xl border bg-white p-5">
+              <h3 className="mb-4 font-semibold text-slate-900">Quick Actions</h3>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <button type="button" className="rounded-lg border bg-white px-4 py-4 text-left hover:bg-slate-50 transition-colors" onClick={() => setSection('payroll')}>
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-lg bg-slate-100 p-2 text-slate-600">
+                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                    </div>
+                    <div>
+                      <div className="text-sm font-medium text-slate-900">Payroll summary</div>
+                      <div className="mt-0.5 text-xs text-slate-500">Review totals, overtime, and salary</div>
+                    </div>
+                  </div>
+                </button>
+                <button type="button" className="rounded-lg border bg-white px-4 py-4 text-left hover:bg-slate-50 transition-colors" onClick={() => setSection('exports')}>
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-lg bg-emerald-100 p-2 text-emerald-600">
+                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                    </div>
+                    <div>
+                      <div className="text-sm font-medium text-slate-900">Export data</div>
+                      <div className="mt-0.5 text-xs text-slate-500">Download compliance exports</div>
+                    </div>
+                  </div>
+                </button>
+                <button type="button" className="rounded-lg border bg-white px-4 py-4 text-left hover:bg-slate-50 transition-colors" onClick={() => setSection('audit_log')}>
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-lg bg-amber-100 p-2 text-amber-600">
+                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" /></svg>
+                    </div>
+                    <div>
+                      <div className="text-sm font-medium text-slate-900">Audit log</div>
+                      <div className="mt-0.5 text-xs text-slate-500">Track changes to critical data</div>
+                    </div>
+                  </div>
+                </button>
+                <button type="button" className="rounded-lg border bg-white px-4 py-4 text-left hover:bg-slate-50 transition-colors opacity-50 cursor-not-allowed">
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-lg bg-purple-100 p-2 text-purple-600">
+                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+                    </div>
+                    <div>
+                      <div className="text-sm font-medium text-slate-900">Compliance check</div>
+                      <div className="mt-0.5 text-xs text-slate-500">Coming soon</div>
+                    </div>
+                  </div>
+                </button>
               </div>
             </div>
           </div>

@@ -748,35 +748,90 @@ export default function SystemAdminDashboard() {
     <AppLayout title="" sidebarItems={sidebarItems} activeSidebarKey={section} onSidebarChange={(k) => { if (k === 'sports_club_nav') { navigate('/sports'); return; } setSection(k as any); }}>
       {toast && <Toast message={toast.message} type={toast.type} onClose={hideToast} />}
 
-      <div className="space-y-4">
-        <div className="rounded-xl border bg-white p-4">
-          <div className="text-sm font-semibold text-slate-900">Quick navigation</div>
-          <div className="mt-1 text-sm text-slate-600">Open any dashboard with full access.</div>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <button type="button" className="rounded-md bg-slate-900 px-3 py-2 text-sm text-white hover:bg-slate-800" onClick={() => navigate('/sports')}>
-              Sports Club
-            </button>
-            <button type="button" className="rounded-md border px-3 py-2 text-sm hover:bg-slate-50" onClick={() => navigate('/admin')}>
-              Admin
-            </button>
-            <button type="button" className="rounded-md border px-3 py-2 text-sm hover:bg-slate-50" onClick={() => navigate('/payroll')}>
-              Payroll
-            </button>
-            <button type="button" className="rounded-md border px-3 py-2 text-sm hover:bg-slate-50" onClick={() => navigate('/hr')}>
-              HR
-            </button>
-            <button type="button" className="rounded-md border px-3 py-2 text-sm hover:bg-slate-50" onClick={() => navigate('/manager')}>
-              Manager
-            </button>
-            <button type="button" className="rounded-md border px-3 py-2 text-sm hover:bg-slate-50" onClick={() => navigate('/recorder')}>
-              Recorder
-            </button>
-            <button type="button" className="rounded-md border px-3 py-2 text-sm hover:bg-slate-50" onClick={() => navigate('/auditor')}>
-              Auditor
-            </button>
-            <button type="button" className="rounded-md border px-3 py-2 text-sm hover:bg-slate-50" onClick={() => navigate('/employee')}>
-              Employee
-            </button>
+      <div className="space-y-6">
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-700 p-6 sm:p-8">
+          <div className="absolute -right-8 -top-8 h-40 w-40 rounded-full bg-white/5 blur-2xl" />
+          <div className="absolute -bottom-6 -left-6 h-32 w-32 rounded-full bg-white/5 blur-xl" />
+          <div className="relative">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div>
+                <h1 className="text-2xl font-bold text-white sm:text-3xl">System Administration</h1>
+                <p className="mt-1 text-sm text-slate-300">Full system access — companies, branding, billing, and dashboard navigation.</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" className="rounded-md bg-white/20 px-3 py-2 text-sm text-white hover:bg-white/30 backdrop-blur-sm transition-colors" onClick={() => navigate('/sports')}>
+                  Sports
+                </button>
+                <button type="button" className="rounded-md bg-white/20 px-3 py-2 text-sm text-white hover:bg-white/30 backdrop-blur-sm transition-colors" onClick={() => navigate('/admin')}>
+                  Admin
+                </button>
+                <button type="button" className="rounded-md bg-white/20 px-3 py-2 text-sm text-white hover:bg-white/30 backdrop-blur-sm transition-colors" onClick={() => navigate('/payroll')}>
+                  Payroll
+                </button>
+                <button type="button" className="rounded-md bg-white/20 px-3 py-2 text-sm text-white hover:bg-white/30 backdrop-blur-sm transition-colors" onClick={() => navigate('/hr')}>
+                  HR
+                </button>
+                <button type="button" className="rounded-md bg-white/20 px-3 py-2 text-sm text-white hover:bg-white/30 backdrop-blur-sm transition-colors" onClick={() => navigate('/manager')}>
+                  Manager
+                </button>
+                <button type="button" className="rounded-md bg-white/20 px-3 py-2 text-sm text-white hover:bg-white/30 backdrop-blur-sm transition-colors" onClick={() => navigate('/recorder')}>
+                  Recorder
+                </button>
+                <button type="button" className="rounded-md bg-white/20 px-3 py-2 text-sm text-white hover:bg-white/30 backdrop-blur-sm transition-colors" onClick={() => navigate('/auditor')}>
+                  Auditor
+                </button>
+                <button type="button" className="rounded-md bg-white/20 px-3 py-2 text-sm text-white hover:bg-white/30 backdrop-blur-sm transition-colors" onClick={() => navigate('/employee')}>
+                  Employee
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-4">
+          <div className="rounded-xl bg-gradient-to-br from-slate-600 to-slate-700 p-5 text-white shadow-lg">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-3xl font-bold">{stats.total}</div>
+                <div className="mt-1 text-sm font-medium text-white/80">Total Companies</div>
+              </div>
+              <svg className="h-10 w-10 text-white/30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+              </svg>
+            </div>
+          </div>
+          <div className="rounded-xl bg-gradient-to-br from-emerald-600 to-emerald-700 p-5 text-white shadow-lg">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-3xl font-bold">{stats.active}</div>
+                <div className="mt-1 text-sm font-medium text-white/80">Active</div>
+              </div>
+              <svg className="h-10 w-10 text-white/30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+          </div>
+          <div className="rounded-xl bg-gradient-to-br from-rose-600 to-rose-700 p-5 text-white shadow-lg">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-3xl font-bold">{stats.inactive}</div>
+                <div className="mt-1 text-sm font-medium text-white/80">Inactive</div>
+              </div>
+              <svg className="h-10 w-10 text-white/30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+          </div>
+          <div className="rounded-xl bg-gradient-to-br from-indigo-600 to-indigo-700 p-5 text-white shadow-lg">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-3xl font-bold">{stats.roots}</div>
+                <div className="mt-1 text-sm font-medium text-white/80">Root Companies</div>
+              </div>
+              <svg className="h-10 w-10 text-white/30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </div>
           </div>
         </div>
 
@@ -1067,24 +1122,7 @@ export default function SystemAdminDashboard() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-          <div className="rounded-xl border bg-white p-4">
-            <div className="text-xs text-slate-500">Total companies</div>
-            <div className="mt-1 text-xl font-semibold text-slate-900">{stats.total}</div>
-          </div>
-          <div className="rounded-xl border bg-white p-4">
-            <div className="text-xs text-slate-500">Active</div>
-            <div className="mt-1 text-xl font-semibold text-slate-900">{stats.active}</div>
-          </div>
-          <div className="rounded-xl border bg-white p-4">
-            <div className="text-xs text-slate-500">Inactive</div>
-            <div className="mt-1 text-xl font-semibold text-slate-900">{stats.inactive}</div>
-          </div>
-          <div className="rounded-xl border bg-white p-4">
-            <div className="text-xs text-slate-500">Root companies</div>
-            <div className="mt-1 text-xl font-semibold text-slate-900">{stats.roots}</div>
-          </div>
-        </div>
+
 
         <div className="rounded-xl border bg-white">
           <div className="border-b p-4">

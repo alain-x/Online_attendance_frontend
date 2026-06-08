@@ -439,46 +439,103 @@ export default function RecorderDashboard() {
     >
       {toast && <Toast message={toast.message} type={toast.type} onClose={hideToast} />}
 
-      <div className="rounded-xl border bg-white p-4 shadow-sm">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <div className="text-lg font-semibold text-slate-900">Record attendance</div>
-            <div className="mt-1 text-sm text-slate-600">Select an employee and record check-in / check-out one by one. Camera image stays on-device.</div>
-          </div>
-          <div className="grid grid-cols-1 sm:flex sm:flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={requestLocation}
-              disabled={locationLoading}
-              className="w-full sm:w-auto rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              {locationLoading ? 'Getting location…' : 'Refresh location'}
-            </button>
-            <button
-              type="button"
-              onClick={cameraOn ? stopCamera : startCamera}
-              className="w-full sm:w-auto rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
-            >
-              {cameraOn ? 'Stop camera' : 'Start camera'}
-            </button>
+      <div className="space-y-6">
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-800 via-emerald-700 to-emerald-600 p-6 sm:p-8">
+          <div className="absolute -right-8 -top-8 h-40 w-40 rounded-full bg-white/5 blur-2xl" />
+          <div className="absolute -bottom-6 -left-6 h-32 w-32 rounded-full bg-white/5 blur-xl" />
+          <div className="relative">
+            <h1 className="text-2xl font-bold text-white sm:text-3xl">Attendance Recorder</h1>
+            <p className="mt-1 text-sm text-emerald-200">Select an employee, verify face, and record check-in / check-out.</p>
           </div>
         </div>
 
-        <div className="mt-3 flex flex-wrap gap-2">
-          <span className={readiness.employee ? 'inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 border border-emerald-200' : 'inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700 border border-slate-200'}>
-            {readiness.employee ? 'Employee selected' : 'Select employee'}
-          </span>
-          <span className={readiness.location ? 'inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 border border-emerald-200' : 'inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 border border-amber-200'}>
-            {readiness.location ? 'Location ready' : 'Location required'}
-          </span>
-          <span className={readiness.camera ? 'inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 border border-emerald-200' : 'inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 border border-amber-200'}>
-            {readiness.camera ? 'Camera on' : 'Camera required'}
-          </span>
+        <div className="grid gap-4 sm:grid-cols-4">
+          <div className="rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 p-5 text-white shadow-lg">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-3xl font-bold">{employees.length}</div>
+                <div className="mt-1 text-sm font-medium text-white/80">Employees</div>
+              </div>
+              <svg className="h-10 w-10 text-white/30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </div>
+          </div>
+          <div className="rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 p-5 text-white shadow-lg">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-3xl font-bold">{todayRows.length}</div>
+                <div className="mt-1 text-sm font-medium text-white/80">Today's Records</div>
+              </div>
+              <svg className="h-10 w-10 text-white/30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+              </svg>
+            </div>
+          </div>
+          <div className="rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 p-5 text-white shadow-lg">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-3xl font-bold">{todayRows.filter((r) => !!r.checkInTime && !r.checkOutTime).length}</div>
+                <div className="mt-1 text-sm font-medium text-white/80">Checked In</div>
+              </div>
+              <svg className="h-10 w-10 text-white/30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+              </svg>
+            </div>
+          </div>
+          <div className="rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 p-5 text-white shadow-lg">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-3xl font-bold">{todayRows.filter((r) => !!r.checkInTime && !!r.checkOutTime).length}</div>
+                <div className="mt-1 text-sm font-medium text-white/80">Completed</div>
+              </div>
+              <svg className="h-10 w-10 text-white/30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+          </div>
         </div>
 
-        {locationError ? <div className="mt-3 text-sm text-amber-700">{locationError}</div> : null}
-        {error ? <div className="mt-3 text-sm text-red-600">{error}</div> : null}
-        {enrollError ? <div className="mt-2 text-sm text-red-600">{enrollError}</div> : null}
+        <div className="rounded-xl border bg-white p-4 shadow-sm">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="text-lg font-semibold text-slate-900">Record attendance</div>
+              <div className="mt-1 text-sm text-slate-600">Select an employee and record check-in / check-out one by one. Camera image stays on-device.</div>
+            </div>
+            <div className="grid grid-cols-1 sm:flex sm:flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={requestLocation}
+                disabled={locationLoading}
+                className="w-full sm:w-auto rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {locationLoading ? 'Getting location\u2026' : 'Refresh location'}
+              </button>
+              <button
+                type="button"
+                onClick={cameraOn ? stopCamera : startCamera}
+                className="w-full sm:w-auto rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+              >
+                {cameraOn ? 'Stop camera' : 'Start camera'}
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-3 flex flex-wrap gap-2">
+            <span className={readiness.employee ? 'inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 border border-emerald-200' : 'inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700 border border-slate-200'}>
+              {readiness.employee ? 'Employee selected' : 'Select employee'}
+            </span>
+            <span className={readiness.location ? 'inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 border border-emerald-200' : 'inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 border border-amber-200'}>
+              {readiness.location ? 'Location ready' : 'Location required'}
+            </span>
+            <span className={readiness.camera ? 'inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 border border-emerald-200' : 'inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 border border-amber-200'}>
+              {readiness.camera ? 'Camera on' : 'Camera required'}
+            </span>
+          </div>
+
+          {locationError ? <div className="mt-3 text-sm text-amber-700">{locationError}</div> : null}
+          {error ? <div className="mt-3 text-sm text-red-600">{error}</div> : null}
+          {enrollError ? <div className="mt-2 text-sm text-red-600">{enrollError}</div> : null}
 
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <button
@@ -703,6 +760,7 @@ export default function RecorderDashboard() {
           </div>
         </div>
         ) : null}
+      </div>
       </div>
     </AppLayout>
   );

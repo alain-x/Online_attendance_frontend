@@ -1402,70 +1402,97 @@ export default function EmployeeDashboard() {
 
       {section === 'day' ? (
       <>
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <div className="text-2xl font-bold text-slate-900">Employee Dashboard</div>
-          <div className="mt-1 text-sm text-slate-600">Check in/out with GPS and required photo verification (must match enrolled face).</div>
-          {activeRecord && (
-            <div className="mt-3 inline-flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2">
-              <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-sm font-medium text-emerald-700">Currently checked in</span>
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-700 p-6 sm:p-8">
+        <div className="absolute -right-8 -top-8 h-40 w-40 rounded-full bg-white/5 blur-2xl" />
+        <div className="absolute -bottom-6 -left-6 h-32 w-32 rounded-full bg-white/5 blur-xl" />
+        <div className="relative">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold text-white sm:text-3xl">Good day, {user?.username || 'Employee'}</h1>
+              <p className="mt-1 text-sm text-slate-300">Check in/out with GPS and face verification.</p>
+              {activeRecord && (
+                <div className="mt-3 inline-flex items-center gap-2 rounded-lg bg-emerald-500/20 px-3 py-2">
+                  <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="text-sm font-medium text-emerald-300">Currently checked in</span>
+                </div>
+              )}
             </div>
-          )}
-        </div>
-        <div className="flex flex-wrap gap-2 justify-end">
-          <button
-            type="button"
-            onClick={openCheckInModal}
-            disabled={loading || !!activeRecord}
-            className="rounded-md bg-emerald-600 px-4 py-2 text-white hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2 transition-colors shadow-sm"
-          >
-            {loading && <LoadingSpinner size="sm" className="text-white" />}
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Check in
-          </button>
-          <button
-            type="button"
-            onClick={openCheckOutModal}
-            disabled={loading || !activeRecord}
-            className="rounded-md bg-indigo-600 px-4 py-2 text-white hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2 transition-colors shadow-sm"
-          >
-            {loading && <LoadingSpinner size="sm" className="text-white" />}
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-            Check out
-          </button>
-
-          <button
-            type="button"
-            onClick={openCompanyPurposeModal}
-            disabled={loading || !activeRecord}
-            className="rounded-md bg-rose-600 px-4 py-2 text-white hover:bg-rose-700 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2 transition-colors shadow-sm"
-          >
-            {loading && <LoadingSpinner size="sm" className="text-white" />}
-            Company purpose
-          </button>
-          <button
-            type="button"
-            onClick={doStartBreak}
-            disabled={loading || !activeRecord}
-            className="rounded-md bg-amber-600 px-4 py-2 text-white hover:bg-amber-700 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2 transition-colors shadow-sm"
-          >
-            {loading && <LoadingSpinner size="sm" className="text-white" />}
-            Start break
-          </button>
-          <button
-            type="button"
-            onClick={doEndBreak}
-            disabled={loading || !activeRecord}
-            className="rounded-md bg-amber-700 px-4 py-2 text-white hover:bg-amber-800 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2 transition-colors shadow-sm"
-          >
-            {loading && <LoadingSpinner size="sm" className="text-white" />}
-            End break
-          </button>
+            <div className="flex flex-wrap gap-2 justify-end">
+              <button
+                type="button"
+                onClick={openCheckInModal}
+                disabled={loading || !!activeRecord}
+                className="rounded-md bg-emerald-600 px-4 py-2 text-white hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2 transition-colors shadow-sm"
+              >
+                {loading && <LoadingSpinner size="sm" className="text-white" />}
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                Check in
+              </button>
+              <button
+                type="button"
+                onClick={openCheckOutModal}
+                disabled={loading || !activeRecord}
+                className="rounded-md bg-indigo-600 px-4 py-2 text-white hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2 transition-colors shadow-sm"
+              >
+                {loading && <LoadingSpinner size="sm" className="text-white" />}
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                Check out
+              </button>
+              <button
+                type="button"
+                onClick={openCompanyPurposeModal}
+                disabled={loading || !activeRecord}
+                className="rounded-md bg-rose-600 px-4 py-2 text-white hover:bg-rose-700 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2 transition-colors shadow-sm"
+              >
+                {loading && <LoadingSpinner size="sm" className="text-white" />}
+                Company purpose
+              </button>
+              <button
+                type="button"
+                onClick={doStartBreak}
+                disabled={loading || !activeRecord}
+                className="rounded-md bg-amber-600 px-4 py-2 text-white hover:bg-amber-700 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2 transition-colors shadow-sm"
+              >
+                {loading && <LoadingSpinner size="sm" className="text-white" />}
+                Start break
+              </button>
+              <button
+                type="button"
+                onClick={doEndBreak}
+                disabled={loading || !activeRecord}
+                className="rounded-md bg-amber-700 px-4 py-2 text-white hover:bg-amber-800 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2 transition-colors shadow-sm"
+              >
+                {loading && <LoadingSpinner size="sm" className="text-white" />}
+                End break
+              </button>
+            </div>
+          </div>
+          <div className="mt-6 grid gap-4 sm:grid-cols-4">
+            <div className="rounded-xl bg-white/10 p-4 backdrop-blur-sm">
+              <div className="text-sm font-medium text-slate-300">Today's Records</div>
+              <div className="mt-1 text-2xl font-bold text-white">{history.length}</div>
+            </div>
+            <div className="rounded-xl bg-white/10 p-4 backdrop-blur-sm">
+              <div className="text-sm font-medium text-slate-300">Status</div>
+              <div className="mt-1 text-2xl font-bold text-white">{activeRecord ? 'Checked In' : 'Not Checked In'}</div>
+            </div>
+            <div className="rounded-xl bg-white/10 p-4 backdrop-blur-sm">
+              <div className="text-sm font-medium text-slate-300">Today's Hours</div>
+              <div className="mt-1 text-2xl font-bold text-white">
+                {activeRecord?.workedMinutes
+                  ? `${Math.floor(Number(activeRecord.workedMinutes) / 60)}h ${Number(activeRecord.workedMinutes) % 60}m`
+                  : '\u2014'}
+              </div>
+            </div>
+            <div className="rounded-xl bg-white/10 p-4 backdrop-blur-sm">
+              <div className="text-sm font-medium text-slate-300">Last Action</div>
+              <div className="mt-1 text-lg font-bold text-white truncate">
+                {history.length > 0 && history[0].checkInTime
+                  ? new Date(history[0].checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                  : '\u2014'}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 

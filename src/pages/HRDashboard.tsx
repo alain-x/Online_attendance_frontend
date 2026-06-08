@@ -10,6 +10,7 @@ import { downloadDailyAttendanceCsv } from '../api/reports';
 import { useAuth } from '../auth/AuthContext';
 import { useToast } from '../hooks/useToast';
 import { useNavigate } from 'react-router-dom';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
 import type { EmployeeResponse } from '../api/types';
 import type { Holiday } from '../api/holidays';
@@ -218,52 +219,143 @@ export default function HRDashboard() {
         </div>
 
         {section === 'overview' ? (
-          <div className="grid gap-4 lg:grid-cols-12">
-            <div className="lg:col-span-8 grid gap-4">
-              <div className="rounded-xl border bg-white p-4 shadow-sm">
-                <div className="text-sm font-semibold text-slate-900">Today</div>
-                <div className="mt-1 text-sm text-slate-600">Staff activity summary and pending tasks will appear here.</div>
-                <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                  <div className="rounded-lg border bg-slate-50 p-3">
-                    <div className="text-xs font-medium text-slate-600">Pending approvals</div>
-                    <div className="mt-1 text-2xl font-bold text-slate-900">—</div>
-                    <div className="mt-1 text-xs text-slate-500">Coming soon</div>
+          <div className="space-y-6">
+            <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-800 via-slate-700 to-slate-600 p-6 sm:p-8">
+              <div className="absolute -right-8 -top-8 h-40 w-40 rounded-full bg-white/5 blur-2xl" />
+              <div className="absolute -bottom-6 -left-6 h-32 w-32 rounded-full bg-white/5 blur-xl" />
+              <div className="relative">
+                <h1 className="text-2xl font-bold text-white sm:text-3xl">HR Overview</h1>
+                <p className="mt-1 text-sm text-slate-300">Staff management, compliance, and attendance insights.</p>
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div className="rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 p-5 text-white shadow-lg">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-3xl font-bold">{employees.length}</div>
+                    <div className="mt-1 text-sm font-medium text-white/80">Total Staff</div>
                   </div>
-                  <div className="rounded-lg border bg-slate-50 p-3">
-                    <div className="text-xs font-medium text-slate-600">Late arrivals</div>
-                    <div className="mt-1 text-2xl font-bold text-slate-900">—</div>
-                    <div className="mt-1 text-xs text-slate-500">Coming soon</div>
-                  </div>
-                  <div className="rounded-lg border bg-slate-50 p-3">
-                    <div className="text-xs font-medium text-slate-600">Absentees</div>
-                    <div className="mt-1 text-2xl font-bold text-slate-900">—</div>
-                    <div className="mt-1 text-xs text-slate-500">Coming soon</div>
-                  </div>
+                  <svg className="h-10 w-10 text-white/30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
                 </div>
               </div>
-
-              <div className="rounded-xl border bg-white p-4 shadow-sm">
-                <div className="text-sm font-semibold text-slate-900">Quick actions</div>
-                <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                  <button type="button" className="rounded-lg border bg-white px-4 py-3 text-left hover:bg-slate-50" onClick={() => setSection('staff')}>
-                    <div className="text-sm font-medium text-slate-900">Manage staff</div>
-                    <div className="mt-1 text-xs text-slate-600">Create, update, import, and review staff.</div>
-                  </button>
-                  <button type="button" className="rounded-lg border bg-white px-4 py-3 text-left hover:bg-slate-50" onClick={() => setSection('reports')}>
-                    <div className="text-sm font-medium text-slate-900">View reports</div>
-                    <div className="mt-1 text-xs text-slate-600">Export and analyze attendance data.</div>
-                  </button>
+              <div className="rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 p-5 text-white shadow-lg">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-3xl font-bold">{staffDepartmentOptions.length}</div>
+                    <div className="mt-1 text-sm font-medium text-white/80">Departments</div>
+                  </div>
+                  <svg className="h-10 w-10 text-white/30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                  </svg>
+                </div>
+              </div>
+              <div className="rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 p-5 text-white shadow-lg">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-3xl font-bold">{holidays.length}</div>
+                    <div className="mt-1 text-sm font-medium text-white/80">Holidays</div>
+                  </div>
+                  <svg className="h-10 w-10 text-white/30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
                 </div>
               </div>
             </div>
 
-            <div className="lg:col-span-4 grid gap-4">
-              <div className="rounded-xl border bg-white p-4 shadow-sm">
-                <div className="text-sm font-semibold text-slate-900">Policy & compliance</div>
-                <div className="mt-1 text-sm text-slate-600">Holiday policy, working hours, and compliance checks.</div>
-                <div className="mt-3">
-                  <EmptyState title="Coming soon" description="This section will include compliance controls and policy configuration." />
+            <div className="grid gap-6 lg:grid-cols-2">
+              <div className="rounded-xl border bg-white p-5">
+                <h3 className="mb-4 font-semibold text-slate-900">Staff by Department</h3>
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={staffDepartmentOptions.slice(0, 10).map((d) => ({
+                      name: d.length > 12 ? d.slice(0, 12) + '\u2026' : d,
+                      count: employees.filter((e) => (e.department || '').trim() === d).length,
+                    }))} margin={{ top: 10, right: 20, left: 0, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                      <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} />
+                      <YAxis tick={{ fontSize: 11, fill: '#64748b' }} allowDecimals={false} />
+                      <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                      <Bar dataKey="count" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
                 </div>
+              </div>
+
+              <div className="rounded-xl border bg-white p-5">
+                <h3 className="mb-4 font-semibold text-slate-900">Department Distribution</h3>
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={staffDepartmentOptions.slice(0, 8).map((d, idx) => ({
+                          name: d,
+                          value: employees.filter((e) => (e.department || '').trim() === d).length,
+                        }))}
+                        cx="50%" cy="50%" innerRadius={55} outerRadius={85} paddingAngle={3}
+                        dataKey="value"
+                        label={({ name, percent }: { name?: string; percent?: number }) => `${name ?? ''} (${((percent ?? 0) * 100).toFixed(0)}%)`}
+                      >
+                        {staffDepartmentOptions.slice(0, 8).map((_, idx) => (
+                          <Cell key={idx} fill={['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'][idx % 8]} />
+                        ))}
+                      </Pie>
+                      <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid #e2e8f0' }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-xl border bg-white p-5">
+              <h3 className="mb-4 font-semibold text-slate-900">Quick Actions</h3>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <button type="button" className="rounded-lg border bg-white px-4 py-4 text-left hover:bg-slate-50 transition-colors" onClick={() => setSection('staff')}>
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-lg bg-blue-100 p-2 text-blue-600">
+                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                    </div>
+                    <div>
+                      <div className="text-sm font-medium text-slate-900">Manage staff</div>
+                      <div className="mt-0.5 text-xs text-slate-500">Create, update, and review staff</div>
+                    </div>
+                  </div>
+                </button>
+                <button type="button" className="rounded-lg border bg-white px-4 py-4 text-left hover:bg-slate-50 transition-colors" onClick={() => setSection('reports')}>
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-lg bg-emerald-100 p-2 text-emerald-600">
+                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                    </div>
+                    <div>
+                      <div className="text-sm font-medium text-slate-900">View reports</div>
+                      <div className="mt-0.5 text-xs text-slate-500">Export and analyze attendance data</div>
+                    </div>
+                  </div>
+                </button>
+                <button type="button" className="rounded-lg border bg-white px-4 py-4 text-left hover:bg-slate-50 transition-colors" onClick={() => setSection('holidays')}>
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-lg bg-amber-100 p-2 text-amber-600">
+                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                    </div>
+                    <div>
+                      <div className="text-sm font-medium text-slate-900">Manage holidays</div>
+                      <div className="mt-0.5 text-xs text-slate-500">Add and edit public holidays</div>
+                    </div>
+                  </div>
+                </button>
+                <button type="button" className="rounded-lg border bg-white px-4 py-4 text-left hover:bg-slate-50 transition-colors" onClick={() => setSection('settings')}>
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-lg bg-indigo-100 p-2 text-indigo-600">
+                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                    </div>
+                    <div>
+                      <div className="text-sm font-medium text-slate-900">Work locations</div>
+                      <div className="mt-0.5 text-xs text-slate-500">Configure geofence locations</div>
+                    </div>
+                  </div>
+                </button>
               </div>
             </div>
           </div>
