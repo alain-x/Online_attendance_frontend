@@ -71,6 +71,8 @@ export default function ChatPage({ onUnreadCleared }: ChatPageProps) {
   const [forwardMsg, setForwardMsg] = useState<ChatMessage | null>(null);
   const [showForwardModal, setShowForwardModal] = useState(false);
   const [forwarding, setForwarding] = useState(false);
+  const [deleteConfirmMsg, setDeleteConfirmMsg] = useState<ChatMessage | null>(null);
+  const [deletingFor, setDeletingFor] = useState<'everyone' | 'me' | null>(null);
   const seenTimestamps = useRef<Map<number, string>>(new Map());
   const prevRoomsRef = useRef<ChatRoom[]>([]);
 
@@ -354,7 +356,7 @@ export default function ChatPage({ onUnreadCleared }: ChatPageProps) {
             <p className={`text-[10px] mt-1.5 text-right font-medium ${own ? 'text-blue-200' : 'text-slate-400'}`}>{formatTime(msg.createdAt)}</p>
           </div>
         </div>
-        <div className={`absolute ${own ? 'left-0 -translate-x-full pl-1' : 'right-0 translate-x-full pr-1'} top-1 hidden group-hover:flex gap-1`}>
+        <div className={`absolute ${own ? 'left-0 -translate-x-full pl-1' : 'right-0 translate-x-full pr-1'} top-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity`}>
           <button type="button" onClick={() => setReplyingTo(msg)}
             className="h-7 w-7 rounded-full bg-white border border-slate-200 shadow-sm flex items-center justify-center text-slate-400 hover:text-blue-500 hover:border-blue-300 transition-all text-xs" title="Reply">
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
@@ -364,9 +366,15 @@ export default function ChatPage({ onUnreadCleared }: ChatPageProps) {
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
           </button>
           {own && (
-            <button type="button" onClick={async () => { if (window.confirm('Delete this message?')) { try { await deleteChatMessage(msg.roomId, msg.id); await loadMessages(msg.roomId); } catch { showToast('Failed to delete', 'error'); } } }}
+            <button type="button" onClick={() => setDeleteConfirmMsg(msg)}
               className="h-7 w-7 rounded-full bg-white border border-slate-200 shadow-sm flex items-center justify-center text-slate-400 hover:text-red-500 hover:border-red-300 transition-all text-xs" title="Delete">
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+            </button>
+          )}
+          {!own && (
+            <button type="button" onClick={() => setDeleteConfirmMsg(msg)}
+              className="h-7 w-7 rounded-full bg-white border border-slate-200 shadow-sm flex items-center justify-center text-slate-400 hover:text-red-500 hover:border-red-300 transition-all text-xs" title="Hide">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
             </button>
           )}
         </div>
@@ -448,28 +456,34 @@ export default function ChatPage({ onUnreadCleared }: ChatPageProps) {
         {selectedRoom ? (
           <>
             {/* Chat header */}
-            <div className="flex items-center gap-3 px-4 py-3 bg-white border-b shadow-sm">
+            <div className="flex items-center gap-3 px-4 py-3 bg-white border-b border-slate-200/80">
               <button type="button" onClick={() => setSelectedRoom(null)}
-                className="md:hidden h-9 w-9 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-600">
+                className="md:hidden h-9 w-9 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-500 transition-colors">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
               </button>
-              <div className={`h-10 w-10 rounded-full flex-shrink-0 flex items-center justify-center text-white font-bold shadow-sm ${selectedRoom.isGroup ? 'bg-gradient-to-br from-green-400 to-green-600' : 'bg-gradient-to-br from-blue-400 to-blue-600'}`}>
+              <div className={`h-10 w-10 rounded-full flex-shrink-0 flex items-center justify-center text-white font-bold shadow-sm ring-2 ring-white ${selectedRoom.isGroup ? 'bg-gradient-to-br from-green-400 to-green-600' : 'bg-gradient-to-br from-blue-400 to-blue-600'}`}>
                 {selectedRoom.isGroup ? (
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                 ) : selectedRoom.name.charAt(0).toUpperCase()}
               </div>
               <div className="min-w-0 flex-1">
-                <h3 className="font-semibold text-sm text-slate-900 truncate">{selectedRoom.name}</h3>
-                <p className="text-[11px] text-slate-500">
-                  {selectedRoom.isGroup ? `${selectedRoom.participantCount || participants.length} members` : 'Direct Message'}
+                <div className="flex items-center gap-2">
+                  <h3 className="font-semibold text-sm text-slate-900 truncate">{selectedRoom.name}</h3>
+                  {selectedRoom.isGroup && (
+                    <span className="text-[10px] font-medium text-green-600 bg-green-50 px-1.5 py-0.5 rounded-full">Group</span>
+                  )}
+                </div>
+                <p className="text-[11px] text-slate-400">
+                  {selectedRoom.isGroup
+                    ? `${selectedRoom.participantCount || participants.length} member${(selectedRoom.participantCount || participants.length) !== 1 ? 's' : ''}`
+                    : 'Direct Message'}
                 </p>
               </div>
               <button type="button" onClick={() => { loadParticipants(selectedRoom.id); setShowParticipants(true); }}
-                className="h-9 w-9 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-600 transition-colors" title="Info">
+                className="h-9 w-9 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors" title="Info">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
               </button>
             </div>
-
             {/* Messages */}
             <div className="flex-1 overflow-y-auto px-4 py-4 space-y-1">
               {messagesLoading ? (
@@ -737,6 +751,69 @@ export default function ChatPage({ onUnreadCleared }: ChatPageProps) {
             </div>
             <div className="flex justify-end">
               <button type="button" onClick={() => { setShowForwardModal(false); setForwardMsg(null); }}
+                className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirm Modal */}
+      {deleteConfirmMsg && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setDeleteConfirmMsg(null)}>
+          <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-2xl mx-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="h-10 w-10 rounded-full bg-red-100 flex items-center justify-center">
+                <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-slate-900">Delete message</h3>
+                <p className="text-xs text-slate-500">This action cannot be undone</p>
+              </div>
+            </div>
+            <div className="space-y-2">
+              {isOwnMessage(deleteConfirmMsg) && (
+                <button type="button" disabled={deletingFor !== null}
+                  onClick={async () => {
+                    setDeletingFor('everyone');
+                    try {
+                      await deleteChatMessage(deleteConfirmMsg.roomId, deleteConfirmMsg.id, 'everyone');
+                      await loadMessages(deleteConfirmMsg.roomId);
+                      setDeleteConfirmMsg(null);
+                      showToast('Message deleted for everyone', 'success');
+                    } catch { showToast('Failed to delete', 'error'); }
+                    finally { setDeletingFor(null); }
+                  }}
+                  className="w-full text-left px-4 py-3 rounded-lg bg-red-50 hover:bg-red-100 border border-red-200 flex items-center gap-3 transition-colors disabled:opacity-50">
+                  <svg className="w-5 h-5 text-red-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                  <div>
+                    <p className="text-sm font-semibold text-red-700">Delete for everyone</p>
+                    <p className="text-xs text-red-500">Remove for all participants</p>
+                  </div>
+                  {deletingFor === 'everyone' && <svg className="animate-spin h-4 w-4 ml-auto text-red-500" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>}
+                </button>
+              )}
+              <button type="button" disabled={deletingFor !== null}
+                onClick={async () => {
+                  setDeletingFor('me');
+                  try {
+                    await deleteChatMessage(deleteConfirmMsg.roomId, deleteConfirmMsg.id, 'me');
+                    await loadMessages(deleteConfirmMsg.roomId);
+                    setDeleteConfirmMsg(null);
+                    showToast('Message hidden', 'success');
+                  } catch { showToast('Failed to hide', 'error'); }
+                  finally { setDeletingFor(null); }
+                }}
+                className="w-full text-left px-4 py-3 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 flex items-center gap-3 transition-colors disabled:opacity-50">
+                <svg className="w-5 h-5 text-slate-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
+                <div>
+                  <p className="text-sm font-semibold text-slate-700">Delete for me</p>
+                  <p className="text-xs text-slate-400">Hide from your view only</p>
+                </div>
+                {deletingFor === 'me' && <svg className="animate-spin h-4 w-4 ml-auto text-slate-500" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>}
+              </button>
+            </div>
+            <div className="mt-4 flex justify-end">
+              <button type="button" onClick={() => setDeleteConfirmMsg(null)}
                 className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">Cancel</button>
             </div>
           </div>

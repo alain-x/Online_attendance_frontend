@@ -292,8 +292,8 @@ export async function addChatParticipant(roomId: number, userId: number): Promis
 export async function removeChatParticipant(roomId: number, userId: number): Promise<void> {
   await http.delete(`/api/sports/chat/rooms/${roomId}/participants/${userId}`);
 }
-export async function deleteChatMessage(roomId: number, messageId: number): Promise<void> {
-  await http.delete(`/api/sports/chat/rooms/${roomId}/messages/${messageId}`);
+export async function deleteChatMessage(roomId: number, messageId: number, mode: 'everyone' | 'me' = 'everyone'): Promise<void> {
+  await http.delete(`/api/sports/chat/rooms/${roomId}/messages/${messageId}`, { params: { mode } });
 }
 
 export async function getMyChildren(): Promise<ParentLink[]> {
