@@ -61,6 +61,10 @@ export default function ChatPage() {
   const [creating, setCreating] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
   const [showParticipants, setShowParticipants] = useState(false);
+  const [notifPerm, setNotifPerm] = useState<NotificationPermission | null>(null);
+  const [unreadCounts, setUnreadCounts] = useState<Record<number, number>>({});
+  const seenTimestamps = useRef<Map<number, string>>(new Map());
+  const prevRoomsRef = useRef<ChatRoom[]>([]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -81,27 +85,71 @@ export default function ChatPage() {
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (checkNew = true) => {
     setLoading(true);
     try {
       const r = await listChatRooms();
+      const prevRooms = prevRoomsRef.current;
+      if (checkNew && prevRooms.length > 0) {
+        setUnreadCounts(prevCounts => {
+          const next = { ...prevCounts };
+          for (const room of r) {
+            if (room.lastMessageAt && room.id !== selectedRoom?.id) {
+              const seen = seenTimestamps.current.get(room.id);
+              if (seen && room.lastMessageAt > seen) {
+                next[room.id] = (next[room.id] || 0) + 1;
+                const oldRoom = prevRooms.find(ro => ro.id === room.id);
+                if (oldRoom?.lastMessageContent !== room.lastMessageContent) {
+                  sendBrowserNotification(room.name, room.lastMessageContent || 'New message');
+                }
+              }
+            }
+            if (room.lastMessageAt) {
+              seenTimestamps.current.set(room.id, room.lastMessageAt);
+            }
+          }
+          return next;
+        });
+      } else {
+        for (const room of r) {
+          if (room.lastMessageAt) {
+            seenTimestamps.current.set(room.id, room.lastMessageAt);
+          }
+        }
+      }
+      prevRoomsRef.current = r;
       setRooms(r);
     } catch (err) {
       showToast(getApiErrorMessage(err, 'Failed to load chats'), 'error');
     } finally {
       setLoading(false);
     }
-  }, [showToast]);
+  }, [showToast, selectedRoom?.id]);
 
   useEffect(() => { refresh(); }, [refresh]);
+
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission().then(p => setNotifPerm(p));
+    } else if ('Notification' in window) {
+      setNotifPerm(Notification.permission);
+    }
+  }, []);
+
+  function sendBrowserNotification(title: string, body: string) {
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification(title, { body, icon: '/favicon.ico' });
+    }
+  }
 
   useEffect(() => {
     if (!selectedRoom) return;
     const interval = setInterval(() => {
       getChatMessages(selectedRoom.id).then(setMessages).catch(() => {});
+      refresh(true);
     }, 5000);
     return () => clearInterval(interval);
-  }, [selectedRoom]);
+  }, [selectedRoom, refresh]);
 
   const loadMessages = useCallback(async (roomId: number) => {
     setMessagesLoading(true);
@@ -130,6 +178,7 @@ export default function ChatPage() {
   async function openRoom(room: ChatRoom) {
     setSelectedRoom(room);
     setMessages([]);
+    setUnreadCounts(prev => { const n = { ...prev }; delete n[room.id]; return n; });
     await Promise.all([loadMessages(room.id), loadParticipants(room.id)]);
   }
 
@@ -349,7 +398,12 @@ export default function ChatPage() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex justify-between items-baseline">
-                    <h3 className="font-semibold text-sm text-slate-900 truncate">{room.name}</h3>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <h3 className="font-semibold text-sm text-slate-900 truncate">{room.name}</h3>
+                      {unreadCounts[room.id] > 0 && (
+                        <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0">{unreadCounts[room.id]}</span>
+                      )}
+                    </div>
                     {room.lastMessageAt && <span className="text-[10px] text-slate-400 flex-shrink-0 ml-2">{formatTime(room.lastMessageAt)}</span>}
                   </div>
                   <p className="text-xs text-slate-500 truncate mt-0.5">

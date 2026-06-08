@@ -9,6 +9,7 @@ import { useToast } from '../hooks/useToast';
 import { listTrainingSessions, listMatches, listEvaluations, listTeams, getMyPlayerProfile, getPlayerStatistics, getPlayerAnalytics } from '../api/sports';
 import type { TrainingSession, Match, PlayerEvaluation, Team, PlayerProfile, PlayerStatistic } from '../api/types';
 import { getApiErrorMessage } from '../utils/error';
+import ChartBox from '../components/ChartBox';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   PieChart, Pie, Cell,
@@ -260,8 +261,8 @@ export default function PlayerDashboard() {
                 <p className="text-xs text-slate-500">Stats across seasons</p>
               </div>
               {seasonStatsData.length > 0 ? (
-                <div className="h-72 min-w-0">
-                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                <ChartBox className="h-72 min-w-0">
+                  <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={seasonStatsData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                       <XAxis dataKey="season" tick={{ fontSize: 11, fill: '#64748b' }} />
@@ -273,7 +274,7 @@ export default function PlayerDashboard() {
                       <Bar dataKey="Assists" fill="#f59e0b" radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
-                </div>
+                </ChartBox>
               ) : (
                 <EmptyState title="No stats yet" description="Season statistics will appear once recorded." />
               )}
@@ -288,8 +289,8 @@ export default function PlayerDashboard() {
                     <h3 className="font-semibold text-slate-900">Skill Assessment</h3>
                     <p className="text-xs text-slate-500">{latestEval?.period} - {latestEval?.teamName}</p>
                   </div>
-                  <div className="h-56 min-w-0">
-                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                  <ChartBox className="h-56 min-w-0">
+                    <ResponsiveContainer width="100%" height="100%">
                       <RadarChart data={latestEvalCriteria}>
                         <PolarGrid stroke="#e2e8f0" />
                         <PolarAngleAxis dataKey="criterion" tick={{ fontSize: 10, fill: '#64748b' }} />
@@ -297,7 +298,7 @@ export default function PlayerDashboard() {
                         <Radar name="Score" dataKey="score" stroke="#06b6d4" fill="#06b6d4" fillOpacity={0.2} />
                       </RadarChart>
                     </ResponsiveContainer>
-                  </div>
+                  </ChartBox>
                 </div>
               )}
 
@@ -309,8 +310,8 @@ export default function PlayerDashboard() {
                     <p className="text-xs text-slate-500">{completedMatches.length} completed matches</p>
                   </div>
                   <div className="flex items-center gap-4">
-                    <div className="h-40 w-40 shrink-0 min-w-0">
-                      <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                    <ChartBox className="h-40 w-40 shrink-0 min-w-0">
+                      <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
                           <Pie data={winLossDraw} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={35} outerRadius={65} paddingAngle={3}>
                             {winLossDraw.map((entry, i) => (
@@ -320,7 +321,7 @@ export default function PlayerDashboard() {
                           <Tooltip />
                         </PieChart>
                       </ResponsiveContainer>
-                    </div>
+                    </ChartBox>
                     <div className="space-y-2">
                       {winLossDraw.map((d, i) => (
                         <div key={d.name} className="flex items-center gap-2 text-sm">
@@ -344,8 +345,8 @@ export default function PlayerDashboard() {
                   <h3 className="font-semibold text-slate-900">Performance Rating Trend</h3>
                   <p className="text-xs text-slate-500">Coach evaluation scores over time</p>
                 </div>
-                <div className="h-56 min-w-0">
-                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                <ChartBox className="h-56 min-w-0">
+                  <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={ratingTrendData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                       <XAxis dataKey="period" tick={{ fontSize: 10, fill: '#64748b' }} />
@@ -354,7 +355,7 @@ export default function PlayerDashboard() {
                       <Line type="monotone" dataKey="Rating" stroke="#6366f1" strokeWidth={2} dot={{ fill: '#6366f1', r: 4 }} />
                     </LineChart>
                   </ResponsiveContainer>
-                </div>
+                </ChartBox>
               </div>
             )}
 
@@ -498,8 +499,8 @@ export default function PlayerDashboard() {
                 <h3 className="font-semibold text-slate-900">Season Comparison - All Stats</h3>
                 <p className="text-xs text-slate-500">Complete performance breakdown by season</p>
               </div>
-              <div className="h-80 min-w-0">
-                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+              <ChartBox className="h-80 min-w-0">
+                <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={seasonStatsData} margin={{ top: 10, right: 30, left: 0, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                     <XAxis dataKey="season" tick={{ fontSize: 12, fill: '#64748b' }} />
@@ -513,7 +514,7 @@ export default function PlayerDashboard() {
                     <Bar dataKey="Passes Completed" fill="#06b6d4" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
-              </div>
+              </ChartBox>
             </div>
           )}
 
@@ -524,8 +525,8 @@ export default function PlayerDashboard() {
                 <h3 className="font-semibold text-slate-900">Training Attendance Rate</h3>
                 <p className="text-xs text-slate-500">Percentage of sessions attended</p>
               </div>
-              <div className="h-56 min-w-0">
-                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+              <ChartBox className="h-56 min-w-0">
+                <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={seasonStatsData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                     <XAxis dataKey="season" tick={{ fontSize: 11, fill: '#64748b' }} />
@@ -534,7 +535,7 @@ export default function PlayerDashboard() {
                     <Bar dataKey="Training %" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
-              </div>
+              </ChartBox>
             </div>
           )}
 
@@ -546,8 +547,8 @@ export default function PlayerDashboard() {
                 <p className="text-xs text-slate-500">Coach rating trend</p>
               </div>
               {ratingTrendData.length > 1 ? (
-                <div className="h-64 min-w-0">
-                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                <ChartBox className="h-64 min-w-0">
+                  <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={ratingTrendData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                       <XAxis dataKey="period" tick={{ fontSize: 11, fill: '#64748b' }} />
@@ -556,7 +557,7 @@ export default function PlayerDashboard() {
                       <Line type="monotone" dataKey="Rating" stroke="#6366f1" strokeWidth={2} dot={{ fill: '#6366f1', r: 4 }} />
                     </LineChart>
                   </ResponsiveContainer>
-                </div>
+                </ChartBox>
               ) : (
                 <div className="text-center text-sm text-slate-500">More evaluations needed to show a trend.</div>
               )}

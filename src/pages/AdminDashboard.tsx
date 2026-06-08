@@ -18,6 +18,7 @@ import { utcDateString } from '../utils/date';
 import { useToast } from '../hooks/useToast';
 import Toast from '../components/Toast';
 import FormsAdminSection from './FormsAdminSection';
+import ChartBox from '../components/ChartBox';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   PieChart, Pie, Cell,
@@ -2181,8 +2182,8 @@ export default function AdminDashboard() {
                     <p className="text-xs text-slate-500">{getMonthRangeLabel(selectedYear, selectedMonth)}</p>
                   </div>
                   {effectiveHome.monthClockIns && effectiveHome.monthClockIns.length > 0 ? (
-                    <div className="h-64 min-w-0">
-                      <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                    <ChartBox className="h-64 min-w-0">
+                      <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={effectiveHome.monthClockIns.map((d: { day: string; count: number }) => ({
                           day: typeof d.day === 'string' && d.day.length === 10 ? d.day.slice(8) : d.day,
                           Count: d.count,
@@ -2194,7 +2195,7 @@ export default function AdminDashboard() {
                           <Bar dataKey="Count" fill="#6366f1" radius={[4, 4, 0, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
-                    </div>
+                    </ChartBox>
                   ) : (
                     <EmptyState title="No data yet" description="Clock-in data will appear here." />
                   )}
@@ -2209,8 +2210,8 @@ export default function AdminDashboard() {
                       <p className="text-xs text-slate-500">{new Date().toLocaleDateString()}</p>
                     </div>
                     <div className="flex items-center gap-4">
-                      <div className="h-36 w-36 shrink-0 min-w-0">
-                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                      <ChartBox className="h-36 w-36 shrink-0 min-w-0">
+                        <ResponsiveContainer width="100%" height="100%">
                           <PieChart>
                             <Pie data={[
                               { name: 'Present', value: effectiveHome.presentToday },
@@ -2228,7 +2229,7 @@ export default function AdminDashboard() {
                             <Tooltip />
                           </PieChart>
                         </ResponsiveContainer>
-                      </div>
+                      </ChartBox>
                       <div className="space-y-2 text-sm">
                         <div className="flex items-center gap-2">
                           <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />

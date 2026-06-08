@@ -7,6 +7,7 @@ import { getPayrollSummary } from '../api/payroll';
 import { useAuth } from '../auth/AuthContext';
 import { useToast } from '../hooks/useToast';
 import { useNavigate } from 'react-router-dom';
+import ChartBox from '../components/ChartBox';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
 import type { PayrollSummaryResponse } from '../api/types';
@@ -271,8 +272,8 @@ export default function AuditorDashboard() {
             <div className="grid gap-6 lg:grid-cols-2">
               <div className="rounded-xl border bg-white p-5">
                 <h3 className="mb-4 font-semibold text-slate-900">Top Employees by Hours</h3>
-                <div className="h-64 min-w-0">
-                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                <ChartBox className="h-64 min-w-0">
+                  <ResponsiveContainer width="100%" height="100%">
                     <BarChart
                       data={(payroll?.rows ?? []).slice(0, 10).sort((a, b) => b.workedMinutes - a.workedMinutes).map((r) => ({
                         name: `${r.firstName} ${r.lastName}`.length > 14 ? `${r.firstName} ${r.lastName}`.slice(0, 13) + '\u2026' : `${r.firstName} ${r.lastName}`,
@@ -288,13 +289,13 @@ export default function AuditorDashboard() {
                       <Bar dataKey="hours" fill="#64748b" radius={[0, 4, 4, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
-                </div>
+                </ChartBox>
               </div>
 
               <div className="rounded-xl border bg-white p-5">
                 <h3 className="mb-4 font-semibold text-slate-900">Pay Distribution</h3>
-                <div className="h-64 min-w-0">
-                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                <ChartBox className="h-64 min-w-0">
+                  <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
                         data={(payroll?.rows ?? []).slice(0, 8).map((r, idx) => ({
@@ -312,7 +313,7 @@ export default function AuditorDashboard() {
                       <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid #e2e8f0' }} formatter={(val) => typeof val === 'number' ? val.toFixed(2) : val} />
                     </PieChart>
                   </ResponsiveContainer>
-                </div>
+                </ChartBox>
               </div>
             </div>
 

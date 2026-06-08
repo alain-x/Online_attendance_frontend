@@ -8,6 +8,7 @@ import { useToast } from '../hooks/useToast';
 import { getMyChildren, listTrainingSessions, listMatches, listPayments } from '../api/sports';
 import type { ParentLink, TrainingSession, Match, PlayerPayment } from '../api/types';
 import { getApiErrorMessage } from '../utils/error';
+import ChartBox from '../components/ChartBox';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell,
@@ -191,8 +192,8 @@ export default function ParentDashboard() {
               <div className="rounded-xl border bg-white p-5">
                 <h3 className="mb-4 font-semibold text-slate-900">Payment Status</h3>
                 <div className="flex items-center gap-6">
-                  <div className="h-40 w-40 shrink-0 min-w-0">
-                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                  <ChartBox className="h-40 w-40 shrink-0 min-w-0">
+                    <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Pie data={[
                           { name: 'Paid', value: paymentStats.paid },
@@ -206,7 +207,7 @@ export default function ParentDashboard() {
                         <Tooltip />
                       </PieChart>
                     </ResponsiveContainer>
-                  </div>
+                  </ChartBox>
                   <div className="space-y-2 text-sm">
                     <div className="flex items-center gap-2">
                       <span className="h-3 w-3 rounded-full bg-emerald-500" />

@@ -6,6 +6,12 @@ import App from './App';
 import { AuthProvider } from './auth/AuthContext';
 import ErrorBoundary from './components/ErrorBoundary';
 
+const origWarn = console.warn;
+console.warn = (...args) => {
+  if (typeof args[0] === 'string' && args[0].includes('The width(') && args[0].includes('should be greater than 0')) return;
+  origWarn.apply(console, args);
+};
+
 const container = document.getElementById('root');
 if (!container) {
   throw new Error('Root element #root not found');

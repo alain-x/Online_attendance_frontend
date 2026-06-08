@@ -7,6 +7,7 @@ import { getClubDashboardStats } from '../../api/sports';
 import type { ClubDashboardStats } from '../../api/types';
 import { getApiErrorMessage } from '../../utils/error';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import ChartBox from '../../components/ChartBox';
 
 type ClubDashboardPageProps = {
   onNavigate: (section: string) => void;
@@ -100,8 +101,8 @@ export default function ClubDashboardPage({ onNavigate }: ClubDashboardPageProps
       <div className="mt-8 grid gap-6 lg:grid-cols-2">
         <div className="rounded-xl border bg-white p-5">
           <h3 className="mb-4 font-semibold text-slate-900">Club Overview</h3>
-          <div className="h-64 min-w-0">
-            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+          <ChartBox className="h-64 min-w-0">
+            <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                 <XAxis dataKey="name" tick={{ fontSize: 12, fill: '#64748b' }} />
@@ -112,14 +113,14 @@ export default function ClubDashboardPage({ onNavigate }: ClubDashboardPageProps
                 <Bar dataKey="value" fill="#3b82f6" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
-          </div>
+          </ChartBox>
         </div>
 
         <div className="rounded-xl border bg-white p-5">
           <h3 className="mb-4 font-semibold text-slate-900">Upcoming Activities</h3>
           {hasUpcoming ? (
-            <div className="h-64 min-w-0">
-              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+            <ChartBox className="h-64 min-w-0">
+              <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
                     data={upcomingData}
@@ -140,7 +141,7 @@ export default function ClubDashboardPage({ onNavigate }: ClubDashboardPageProps
                   />
                 </PieChart>
               </ResponsiveContainer>
-            </div>
+            </ChartBox>
           ) : (
             <div className="flex h-64 items-center justify-center">
               <EmptyState title="No upcoming" description="No matches or training scheduled." />

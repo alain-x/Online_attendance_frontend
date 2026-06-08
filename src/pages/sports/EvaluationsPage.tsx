@@ -3,7 +3,7 @@ import LoadingSpinner from '../../components/LoadingSpinner';
 import EmptyState from '../../components/EmptyState';
 import Toast from '../../components/Toast';
 import { useToast } from '../../hooks/useToast';
-import { listEvaluations, createEvaluation, addCriterion, listTeams } from '../../api/sports';
+import { listEvaluations, createEvaluation, addCriterion, updateEvaluation, deleteEvaluation, listTeams } from '../../api/sports';
 import type { PlayerEvaluation, CreateEvaluationRequest, AddCriterionRequest, Team } from '../../api/types';
 import { getApiErrorMessage } from '../../utils/error';
 
@@ -16,8 +16,10 @@ export default function EvaluationsPage() {
   const [teamFilter, setTeamFilter] = useState<number | ''>('');
   const [showModal, setShowModal] = useState(false);
   const [selectedEval, setSelectedEval] = useState<PlayerEvaluation | null>(null);
+  const [editingEval, setEditingEval] = useState<PlayerEvaluation | null>(null);
   const [form, setForm] = useState<CreateEvaluationRequest>({ playerId: 0, teamId: 0, period: '', overallRating: 5, coachNotes: '', goals: '' });
   const [criteria, setCriteria] = useState<AddCriterionRequest[]>([{ criterionName: 'Technical Skills', score: 5 }, { criterionName: 'Tactical Awareness', score: 5 }, { criterionName: 'Physical Fitness', score: 5 }]);
+  const [deleteConfirm, setDeleteConfirm] = useState<PlayerEvaluation | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -35,6 +37,7 @@ export default function EvaluationsPage() {
   useEffect(() => { refresh(); }, [refresh]);
 
   function openCreate() {
+    setEditingEval(null);
     setForm({ playerId: 0, teamId: teams[0]?.id || 0, period: '', overallRating: 5, coachNotes: '', goals: '' });
     setCriteria([{ criterionName: 'Technical Skills', score: 5 }, { criterionName: 'Tactical Awareness', score: 5 }, { criterionName: 'Physical Fitness', score: 5 }]);
     setShowModal(true);
@@ -45,18 +48,44 @@ export default function EvaluationsPage() {
     if (!form.playerId || !form.period) { showToast('Player ID and period are required', 'error'); return; }
     setSaving(true);
     try {
-      const evaluation = await createEvaluation(form);
-      for (const c of criteria.filter(c => c.criterionName.trim())) {
-        await addCriterion(evaluation.id, c);
+      if (editingEval) {
+        await updateEvaluation(editingEval.id, form);
+        setShowModal(false);
+        setEditingEval(null);
+        showToast('Evaluation updated', 'success');
+      } else {
+        const evaluation = await createEvaluation(form);
+        for (const c of criteria.filter(c => c.criterionName.trim())) {
+          await addCriterion(evaluation.id, c);
+        }
+        setShowModal(false);
+        showToast('Evaluation created', 'success');
       }
-      setShowModal(false);
-      showToast('Evaluation created', 'success');
       await refresh();
     } catch (err: unknown) {
-      showToast(getApiErrorMessage(err, 'Failed to create evaluation'), 'error');
+      showToast(getApiErrorMessage(err, 'Failed to save evaluation'), 'error');
     } finally {
       setSaving(false);
     }
+  }
+
+  async function handleDelete(ev: PlayerEvaluation) {
+    try {
+      await deleteEvaluation(ev.id);
+      setDeleteConfirm(null);
+      if (selectedEval?.id === ev.id) setSelectedEval(null);
+      showToast('Evaluation deleted', 'success');
+      await refresh();
+    } catch (err: unknown) {
+      showToast(getApiErrorMessage(err, 'Failed to delete evaluation'), 'error');
+    }
+  }
+
+  function openEdit(ev: PlayerEvaluation) {
+    setEditingEval(ev);
+    setForm({ playerId: ev.playerId, teamId: ev.teamId, period: ev.period, overallRating: ev.overallRating, coachNotes: ev.coachNotes || '', goals: ev.goals || '' });
+    setCriteria(ev.criteria && ev.criteria.length > 0 ? ev.criteria.map(c => ({ criterionName: c.criterionName, score: c.score, notes: c.notes || '' })) : [{ criterionName: 'Technical Skills', score: 5 }, { criterionName: 'Tactical Awareness', score: 5 }, { criterionName: 'Physical Fitness', score: 5 }]);
+    setShowModal(true);
   }
 
   function updateCriterion(index: number, field: keyof AddCriterionRequest, value: string | number) {
@@ -137,6 +166,10 @@ export default function EvaluationsPage() {
                 </div>
               )}
               <p className="mt-4 text-xs text-slate-500">Evaluated by {selectedEval.evaluatorName} on {new Date(selectedEval.createdAt).toLocaleDateString()}</p>
+              <div className="mt-4 flex gap-2">
+                <button type="button" onClick={() => openEdit(selectedEval)} className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">Edit</button>
+                <button type="button" onClick={() => setDeleteConfirm(selectedEval)} className="rounded-md border border-red-300 bg-white px-4 py-2 text-sm text-red-600 hover:bg-red-50">Delete</button>
+              </div>
             </div>
           </div>
         </div>
@@ -186,7 +219,7 @@ export default function EvaluationsPage() {
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-lg rounded-xl border bg-white p-6 shadow-lg max-h-[90vh] overflow-y-auto">
-            <h2 className="text-lg font-semibold text-slate-900">Create Evaluation</h2>
+            <h2 className="text-lg font-semibold text-slate-900">{editingEval ? 'Edit Evaluation' : 'Create Evaluation'}</h2>
             <form onSubmit={handleSubmit} className="mt-4 space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -234,10 +267,23 @@ export default function EvaluationsPage() {
               <div className="flex gap-3 justify-end pt-2">
                 <button type="button" onClick={() => setShowModal(false)} className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">Cancel</button>
                 <button type="submit" disabled={saving} className="rounded-md bg-slate-900 px-4 py-2 text-sm text-white hover:bg-slate-800 disabled:opacity-60">
-                  {saving ? 'Creating...' : 'Create'}
+                  {saving ? 'Saving...' : editingEval ? 'Update' : 'Create'}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {deleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-sm rounded-xl border bg-white p-6 shadow-lg">
+            <h3 className="text-lg font-semibold text-slate-900">Delete Evaluation</h3>
+            <p className="mt-2 text-sm text-slate-600">Are you sure you want to delete {deleteConfirm.playerName}'s evaluation for {deleteConfirm.period}?</p>
+            <div className="mt-4 flex gap-2 justify-end">
+              <button type="button" onClick={() => setDeleteConfirm(null)} className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">Cancel</button>
+              <button type="button" onClick={() => handleDelete(deleteConfirm)} className="rounded-md bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700">Delete</button>
+            </div>
           </div>
         </div>
       )}

@@ -222,6 +222,13 @@ export async function createEvaluation(data: CreateEvaluationRequest): Promise<P
 export async function addCriterion(evaluationId: number, data: AddCriterionRequest): Promise<void> {
   await http.post(`/api/sports/evaluations/${evaluationId}/criteria`, data);
 }
+export async function updateEvaluation(id: number, data: CreateEvaluationRequest): Promise<PlayerEvaluation> {
+  const res = await http.put<PlayerEvaluation>(`/api/sports/evaluations/${id}`, data);
+  return res.data;
+}
+export async function deleteEvaluation(id: number): Promise<void> {
+  await http.delete(`/api/sports/evaluations/${id}`);
+}
 
 export async function listCalendarEvents(teamId?: number, from?: string, to?: string): Promise<CalendarEvent[]> {
   const params: Record<string, string> = {};

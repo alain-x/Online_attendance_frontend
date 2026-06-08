@@ -13,6 +13,7 @@ import type { AttendanceResponse, PayrollSummaryResponse } from '../api/types';
 import { getApiErrorMessage } from '../utils/error';
 import { money } from '../utils/currency';
 import { addUtcDays, utcDateString, startOfUtcMonth, endOfUtcMonth, startOfUtcWeekMonday } from '../utils/date';
+import ChartBox from '../components/ChartBox';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell,
@@ -585,8 +586,8 @@ export default function PayrollDashboard() {
                 <div className="rounded-xl border bg-white p-5">
                   <h3 className="mb-4 font-semibold text-slate-900">Pay Distribution</h3>
                   <div className="flex items-center gap-6">
-                    <div className="h-44 w-44 shrink-0 min-w-0">
-                      <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                    <ChartBox className="h-44 w-44 shrink-0 min-w-0">
+                      <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
                           <Pie data={[
                             { name: 'Regular Pay', value: Math.max(0, Number(payroll.totalGrossPay) - Number(payroll.totalNetPay)) },
@@ -598,7 +599,7 @@ export default function PayrollDashboard() {
                           <Tooltip />
                         </PieChart>
                       </ResponsiveContainer>
-                    </div>
+                    </ChartBox>
                     <div className="space-y-2 text-sm">
                       <div className="flex items-center gap-2">
                         <span className="h-3 w-3 rounded bg-indigo-500" />
@@ -669,8 +670,8 @@ export default function PayrollDashboard() {
                   <div className="rounded-xl border bg-white p-5">
                     <h3 className="mb-4 font-semibold text-slate-900">Top Overtime (minutes)</h3>
                     {overviewCharts.topOvertime.length > 0 ? (
-                      <div className="h-56 min-w-0">
-                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                      <ChartBox className="h-56 min-w-0">
+                        <ResponsiveContainer width="100%" height="100%">
                           <BarChart data={overviewCharts.topOvertime.slice(0, 8).map((r: any) => ({
                             name: `${r.firstName} ${r.lastName}`.length > 12 ? `${r.firstName} ${r.lastName}`.slice(0, 12) + '\u2026' : `${r.firstName} ${r.lastName}`,
                             Overtime: r.overtimeMinutes,
@@ -682,7 +683,7 @@ export default function PayrollDashboard() {
                             <Bar dataKey="Overtime" fill="#f59e0b" radius={[0, 4, 4, 0]} />
                           </BarChart>
                         </ResponsiveContainer>
-                      </div>
+                      </ChartBox>
                     ) : (
                       <div className="py-8 text-center text-sm text-slate-500">No overtime in this range.</div>
                     )}
@@ -690,8 +691,8 @@ export default function PayrollDashboard() {
                   <div className="rounded-xl border bg-white p-5">
                     <h3 className="mb-4 font-semibold text-slate-900">Top Deficit (minutes)</h3>
                     {overviewCharts.topDeficit.length > 0 ? (
-                      <div className="h-56 min-w-0">
-                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                      <ChartBox className="h-56 min-w-0">
+                        <ResponsiveContainer width="100%" height="100%">
                           <BarChart data={overviewCharts.topDeficit.slice(0, 8).map((r: any) => ({
                             name: `${r.firstName} ${r.lastName}`.length > 12 ? `${r.firstName} ${r.lastName}`.slice(0, 12) + '\u2026' : `${r.firstName} ${r.lastName}`,
                             Deficit: r.deficitMinutes,
@@ -703,7 +704,7 @@ export default function PayrollDashboard() {
                             <Bar dataKey="Deficit" fill="#ef4444" radius={[0, 4, 4, 0]} />
                           </BarChart>
                         </ResponsiveContainer>
-                      </div>
+                      </ChartBox>
                     ) : (
                       <div className="py-8 text-center text-sm text-slate-500">No deficit in this range.</div>
                     )}
