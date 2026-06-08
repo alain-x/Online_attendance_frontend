@@ -13,12 +13,30 @@ import type { AttendanceResponse, PayrollSummaryResponse } from '../api/types';
 import { getApiErrorMessage } from '../utils/error';
 import { money } from '../utils/currency';
 import { addUtcDays, utcDateString, startOfUtcMonth, endOfUtcMonth, startOfUtcWeekMonday } from '../utils/date';
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell,
+} from 'recharts';
 
 function minutesToHourMinute(mins: number): { h: number; m: number } {
   const n = Number(mins || 0);
   const h = Math.floor(n / 60);
   const m = n % 60;
   return { h, m };
+}
+
+function CustomTooltip({ active, payload, label }: any) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="rounded-lg border bg-white/95 px-4 py-3 shadow-lg backdrop-blur">
+      <p className="mb-1 text-sm font-semibold text-slate-800">{label}</p>
+      {payload.map((entry: any, i: number) => (
+        <p key={i} className="text-xs" style={{ color: entry.color }}>
+          {entry.name}: {entry.value}
+        </p>
+      ))}
+    </div>
+  );
 }
 
 export default function PayrollDashboard() {
@@ -448,12 +466,18 @@ export default function PayrollDashboard() {
       </div>
 
       {section === 'overview' ? (
-        <div className="space-y-4">
-          <div className="flex flex-col gap-1">
-            <div className="text-2xl font-bold text-slate-900">Overview</div>
-            <div className="text-sm text-slate-600">Performance and payroll trends for the selected range.</div>
+        <div className="space-y-6">
+          {/* Header */}
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-800 via-slate-700 to-slate-600 p-6 sm:p-8">
+            <div className="absolute -right-8 -top-8 h-40 w-40 rounded-full bg-white/5 blur-2xl" />
+            <div className="absolute -bottom-6 -left-6 h-32 w-32 rounded-full bg-white/5 blur-xl" />
+            <div className="relative">
+              <h1 className="text-2xl font-bold text-white sm:text-3xl">Payroll Overview</h1>
+              <p className="mt-1 text-sm text-slate-300">Performance and payroll trends for the selected range.</p>
+            </div>
           </div>
 
+          {/* Filters */}
           <div className="rounded-xl border bg-white p-4">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
               <div className="flex flex-wrap gap-2">
@@ -479,7 +503,7 @@ export default function PayrollDashboard() {
                 </div>
                 <div className="flex gap-2">
                   <button type="button" onClick={refreshPayroll} disabled={payrollLoading} className="w-full rounded-md bg-slate-900 px-4 py-2 text-white hover:bg-slate-800 disabled:opacity-60">
-                    {payrollLoading ? 'Loading…' : 'Refresh'}
+                    {payrollLoading ? 'Loading\u2026' : 'Refresh'}
                   </button>
                 </div>
               </div>
@@ -487,84 +511,240 @@ export default function PayrollDashboard() {
           </div>
 
           {payrollLoading ? (
-            <div className="rounded-xl border bg-white px-4 py-10 flex items-center justify-center">
+            <div className="rounded-xl border bg-white px-4 py-16 flex items-center justify-center">
               <LoadingSpinner />
             </div>
           ) : payroll ? (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-              <div className="lg:col-span-2 grid gap-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                  <div className="rounded-xl border bg-white p-4">
-                    <div className="text-xs text-slate-500">Gross</div>
-                    <div className="mt-1 text-xl font-semibold text-slate-900">{money(payroll!.totalGrossPay)}</div>
+            <>
+              {/* KPI Cards */}
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="rounded-xl border bg-white p-5 transition-shadow hover:shadow-md">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-xs text-slate-500">Gross Pay</div>
+                      <div className="mt-1 text-2xl font-bold text-slate-900">{money(payroll.totalGrossPay)}</div>
+                    </div>
+                    <div className="rounded-lg bg-blue-100 p-3 text-blue-600">
+                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
                   </div>
-                  <div className="rounded-xl border bg-white p-4">
-                    <div className="text-xs text-slate-500">Net (75%)</div>
-                    <div className="mt-1 text-xl font-semibold text-slate-900">{money(payroll!.totalNetPay)}</div>
+                  <div className="mt-2 text-xs text-slate-400">{payroll.rows.length} employees</div>
+                </div>
+                <div className="rounded-xl border bg-white p-5 transition-shadow hover:shadow-md">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-xs text-slate-500">Net Pay (75%)</div>
+                      <div className="mt-1 text-2xl font-bold text-emerald-600">{money(payroll.totalNetPay)}</div>
+                    </div>
+                    <div className="rounded-lg bg-emerald-100 p-3 text-emerald-600">
+                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
                   </div>
-                  <div className="rounded-xl border bg-white p-4">
-                    <div className="text-xs text-slate-500">Overtime</div>
-                    <div className="mt-1 text-xl font-semibold text-slate-900">{(() => {
-                      const v = minutesToHourMinute(payroll!.totalOvertimeMinutes);
-                      return `${v.h}h ${v.m}m`;
-                    })()}</div>
+                </div>
+                <div className="rounded-xl border bg-white p-5 transition-shadow hover:shadow-md">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-xs text-slate-500">Overtime</div>
+                      <div className="mt-1 text-2xl font-bold text-amber-600">{(() => {
+                        const v = minutesToHourMinute(payroll.totalOvertimeMinutes);
+                        return `${v.h}h ${v.m}m`;
+                      })()}</div>
+                    </div>
+                    <div className="rounded-lg bg-amber-100 p-3 text-amber-600">
+                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                      </svg>
+                    </div>
                   </div>
-                  <div className="rounded-xl border bg-white p-4">
-                    <div className="text-xs text-slate-500">Deficit</div>
-                    <div className="mt-1 text-xl font-semibold text-slate-900">{(() => {
-                      const v = minutesToHourMinute(payroll!.totalDeficitMinutes);
-                      return `${v.h}h ${v.m}m`;
-                    })()}</div>
+                </div>
+                <div className="rounded-xl border bg-white p-5 transition-shadow hover:shadow-md">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-xs text-slate-500">Deficit</div>
+                      <div className="mt-1 text-2xl font-bold text-rose-600">{(() => {
+                        const v = minutesToHourMinute(payroll.totalDeficitMinutes);
+                        return `${v.h}h ${v.m}m`;
+                      })()}</div>
+                    </div>
+                    <div className="rounded-lg bg-rose-100 p-3 text-rose-600">
+                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Charts Row */}
+              <div className="grid gap-6 lg:grid-cols-2">
+                {/* Pay Distribution Donut */}
+                <div className="rounded-xl border bg-white p-5">
+                  <h3 className="mb-4 font-semibold text-slate-900">Pay Distribution</h3>
+                  <div className="flex items-center gap-6">
+                    <div className="h-44 w-44 shrink-0">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie data={[
+                            { name: 'Regular Pay', value: Math.max(0, Number(payroll.totalGrossPay) - Number(payroll.totalNetPay)) },
+                            { name: 'Net Pay', value: Number(payroll.totalNetPay) },
+                          ].filter(d => d.value > 0)} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={35} outerRadius={65} paddingAngle={3}>
+                            <Cell fill="#6366f1" />
+                            <Cell fill="#10b981" />
+                          </Pie>
+                          <Tooltip />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex items-center gap-2">
+                        <span className="h-3 w-3 rounded bg-indigo-500" />
+                        <span className="text-slate-600">Deductions</span>
+                        <span className="ml-auto font-semibold text-slate-900">{money(Math.max(0, Number(payroll.totalGrossPay) - Number(payroll.totalNetPay)))}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="h-3 w-3 rounded bg-emerald-500" />
+                        <span className="text-slate-600">Net Pay</span>
+                        <span className="ml-auto font-semibold text-slate-900">{money(payroll.totalNetPay)}</span>
+                      </div>
+                      <hr className="my-2" />
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-semibold text-slate-700">Total Gross</span>
+                        <span className="ml-auto font-semibold text-slate-900">{money(payroll.totalGrossPay)}</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                {overviewCharts ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="rounded-xl border bg-white p-4">
-                      <div className="flex items-center justify-between">
-                        <div className="text-sm font-semibold text-slate-900">Top overtime</div>
-                        <div className="text-xs text-slate-500">minutes</div>
+                {/* Worked vs Expected */}
+                <div className="rounded-xl border bg-white p-5">
+                  <h3 className="mb-4 font-semibold text-slate-900">Time Allocation</h3>
+                  <div className="space-y-4">
+                    <div>
+                      <div className="flex items-center justify-between text-sm mb-1">
+                        <span className="text-slate-600">Worked</span>
+                        <span className="font-medium text-slate-900">{minutesToHourMinute(payroll.totalWorkedMinutes).h}h {minutesToHourMinute(payroll.totalWorkedMinutes).m}m</span>
                       </div>
-                      <div className="mt-3 space-y-2">
-                        {overviewCharts!.topOvertime.map((r) => {
-                          const pct = Math.max(0, Math.min(1, r.overtimeMinutes / overviewCharts!.maxOvertime));
-                          return (
-                            <div key={`ot_${r.employeeId}`} className="grid grid-cols-12 items-center gap-2">
-                              <div className="col-span-5 text-xs text-slate-700 truncate">{r.firstName} {r.lastName}</div>
-                              <div className="col-span-5 h-2 rounded-full bg-slate-100 overflow-hidden">
-                                <div className="h-full bg-amber-500" style={{ width: `${pct * 100}%` }} />
-                              </div>
-                              <div className="col-span-2 text-right text-xs text-slate-600">{r.overtimeMinutes}</div>
-                            </div>
-                          );
-                        })}
-                        {overviewCharts!.topOvertime.length === 0 ? <div className="text-sm text-slate-600">No overtime in this range.</div> : null}
+                      <div className="h-3 rounded-full bg-slate-100 overflow-hidden">
+                        <div className="h-3 rounded-full bg-indigo-500" style={{ width: `${payroll.totalExpectedMinutes > 0 ? Math.min(100, (payroll.totalWorkedMinutes / payroll.totalExpectedMinutes) * 100) : 0}%` }} />
                       </div>
                     </div>
-
-                    <div className="rounded-xl border bg-white p-4">
-                      <div className="flex items-center justify-between">
-                        <div className="text-sm font-semibold text-slate-900">Top deficit</div>
-                        <div className="text-xs text-slate-500">minutes</div>
+                    <div>
+                      <div className="flex items-center justify-between text-sm mb-1">
+                        <span className="text-slate-600">Regular</span>
+                        <span className="font-medium text-slate-900">{minutesToHourMinute(payroll.totalRegularMinutes).h}h {minutesToHourMinute(payroll.totalRegularMinutes).m}m</span>
                       </div>
-                      <div className="mt-3 space-y-2">
-                        {overviewCharts!.topDeficit.map((r) => {
-                          const pct = Math.max(0, Math.min(1, r.deficitMinutes / overviewCharts!.maxDeficit));
-                          return (
-                            <div key={`df_${r.employeeId}`} className="grid grid-cols-12 items-center gap-2">
-                              <div className="col-span-5 text-xs text-slate-700 truncate">{r.firstName} {r.lastName}</div>
-                              <div className="col-span-5 h-2 rounded-full bg-slate-100 overflow-hidden">
-                                <div className="h-full bg-red-500" style={{ width: `${pct * 100}%` }} />
-                              </div>
-                              <div className="col-span-2 text-right text-xs text-slate-600">{r.deficitMinutes}</div>
-                            </div>
-                          );
-                        })}
-                        {overviewCharts!.topDeficit.length === 0 ? <div className="text-sm text-slate-600">No deficit in this range.</div> : null}
+                      <div className="h-3 rounded-full bg-slate-100 overflow-hidden">
+                        <div className="h-3 rounded-full bg-emerald-500" style={{ width: `${payroll.totalExpectedMinutes > 0 ? Math.min(100, (payroll.totalRegularMinutes / payroll.totalExpectedMinutes) * 100) : 0}%` }} />
+                      </div>
+                    </div>
+                    <div>
+                      <div className="flex items-center justify-between text-sm mb-1">
+                        <span className="text-slate-600">Overtime</span>
+                        <span className="font-medium text-slate-900">{minutesToHourMinute(payroll.totalOvertimeMinutes).h}h {minutesToHourMinute(payroll.totalOvertimeMinutes).m}m</span>
+                      </div>
+                      <div className="h-3 rounded-full bg-slate-100 overflow-hidden">
+                        <div className="h-3 rounded-full bg-amber-500" style={{ width: `${payroll.totalExpectedMinutes > 0 ? Math.min(100, (payroll.totalOvertimeMinutes / payroll.totalExpectedMinutes) * 100) : 0}%` }} />
+                      </div>
+                    </div>
+                    <div>
+                      <div className="flex items-center justify-between text-sm mb-1">
+                        <span className="text-slate-600">Expected</span>
+                        <span className="font-medium text-slate-900">{minutesToHourMinute(payroll.totalExpectedMinutes).h}h {minutesToHourMinute(payroll.totalExpectedMinutes).m}m</span>
+                      </div>
+                      <div className="h-3 rounded-full bg-slate-100 overflow-hidden">
+                        <div className="h-3 rounded-full bg-slate-400" style={{ width: '100%' }} />
                       </div>
                     </div>
                   </div>
-                ) : null}
+                </div>
+              </div>
+
+              {/* Top Overtime & Deficit Charts */}
+              {overviewCharts ? (
+                <div className="grid gap-6 lg:grid-cols-2">
+                  <div className="rounded-xl border bg-white p-5">
+                    <h3 className="mb-4 font-semibold text-slate-900">Top Overtime (minutes)</h3>
+                    {overviewCharts.topOvertime.length > 0 ? (
+                      <div className="h-56">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={overviewCharts.topOvertime.slice(0, 8).map((r: any) => ({
+                            name: `${r.firstName} ${r.lastName}`.length > 12 ? `${r.firstName} ${r.lastName}`.slice(0, 12) + '\u2026' : `${r.firstName} ${r.lastName}`,
+                            Overtime: r.overtimeMinutes,
+                          }))} layout="vertical" margin={{ top: 5, right: 20, left: 60, bottom: 5 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                            <XAxis type="number" tick={{ fontSize: 10, fill: '#94a3b8' }} />
+                            <YAxis type="category" dataKey="name" tick={{ fontSize: 10, fill: '#64748b' }} width={100} />
+                            <Tooltip content={<CustomTooltip />} />
+                            <Bar dataKey="Overtime" fill="#f59e0b" radius={[0, 4, 4, 0]} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    ) : (
+                      <div className="py-8 text-center text-sm text-slate-500">No overtime in this range.</div>
+                    )}
+                  </div>
+                  <div className="rounded-xl border bg-white p-5">
+                    <h3 className="mb-4 font-semibold text-slate-900">Top Deficit (minutes)</h3>
+                    {overviewCharts.topDeficit.length > 0 ? (
+                      <div className="h-56">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={overviewCharts.topDeficit.slice(0, 8).map((r: any) => ({
+                            name: `${r.firstName} ${r.lastName}`.length > 12 ? `${r.firstName} ${r.lastName}`.slice(0, 12) + '\u2026' : `${r.firstName} ${r.lastName}`,
+                            Deficit: r.deficitMinutes,
+                          }))} layout="vertical" margin={{ top: 5, right: 20, left: 60, bottom: 5 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                            <XAxis type="number" tick={{ fontSize: 10, fill: '#94a3b8' }} />
+                            <YAxis type="category" dataKey="name" tick={{ fontSize: 10, fill: '#64748b' }} width={100} />
+                            <Tooltip content={<CustomTooltip />} />
+                            <Bar dataKey="Deficit" fill="#ef4444" radius={[0, 4, 4, 0]} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    ) : (
+                      <div className="py-8 text-center text-sm text-slate-500">No deficit in this range.</div>
+                    )}
+                  </div>
+                </div>
+              ) : null}
+
+              {/* Insights Row */}
+              <div className="grid gap-6 lg:grid-cols-3">
+                <div className="rounded-xl border bg-white p-5">
+                  <h3 className="mb-3 font-semibold text-slate-900">Employees</h3>
+                  <div className="text-3xl font-bold text-slate-900">{payroll.rows.length}</div>
+                  <div className="mt-1 text-xs text-slate-500">Active staff in this period</div>
+                </div>
+                <div className="rounded-xl border bg-white p-5">
+                  <h3 className="mb-3 font-semibold text-slate-900">Default Hourly Rate</h3>
+                  <div className="text-3xl font-bold text-slate-900">{payroll.companyHourlyRateDefault != null ? money(payroll.companyHourlyRateDefault) : '\u2014'}</div>
+                  <div className="mt-1 text-xs text-slate-500">Company-wide rate</div>
+                </div>
+                <div className="rounded-xl border bg-white p-5">
+                  <h3 className="mb-3 font-semibold text-slate-900">Best Completion</h3>
+                  <div className="text-3xl font-bold text-slate-900">
+                    {overviewCharts && overviewCharts.topRegularPct.length > 0 ? (
+                      `${Math.round(overviewCharts.topRegularPct[0].pct * 100)}%`
+                    ) : '\u2014'}
+                  </div>
+                  <div className="mt-1 text-xs text-slate-500">
+                    {overviewCharts && overviewCharts.topRegularPct.length > 0
+                      ? `${overviewCharts.topRegularPct[0].r.firstName} ${overviewCharts.topRegularPct[0].r.lastName}`
+                      : 'Regular vs expected target'}
+                  </div>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="rounded-xl border bg-white px-4 py-16 text-center text-sm text-slate-500">
+              No payroll data yet. Select a range and click Refresh.
+            </div>
+          )}
+        </div>
+      ) : null}
               </div>
 
               <div className="grid gap-4">

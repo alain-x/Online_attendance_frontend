@@ -183,6 +183,7 @@ export default function PlayersPage() {
                 {selectedPlayer.position && <span className="mt-2 rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-700">{selectedPlayer.position}</span>}
               </div>
               <div className="mt-6 space-y-3 text-sm">
+                <div className="flex justify-between"><span className="text-slate-500">Player ID</span><span className="font-mono text-slate-900">#{selectedPlayer.id}</span></div>
                 <div className="flex justify-between"><span className="text-slate-500">Club</span><span className="text-slate-900">{selectedPlayer.clubName}</span></div>
                 <div className="flex justify-between"><span className="text-slate-500">Height</span><span className="text-slate-900">{selectedPlayer.height ? `${selectedPlayer.height} cm` : '-'}</span></div>
                 <div className="flex justify-between"><span className="text-slate-500">Weight</span><span className="text-slate-900">{selectedPlayer.weight ? `${selectedPlayer.weight} kg` : '-'}</span></div>
@@ -266,6 +267,7 @@ export default function PlayersPage() {
                 <tr className="border-b border-slate-100 bg-slate-50/50 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
                   <th className="px-3 py-3 w-14"></th>
                   <th className="px-3 py-3">Player</th>
+                  <th className="px-3 py-3">Player ID</th>
                   <th className="px-3 py-3">Club</th>
                   <th className="px-3 py-3">Position</th>
                   <th className="px-3 py-3">Status</th>
@@ -283,6 +285,9 @@ export default function PlayersPage() {
                           <span className="font-medium text-slate-900">{(p.firstName || p.lastName) ? `${p.firstName || ''} ${p.lastName || ''}`.trim() : p.username}</span>
                           <span className="text-xs text-slate-400">@{p.username}</span>
                         </div>
+                      </td>
+                      <td className="px-3 py-3">
+                        <span className="font-mono text-xs text-slate-500">#{p.id}</span>
                       </td>
                       <td className="px-3 py-3 text-slate-600">{p.clubName}</td>
                       <td className="px-3 py-3">
@@ -305,7 +310,7 @@ export default function PlayersPage() {
                     </tr>
                   ))}
                 {filtered.length === 0 && (
-                  <tr><td colSpan={6}><EmptyState title="No players found" description={search ? 'Try a different search' : 'Add your first player.'} /></td></tr>
+                  <tr><td colSpan={7}><EmptyState title="No players found" description={search ? 'Try a different search' : 'Add your first player.'} /></td></tr>
                 )}
               </tbody>
             </table>

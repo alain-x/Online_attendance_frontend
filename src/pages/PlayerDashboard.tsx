@@ -214,7 +214,7 @@ export default function PlayerDashboard() {
                   Welcome, {(user?.firstName && user?.lastName) ? `${user.firstName} ${user.lastName}` : (user?.firstName || user?.username || 'Player')}
                 </h1>
                 <p className="mt-1 text-sm text-indigo-200">
-                  {myPlayer ? `${myPlayer.position || 'Player'} \u00B7 ${myPlayer.clubName}` : 'Your sports performance at a glance.'}
+                  {myPlayer ? `#${myPlayer.id} \u00B7 ${myPlayer.position || 'Player'} \u00B7 ${myPlayer.clubName}` : 'Your sports performance at a glance.'}
                 </p>
               </div>
             </div>

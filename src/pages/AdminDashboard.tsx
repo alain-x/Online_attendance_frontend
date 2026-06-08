@@ -18,6 +18,10 @@ import { utcDateString } from '../utils/date';
 import { useToast } from '../hooks/useToast';
 import Toast from '../components/Toast';
 import FormsAdminSection from './FormsAdminSection';
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  PieChart, Pie, Cell,
+} from 'recharts';
 
 import type {
   AttendanceResponse,
@@ -198,6 +202,20 @@ function TabButton({ active, children, onClick }: TabButtonProps) {
     >
       {children}
     </button>
+  );
+}
+
+function CustomBarTooltip({ active, payload, label }: any) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="rounded-lg border bg-white/95 px-4 py-3 shadow-lg backdrop-blur">
+      <p className="mb-1 text-sm font-semibold text-slate-800">{label}</p>
+      {payload.map((entry: any, i: number) => (
+        <p key={i} className="text-xs" style={{ color: entry.color }}>
+          {entry.name}: {entry.value}
+        </p>
+      ))}
+    </div>
   );
 }
 
@@ -2049,116 +2067,289 @@ export default function AdminDashboard() {
 
             {dashboardTab === 'home' ? (
               <>
-              <div className="mt-4 grid gap-4 lg:grid-cols-12">
-                <div className="lg:col-span-9 grid gap-4">
-                  <div className="rounded-xl border bg-white">
-                    <div className="px-4 py-3 border-b">
-                      <div className="font-medium text-slate-900">Workforce Insights</div>
+              {/* Welcome Header */}
+              <div className="relative mt-4 mb-6 overflow-hidden rounded-2xl bg-gradient-to-br from-slate-800 via-slate-700 to-slate-600 p-6 sm:p-8">
+                <div className="absolute -right-8 -top-8 h-40 w-40 rounded-full bg-white/5 blur-2xl" />
+                <div className="absolute -bottom-6 -left-6 h-32 w-32 rounded-full bg-white/5 blur-xl" />
+                <div className="relative flex items-center gap-5">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-full bg-white/20 text-2xl font-bold text-white ring-4 ring-white/20 shadow-lg">
+                    {companyLogoUrl ? (
+                      <img src={companyLogoUrl} alt="" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} className="h-full w-full rounded-full object-cover" />
+                    ) : (
+                      companyLogoLetter
+                    )}
+                  </div>
+                  <div>
+                    <h1 className="text-2xl font-bold text-white sm:text-3xl">
+                      {companyTitle || 'Admin Dashboard'}
+                    </h1>
+                    <p className="mt-1 text-sm text-slate-300">
+                      {effectiveHome.totalStaff} total staff \u00B7 {new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* KPI Cards Row */}
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 mb-6">
+                <div className="rounded-xl border bg-white p-4 transition-shadow hover:shadow-md">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-2xl font-bold text-slate-900">{effectiveHome.totalStaff}</div>
+                      <div className="mt-0.5 text-xs text-slate-500">Total Staff</div>
                     </div>
-                    <div className="p-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                      <div className="rounded-lg border bg-white p-4">
-                        <div className="text-2xl font-semibold text-slate-900">{effectiveHome.locationNotVerifiedToday}</div>
-                        <div className="mt-1 text-xs text-slate-500">Out of Location</div>
-                        <div className="text-xs text-slate-400">Blocked</div>
+                    <div className="rounded-lg bg-blue-100 p-2.5 text-blue-600">
+                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+                <div className="rounded-xl border bg-white p-4 transition-shadow hover:shadow-md">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-2xl font-bold text-emerald-600">{effectiveHome.presentToday}</div>
+                      <div className="mt-0.5 text-xs text-slate-500">Present Today</div>
+                    </div>
+                    <div className="rounded-lg bg-emerald-100 p-2.5 text-emerald-600">
+                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+                <div className="rounded-xl border bg-white p-4 transition-shadow hover:shadow-md">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-2xl font-bold text-amber-600">{effectiveHome.checkedOutToday}</div>
+                      <div className="mt-0.5 text-xs text-slate-500">Checked Out</div>
+                    </div>
+                    <div className="rounded-lg bg-amber-100 p-2.5 text-amber-600">
+                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+                <div className="rounded-xl border bg-white p-4 transition-shadow hover:shadow-md">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-2xl font-bold text-rose-600">{effectiveHome.notInToday}</div>
+                      <div className="mt-0.5 text-xs text-slate-500">Not In</div>
+                    </div>
+                    <div className="rounded-lg bg-rose-100 p-2.5 text-rose-600">
+                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+                <div className="rounded-xl border bg-white p-4 transition-shadow hover:shadow-md">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-2xl font-bold text-slate-900">{workedMonthDisplay.h}h {workedMonthDisplay.m}m</div>
+                      <div className="mt-0.5 text-xs text-slate-500">Worked This Month</div>
+                    </div>
+                    <div className="rounded-lg bg-violet-100 p-2.5 text-violet-600">
+                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+                <div className="rounded-xl border bg-white p-4 transition-shadow hover:shadow-md">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-2xl font-bold text-orange-600">{overtimeMonthDisplay.h}h {overtimeMonthDisplay.m}m</div>
+                      <div className="mt-0.5 text-xs text-slate-500">Overtime</div>
+                    </div>
+                    <div className="rounded-lg bg-orange-100 p-2.5 text-orange-600">
+                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Charts Row */}
+              <div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-3 mb-6">
+                {/* Daily Clock-Ins Bar Chart */}
+                <div className="xl:col-span-2 rounded-xl border bg-white p-5">
+                  <div className="mb-4">
+                    <h3 className="font-semibold text-slate-900">Daily Clock-Ins</h3>
+                    <p className="text-xs text-slate-500">{getMonthRangeLabel(selectedYear, selectedMonth)}</p>
+                  </div>
+                  {effectiveHome.monthClockIns && effectiveHome.monthClockIns.length > 0 ? (
+                    <div className="h-64">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={effectiveHome.monthClockIns.map((d: { day: string; count: number }) => ({
+                          day: typeof d.day === 'string' && d.day.length === 10 ? d.day.slice(8) : d.day,
+                          Count: d.count,
+                        }))} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                          <XAxis dataKey="day" tick={{ fontSize: 10, fill: '#94a3b8' }} />
+                          <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} />
+                          <Tooltip content={<CustomBarTooltip />} />
+                          <Bar dataKey="Count" fill="#6366f1" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  ) : (
+                    <EmptyState title="No data yet" description="Clock-in data will appear here." />
+                  )}
+                </div>
+
+                {/* Attendance Donut + Monthly Metrics */}
+                <div className="space-y-6">
+                  {/* Attendance Donut */}
+                  <div className="rounded-xl border bg-white p-5">
+                    <div className="mb-2">
+                      <h3 className="font-semibold text-slate-900">Today's Attendance</h3>
+                      <p className="text-xs text-slate-500">{new Date().toLocaleDateString()}</p>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="h-36 w-36 shrink-0">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie data={[
+                              { name: 'Present', value: effectiveHome.presentToday },
+                              { name: 'Checked Out', value: effectiveHome.checkedOutToday },
+                              { name: 'Not In', value: effectiveHome.notInToday },
+                            ].filter(d => d.value > 0)} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={30} outerRadius={58} paddingAngle={3}>
+                              {[
+                                { name: 'Present', value: effectiveHome.presentToday },
+                                { name: 'Checked Out', value: effectiveHome.checkedOutToday },
+                                { name: 'Not In', value: effectiveHome.notInToday },
+                              ].filter(d => d.value > 0).map((entry) => (
+                                <Cell key={entry.name} fill={entry.name === 'Present' ? '#10b981' : entry.name === 'Checked Out' ? '#f59e0b' : '#ef4444'} />
+                              ))}
+                            </Pie>
+                            <Tooltip />
+                          </PieChart>
+                        </ResponsiveContainer>
                       </div>
-                      <div className="rounded-lg border bg-white p-4">
-                        <div className="text-2xl font-semibold text-slate-900">{effectiveHome.faceNotVerifiedToday}</div>
-                        <div className="mt-1 text-xs text-slate-500">Face</div>
-                        <div className="text-xs text-slate-400">Not Verified</div>
-                      </div>
-                      <div className="rounded-lg border bg-white p-4">
-                        <div className="text-2xl font-semibold text-slate-900">{effectiveHome.presentToday}</div>
-                        <div className="mt-1 text-xs text-slate-500">Present</div>
-                        <div className="text-xs text-slate-400">Today</div>
-                      </div>
-                      <div className="rounded-lg border bg-white p-4">
-                        <div className="text-2xl font-semibold text-slate-900">{effectiveHome.checkedOutToday}</div>
-                        <div className="mt-1 text-xs text-slate-500">Checked Out</div>
-                        <div className="text-xs text-slate-400">Today</div>
-                      </div>
-                      <div className="rounded-lg border bg-white p-4">
-                        <div className="text-2xl font-semibold text-slate-900">{effectiveHome.notInToday}</div>
-                        <div className="mt-1 text-xs text-slate-500">Not In</div>
-                        <div className="text-xs text-slate-400">Today</div>
-                      </div>
-                      <div className="rounded-lg border bg-white p-4">
-                        <div className="text-2xl font-semibold text-slate-900">{effectiveHome.totalStaff}</div>
-                        <div className="mt-1 text-xs text-slate-500">Staff</div>
-                        <div className="text-xs text-slate-400">Total</div>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex items-center gap-2">
+                          <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                          <span className="text-slate-600">Present</span>
+                          <span className="ml-auto font-semibold text-slate-900">{effectiveHome.presentToday}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="h-2.5 w-2.5 rounded-full bg-amber-500" />
+                          <span className="text-slate-600">Checked Out</span>
+                          <span className="ml-auto font-semibold text-slate-900">{effectiveHome.checkedOutToday}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="h-2.5 w-2.5 rounded-full bg-rose-500" />
+                          <span className="text-slate-600">Not In</span>
+                          <span className="ml-auto font-semibold text-slate-900">{effectiveHome.notInToday}</span>
+                        </div>
                       </div>
                     </div>
                   </div>
 
-                  <div className="rounded-xl border bg-white px-4 py-3">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <div className="rounded-md border bg-white px-3 py-2 text-sm text-slate-600">Monthly</div>
-                      <select
-                        className="rounded-md border bg-white px-3 py-2 text-sm text-slate-700"
-                        value={selectedYear}
-                        onChange={(e) => setSelectedYear(Number(e.target.value))}
-                      >
-                        {Array.from({ length: 6 }).map((_, i) => {
-                          const y = new Date().getUTCFullYear() - 2 + i;
-                          return (
-                            <option key={y} value={y}>
-                              {y}
-                            </option>
-                          );
-                        })}
-                      </select>
-                      <select
-                        className="rounded-md border bg-white px-3 py-2 text-sm text-slate-700"
-                        value={selectedMonth}
-                        onChange={(e) => setSelectedMonth(Number(e.target.value))}
-                      >
-                        {Array.from({ length: 12 }).map((_, i) => {
-                          const m = i + 1;
-                          const label = new Intl.DateTimeFormat(undefined, { month: 'short' }).format(new Date(Date.UTC(2000, i, 1)));
-                          return (
-                            <option key={m} value={m}>
-                              {label}
-                            </option>
-                          );
-                        })}
-                      </select>
-                      <div className="rounded-md border bg-white px-3 py-2 text-sm text-slate-600">{getMonthRangeLabel(selectedYear, selectedMonth)}</div>
-                      <select
-                        className="rounded-md border bg-white px-3 py-2 text-sm text-slate-700"
-                        value={selectedDepartment}
-                        onChange={(e) => setSelectedDepartment(e.target.value)}
-                      >
-                        <option value="ALL">All Departments</option>
-                        {departmentOptions.map((d) => (
-                          <option key={d} value={d}>
-                            {d}
-                          </option>
-                        ))}
-                      </select>
-                      <select
-                        className="rounded-md border bg-white px-3 py-2 text-sm text-slate-700"
-                        value={selectedRoleScope}
-                        onChange={(e) => setSelectedRoleScope(e.target.value as 'ALL' | 'MANAGERS')}
-                      >
-                        <option value="ALL">All Roles</option>
-                        <option value="MANAGERS">Managers</option>
-                      </select>
-                      <div className="flex-1" />
-                      <input
-                        className="rounded-md border px-3 py-2 text-sm"
-                        placeholder="Search"
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                      />
+                  {/* Location & Face Verification */}
+                  <div className="rounded-xl border bg-white p-5">
+                    <h3 className="mb-3 font-semibold text-slate-900">Verification Status</h3>
+                    <div className="space-y-3">
+                      <div>
+                        <div className="flex items-center justify-between text-sm mb-1">
+                          <span className="text-slate-600">Location Verified</span>
+                          <span className="font-medium text-slate-900">{effectiveHome.totalStaff - effectiveHome.locationNotVerifiedToday}/{effectiveHome.totalStaff}</span>
+                        </div>
+                        <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
+                          <div className="h-2 rounded-full bg-emerald-500" style={{ width: `${effectiveHome.totalStaff > 0 ? ((effectiveHome.totalStaff - effectiveHome.locationNotVerifiedToday) / effectiveHome.totalStaff) * 100 : 0}%` }} />
+                        </div>
+                      </div>
+                      <div>
+                        <div className="flex items-center justify-between text-sm mb-1">
+                          <span className="text-slate-600">Face Verified</span>
+                          <span className="font-medium text-slate-900">{effectiveHome.totalStaff - effectiveHome.faceNotVerifiedToday}/{effectiveHome.totalStaff}</span>
+                        </div>
+                        <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
+                          <div className="h-2 rounded-full bg-violet-500" style={{ width: `${effectiveHome.totalStaff > 0 ? ((effectiveHome.totalStaff - effectiveHome.faceNotVerifiedToday) / effectiveHome.totalStaff) * 100 : 0}%` }} />
+                        </div>
+                      </div>
                     </div>
                   </div>
+                </div>
+              </div>
 
+              {/* Monthly Filters + Table */}
+              <div className="rounded-xl border bg-white px-4 py-3 mb-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="rounded-md border bg-white px-3 py-2 text-sm text-slate-600">Monthly</div>
+                  <select
+                    className="rounded-md border bg-white px-3 py-2 text-sm text-slate-700"
+                    value={selectedYear}
+                    onChange={(e) => setSelectedYear(Number(e.target.value))}
+                  >
+                    {Array.from({ length: 6 }).map((_, i) => {
+                      const y = new Date().getUTCFullYear() - 2 + i;
+                      return (
+                        <option key={y} value={y}>
+                          {y}
+                        </option>
+                      );
+                    })}
+                  </select>
+                  <select
+                    className="rounded-md border bg-white px-3 py-2 text-sm text-slate-700"
+                    value={selectedMonth}
+                    onChange={(e) => setSelectedMonth(Number(e.target.value))}
+                  >
+                    {Array.from({ length: 12 }).map((_, i) => {
+                      const m = i + 1;
+                      const label = new Intl.DateTimeFormat(undefined, { month: 'short' }).format(new Date(Date.UTC(2000, i, 1)));
+                      return (
+                        <option key={m} value={m}>
+                          {label}
+                        </option>
+                      );
+                    })}
+                  </select>
+                  <div className="rounded-md border bg-white px-3 py-2 text-sm text-slate-600">{getMonthRangeLabel(selectedYear, selectedMonth)}</div>
+                  <select
+                    className="rounded-md border bg-white px-3 py-2 text-sm text-slate-700"
+                    value={selectedDepartment}
+                    onChange={(e) => setSelectedDepartment(e.target.value)}
+                  >
+                    <option value="ALL">All Departments</option>
+                    {departmentOptions.map((d) => (
+                      <option key={d} value={d}>
+                        {d}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    className="rounded-md border bg-white px-3 py-2 text-sm text-slate-700"
+                    value={selectedRoleScope}
+                    onChange={(e) => setSelectedRoleScope(e.target.value as 'ALL' | 'MANAGERS')}
+                  >
+                    <option value="ALL">All Roles</option>
+                    <option value="MANAGERS">Managers</option>
+                  </select>
+                  <div className="flex-1" />
+                  <input
+                    className="rounded-md border px-3 py-2 text-sm"
+                    placeholder="Search"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {/* Today Attendance Table + Quick Links */}
+              <div className="grid gap-6 lg:grid-cols-12">
+                <div className="lg:col-span-9">
                   <div className="rounded-xl border bg-white">
-                    <div className="px-4 py-3 border-b">
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="font-medium text-slate-900">Today attendance</div>
-                        <div className="flex flex-wrap items-center gap-2">
+                    <div className="px-5 py-4 border-b">
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-semibold text-slate-900">Today's Attendance</h3>
+                        <div className="flex items-center gap-2">
                           <select
-                            className="rounded-md border bg-white px-3 py-2 text-sm text-slate-700"
+                            className="rounded-md border bg-white px-3 py-1.5 text-sm text-slate-700"
                             value={attendanceStatusFilter}
                             onChange={(e) => setAttendanceStatusFilter(e.target.value as 'ALL' | 'IN' | 'OUT' | 'NOT_IN')}
                           >
@@ -2171,15 +2362,15 @@ export default function AdminDashboard() {
                       </div>
                     </div>
                     <div className="grid gap-4 lg:grid-cols-12">
-                      <div className={selectedEmployeeId ? 'lg:col-span-8 overflow-x-auto' : 'lg:col-span-12 overflow-x-auto'}>
-                        <table className="w-full min-w-[720px] text-sm">
+                      <div className={selectedEmployeeId ? 'lg:col-span-7 overflow-x-auto' : 'lg:col-span-12 overflow-x-auto'}>
+                        <table className="w-full min-w-[700px] text-sm">
                           <thead className="bg-slate-50 text-slate-600">
                             <tr>
-                              <th className="px-4 py-2 text-left">Name</th>
-                              <th className="px-4 py-2 text-left">In-Time</th>
-                              <th className="px-4 py-2 text-left">Out-Time</th>
-                              <th className="px-4 py-2 text-left">Location</th>
-                              <th className="px-4 py-2 text-left">Status</th>
+                              <th className="px-4 py-2.5 text-left font-medium">Name</th>
+                              <th className="px-4 py-2.5 text-left font-medium">In-Time</th>
+                              <th className="px-4 py-2.5 text-left font-medium">Out-Time</th>
+                              <th className="px-4 py-2.5 text-left font-medium">Location</th>
+                              <th className="px-4 py-2.5 text-left font-medium">Status</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -2218,7 +2409,7 @@ export default function AdminDashboard() {
                                 <td colSpan={5} className="px-4 py-12">
                                   <EmptyState
                                     title="No attendance records"
-                                    description="No attendance records found for today. Employees can check in using the employee dashboard."
+                                    description="No attendance records found for today."
                                   />
                                 </td>
                               </tr>
@@ -2228,7 +2419,7 @@ export default function AdminDashboard() {
                       </div>
 
                       {selectedEmployeeId ? (
-                        <div className="lg:col-span-4 border-t lg:border-t-0 lg:border-l">
+                        <div className="lg:col-span-5 border-t lg:border-t-0 lg:border-l">
                           <div className="px-4 py-3 border-b flex items-center justify-between gap-3">
                             <div>
                               <div className="text-sm font-medium text-slate-900">Employee</div>
@@ -2278,7 +2469,6 @@ export default function AdminDashboard() {
                                     className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
                                   />
                                 </div>
-
                                 <div>
                                   <div className="text-xs font-medium text-slate-700">Check-out time</div>
                                   <input
@@ -2288,7 +2478,6 @@ export default function AdminDashboard() {
                                     className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
                                   />
                                 </div>
-
                                 <div className="grid grid-cols-2 gap-2">
                                   <div>
                                     <div className="text-xs font-medium text-slate-700">Status</div>
@@ -2304,7 +2493,6 @@ export default function AdminDashboard() {
                                       ))}
                                     </select>
                                   </div>
-
                                   <div>
                                     <div className="text-xs font-medium text-slate-700">Location verified</div>
                                     <select
@@ -2317,14 +2505,13 @@ export default function AdminDashboard() {
                                     </select>
                                   </div>
                                 </div>
-
                                 <button
                                   type="button"
                                   disabled={attendanceUpsertBusy}
                                   onClick={submitAttendanceUpsert}
                                   className="mt-2 w-full rounded-md bg-slate-900 px-3 py-2 text-sm text-white hover:bg-slate-800 disabled:opacity-60"
                                 >
-                                  {attendanceUpsertBusy ? 'Saving…' : editingAttendanceId ? 'Save Changes' : 'Create Record'}
+                                  {attendanceUpsertBusy ? 'Saving\u2026' : editingAttendanceId ? 'Save Changes' : 'Create Record'}
                                 </button>
                               </div>
                             </div>
@@ -2339,10 +2526,10 @@ export default function AdminDashboard() {
                                   <div key={x.id} className="rounded-lg border bg-white p-3">
                                     <div className="flex items-center justify-between gap-3">
                                       <div className="text-sm font-medium text-slate-900">
-                                        {x.checkInTime ? new Date(x.checkInTime).toLocaleDateString() : '—'}
+                                        {x.checkInTime ? new Date(x.checkInTime).toLocaleDateString() : '\u2014'}
                                       </div>
                                       <div className="flex items-center gap-2">
-                                        <StatusBadge status={(x.status || '').toLowerCase() || 'unknown'}>{x.status || '—'}</StatusBadge>
+                                        <StatusBadge status={(x.status || '').toLowerCase() || 'unknown'}>{x.status || '\u2014'}</StatusBadge>
                                         <button
                                           type="button"
                                           disabled={attendanceUpsertBusy}
@@ -2373,12 +2560,8 @@ export default function AdminDashboard() {
                                     </div>
                                   </div>
                                 ))}
-
                                 {selectedEmployeeAttendance.length === 0 ? (
-                                  <EmptyState
-                                    title="No history"
-                                    description="No attendance history found for this employee."
-                                  />
+                                  <EmptyState title="No history" description="No attendance history found for this employee." />
                                 ) : null}
                               </div>
                             )}
@@ -2389,7 +2572,8 @@ export default function AdminDashboard() {
                   </div>
                 </div>
 
-                <div className="lg:col-span-3 grid gap-4">
+                {/* Quick Links */}
+                <div className="lg:col-span-3 space-y-4">
                   <div className="rounded-xl border bg-white">
                     <div className="px-4 py-3 border-b font-medium text-slate-900">Quick Links</div>
                     <div className="divide-y">
@@ -2413,14 +2597,33 @@ export default function AdminDashboard() {
                           className="w-full px-4 py-3 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center justify-between"
                         >
                           <span>{x.label}</span>
-                          <span className="text-slate-400">›</span>
+                          <span className="text-slate-400">{'\u203A'}</span>
                         </button>
                       ))}
+                    </div>
+                  </div>
+
+                  {/* Attendance Rate Mini Card */}
+                  <div className="rounded-xl border bg-white p-4">
+                    <h3 className="mb-3 text-sm font-semibold text-slate-900">Today's Rate</h3>
+                    <div className="flex items-center gap-3">
+                      <div className={`flex h-16 w-16 items-center justify-center rounded-full text-lg font-bold text-white ${
+                        effectiveHome.totalStaff > 0 && (effectiveHome.presentToday / effectiveHome.totalStaff) >= 0.8
+                          ? 'bg-emerald-500' : effectiveHome.totalStaff > 0 && (effectiveHome.presentToday / effectiveHome.totalStaff) >= 0.5
+                          ? 'bg-amber-500' : 'bg-rose-500'
+                      }`}>
+                        {effectiveHome.totalStaff > 0 ? Math.round((effectiveHome.presentToday / effectiveHome.totalStaff) * 100) : 0}%
+                      </div>
+                      <div className="text-xs text-slate-600">
+                        <p>{effectiveHome.presentToday} of {effectiveHome.totalStaff} staff present</p>
+                        <p className="mt-0.5 text-slate-400">{effectiveHome.totalStaff - effectiveHome.presentToday} absent today</p>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
 
+              {/* Chat - kept identical to original for backward compat */}
               {chatOpen ? (
                 <>
                   <button
@@ -2443,7 +2646,7 @@ export default function AdminDashboard() {
                           aria-label="Close"
                           title="Close"
                         >
-                          ×
+                          {'\u00D7'}
                         </button>
                       </div>
 
@@ -2505,7 +2708,7 @@ export default function AdminDashboard() {
                 aria-label="Chat"
                 title="Chat"
               >
-                💬
+                {'\uD83D\uDCAC'}
               </button>
               </>
             ) : dashboardTab === 'day' ? (

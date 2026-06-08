@@ -345,13 +345,14 @@ export default function TeamsPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-slate-100 bg-slate-50/50 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    <th className="px-5 py-3 w-12">#</th>
-                    <th className="px-5 py-3">Player</th>
-                    <th className="px-5 py-3">Jersey</th>
-                    <th className="px-5 py-3">Position</th>
-                    <th className="px-5 py-3 text-right w-24">Actions</th>
-                  </tr>
+                    <tr className="border-b border-slate-100 bg-slate-50/50 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      <th className="px-5 py-3 w-12">#</th>
+                      <th className="px-5 py-3">Player</th>
+                      <th className="px-5 py-3">Player ID</th>
+                      <th className="px-5 py-3">Jersey</th>
+                      <th className="px-5 py-3">Position</th>
+                      <th className="px-5 py-3 text-right w-24">Actions</th>
+                    </tr>
                 </thead>
                 <tbody>
                   {members.map((m, idx) => (
@@ -359,6 +360,9 @@ export default function TeamsPage() {
                       <td className="px-5 py-3.5 text-slate-400 font-mono text-xs">{idx + 1}</td>
                       <td className="px-5 py-3.5">
                         <span className="font-medium text-slate-900">{m.playerName}</span>
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <span className="font-mono text-xs text-slate-500">#{m.playerId}</span>
                       </td>
                       <td className="px-5 py-3.5">
                         {m.jerseyNumber ? (
