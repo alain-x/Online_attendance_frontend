@@ -186,20 +186,20 @@ export default function PlayerDashboard() {
 
   if (loading) {
     return (
-      <AppLayout title="Player Dashboard" sidebarItems={sidebarItems} activeSidebarKey={section} onSidebarChange={setSection}>
+      <AppLayout title="SportClub Pro" sidebarItems={sidebarItems} activeSidebarKey={section} onSidebarChange={setSection}>
         <div className="flex items-center justify-center py-20"><LoadingSpinner size="lg" /></div>
       </AppLayout>
     );
   }
 
   return (
-    <AppLayout title="Player Dashboard" sidebarItems={sidebarItems} activeSidebarKey={section} onSidebarChange={setSection}>
+    <AppLayout title="SportClub Pro" sidebarItems={sidebarItems} activeSidebarKey={section} onSidebarChange={setSection}>
       {toast && <Toast message={toast.message} type={toast.type} onClose={hideToast} />}
 
       {section === 'dashboard' && (
         <div className="space-y-6">
           {/* Welcome Header */}
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-900 via-indigo-800 to-indigo-700 p-6 sm:p-8">
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-800 via-emerald-700 to-teal-700 p-6 sm:p-8">
             <div className="absolute -right-8 -top-8 h-40 w-40 rounded-full bg-white/5 blur-2xl" />
             <div className="absolute -bottom-6 -left-6 h-32 w-32 rounded-full bg-white/5 blur-xl" />
             <div className="relative flex items-center gap-5">
@@ -214,7 +214,7 @@ export default function PlayerDashboard() {
                 <h1 className="text-2xl font-bold text-white sm:text-3xl">
                   Welcome, {(user?.firstName && user?.lastName) ? `${user.firstName} ${user.lastName}` : (user?.firstName || user?.username || 'Player')}
                 </h1>
-                <p className="mt-1 text-sm text-indigo-200">
+                <p className="mt-1 text-sm text-emerald-200">
                   {myPlayer ? `#${myPlayer.id} \u00B7 ${myPlayer.position || 'Player'} \u00B7 ${myPlayer.clubName}` : 'Your sports performance at a glance.'}
                 </p>
               </div>

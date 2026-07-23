@@ -753,7 +753,7 @@ export default function EmployeeDashboard() {
   if (initialLoading) {
     return (
       <AppLayout
-        title="Employee Dashboard"
+        title="SportClub Pro"
         sidebarItems={sidebarItems}
         activeSidebarKey={user?.role === 'ADMIN' ? 'employee_nav' : section}
         onSidebarChange={(k) => {

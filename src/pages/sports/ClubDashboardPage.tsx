@@ -31,8 +31,8 @@ export default function ClubDashboardPage({ onNavigate }: ClubDashboardPageProps
   }, [showToast]);
 
   const quickActions = [
-    { label: 'New Team', section: 'teams', color: 'bg-blue-600 hover:bg-blue-700', icon: 'M12 4v16m8-8H4' },
-    { label: 'New Training', section: 'training', color: 'bg-emerald-600 hover:bg-emerald-700', icon: 'M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z' },
+    { label: 'New Team', section: 'teams', color: 'bg-emerald-600 hover:bg-emerald-700', icon: 'M12 4v16m8-8H4' },
+    { label: 'New Training', section: 'training', color: 'bg-teal-600 hover:bg-teal-700', icon: 'M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z' },
     { label: 'New Match', section: 'matches', color: 'bg-indigo-600 hover:bg-indigo-700', icon: 'M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z' },
   ];
 
@@ -73,12 +73,12 @@ export default function ClubDashboardPage({ onNavigate }: ClubDashboardPageProps
     <div>
       {toast && <Toast message={toast.message} type={toast.type} onClose={hideToast} />}
 
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-800 via-slate-700 to-slate-600 p-6 sm:p-8 mb-6">
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-700 via-emerald-600 to-teal-700 p-6 sm:p-8 mb-6">
         <div className="absolute -right-8 -top-8 h-40 w-40 rounded-full bg-white/5 blur-2xl" />
         <div className="absolute -bottom-6 -left-6 h-32 w-32 rounded-full bg-white/5 blur-xl" />
         <div className="relative">
           <h1 className="text-2xl font-bold text-white sm:text-3xl">Club Dashboard</h1>
-          <p className="mt-1 text-sm text-slate-300">Overview of your sports club activities and statistics.</p>
+          <p className="mt-1 text-sm text-emerald-100">Overview of your sports club activities and statistics.</p>
         </div>
       </div>
 
@@ -110,7 +110,7 @@ export default function ClubDashboardPage({ onNavigate }: ClubDashboardPageProps
                 <Tooltip
                   contentStyle={{ borderRadius: 8, border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                 />
-                <Bar dataKey="value" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="value" fill="#10b981" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </ChartBox>

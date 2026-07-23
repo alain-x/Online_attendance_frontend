@@ -380,7 +380,7 @@ export default function PayrollDashboard() {
 
   return (
     <AppLayout
-      title="Payroll"
+      title="SportClub Pro"
       sidebarItems={sidebarItems}
       activeSidebarKey={user?.role === 'ADMIN' ? 'payroll_nav' : section}
       onSidebarChange={(k) => {

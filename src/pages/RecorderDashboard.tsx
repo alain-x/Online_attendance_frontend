@@ -372,7 +372,7 @@ export default function RecorderDashboard() {
   if (initialLoading) {
     return (
       <AppLayout
-        title="Recorder"
+      title="SportClub Pro"
         sidebarItems={sidebarItems}
         activeSidebarKey={user?.role === 'ADMIN' ? 'recorder_nav' : 'record'}
         onSidebarChange={(k) => {

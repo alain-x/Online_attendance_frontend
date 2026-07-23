@@ -73,6 +73,10 @@ export default function ChatPage({ onUnreadCleared }: ChatPageProps) {
   const [forwarding, setForwarding] = useState(false);
   const [deleteConfirmMsg, setDeleteConfirmMsg] = useState<ChatMessage | null>(null);
   const [deletingFor, setDeletingFor] = useState<'everyone' | 'me' | null>(null);
+  const [previewFile, setPreviewFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewCaption, setPreviewCaption] = useState('');
+  const [lightboxMsg, setLightboxMsg] = useState<ChatMessage | null>(null);
   const seenTimestamps = useRef<Map<number, string>>(new Map());
   const prevRoomsRef = useRef<ChatRoom[]>([]);
 
@@ -94,6 +98,12 @@ export default function ChatPage({ onUnreadCleared }: ChatPageProps) {
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
 
   const refresh = useCallback(async (checkNew = true) => {
     try {
@@ -226,23 +236,55 @@ export default function ChatPage({ onUnreadCleared }: ChatPageProps) {
   async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file || !selectedRoom) return;
+    if (isImageFile(file.type)) {
+      const url = URL.createObjectURL(file);
+      setPreviewFile(file);
+      setPreviewUrl(url);
+      setPreviewCaption('');
+    } else {
+      setSending(true);
+      try {
+        const uploaded = await uploadChatFile(file);
+        await sendMessage(selectedRoom.id, {
+          messageType: 'FILE',
+          fileUrl: uploaded.fileUrl,
+          fileName: uploaded.fileName,
+          fileSize: uploaded.fileSize,
+          mimeType: uploaded.mimeType,
+        });
+        await loadMessages(selectedRoom.id);
+        await refresh();
+      } catch (err) {
+        showToast(getApiErrorMessage(err, 'Failed to upload file'), 'error');
+      } finally {
+        setSending(false);
+      }
+    }
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  }
+
+  async function handleSendImageWithCaption() {
+    if (!previewFile || !selectedRoom) return;
     setSending(true);
     try {
-      const uploaded = await uploadChatFile(file);
+      const uploaded = await uploadChatFile(previewFile);
       await sendMessage(selectedRoom.id, {
-        messageType: isImageFile(file.type) ? 'IMAGE' : 'FILE',
+        content: previewCaption.trim() || undefined,
+        messageType: 'IMAGE',
         fileUrl: uploaded.fileUrl,
         fileName: uploaded.fileName,
         fileSize: uploaded.fileSize,
         mimeType: uploaded.mimeType,
       });
+      setPreviewFile(null);
+      setPreviewUrl(null);
+      setPreviewCaption('');
       await loadMessages(selectedRoom.id);
       await refresh();
     } catch (err) {
-      showToast(getApiErrorMessage(err, 'Failed to upload file'), 'error');
+      showToast(getApiErrorMessage(err, 'Failed to upload'), 'error');
     } finally {
       setSending(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   }
 
@@ -338,8 +380,19 @@ export default function ChatPage({ onUnreadCleared }: ChatPageProps) {
             )}
             {(msg.messageType === 'IMAGE' || (isImageFile(msg.mimeType) && msg.fileUrl)) && msg.fileUrl && (
               <div className="mb-2">
-                <img src={msg.fileUrl} alt="Shared" className="max-w-full rounded-lg max-h-64 object-cover cursor-pointer hover:opacity-95 transition"
-                  onClick={() => window.open(msg.fileUrl!, '_blank')} />
+                <div className="relative group/img rounded-lg overflow-hidden border border-black/5">
+                  <img src={msg.fileUrl} alt="Shared"
+                    className="max-w-full max-h-72 w-full object-cover cursor-pointer transition-transform duration-200 hover:scale-[1.02]"
+                    onClick={() => setLightboxMsg(msg)}
+                    onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                  <button type="button" onClick={() => setLightboxMsg(msg)}
+                    className="absolute inset-0 flex items-center justify-center bg-black/0 hover:bg-black/10 transition-colors">
+                    <svg className="w-8 h-8 text-white opacity-0 group-hover/img:opacity-100 drop-shadow-lg transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                  </button>
+                </div>
+                {msg.fileSize != null && (
+                  <p className={`text-[10px] mt-1 ${own ? 'text-blue-200' : 'text-slate-400'}`}>{formatFileSize(msg.fileSize)}</p>
+                )}
               </div>
             )}
             {msg.messageType === 'FILE' && msg.fileUrl && (
@@ -850,6 +903,62 @@ export default function ChatPage({ onUnreadCleared }: ChatPageProps) {
               <button type="button" onClick={() => setShowParticipants(false)}
                 className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">Close</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Image Preview Modal */}
+      {previewUrl && previewFile && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => { setPreviewFile(null); setPreviewUrl(null); setPreviewCaption(''); }}>
+          <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200">
+              <div className="flex items-center gap-2">
+                <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                <span className="text-sm font-semibold text-slate-900">Send Image</span>
+              </div>
+              <button type="button" onClick={() => { setPreviewFile(null); setPreviewUrl(null); setPreviewCaption(''); }}
+                className="h-8 w-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 transition-colors">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <div className="p-3">
+              <img src={previewUrl} alt="Preview" className="w-full max-h-72 object-contain rounded-xl bg-slate-100" />
+            </div>
+            <div className="px-5 pb-4">
+              <div className="flex gap-3">
+                <input type="text" value={previewCaption} onChange={e => setPreviewCaption(e.target.value)}
+                  placeholder="Add a caption..." className="flex-1 rounded-xl border border-slate-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
+                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendImageWithCaption(); } }} />
+                <button type="button" onClick={handleSendImageWithCaption} disabled={sending}
+                  className="rounded-xl bg-blue-500 hover:bg-blue-600 active:bg-blue-700 px-5 py-2.5 text-sm font-medium text-white disabled:opacity-50 transition-colors shadow-sm flex items-center gap-2">
+                  {sending ? (
+                    <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                  ) : (
+                    <><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9-7-9-7v14z" /></svg> Send</>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Lightbox for full-size image */}
+      {lightboxMsg && lightboxMsg.fileUrl && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onClick={() => setLightboxMsg(null)}>
+          <button type="button" onClick={() => setLightboxMsg(null)}
+            className="absolute top-4 right-4 h-10 w-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+          <div className="relative max-w-full max-h-full" onClick={e => e.stopPropagation()}>
+            <img src={lightboxMsg.fileUrl} alt="Full size"
+              className="max-w-full max-h-[85vh] rounded-2xl shadow-2xl object-contain"
+              onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+            {lightboxMsg.content && (
+              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-5 rounded-b-2xl">
+                <p className="text-white text-sm">{lightboxMsg.content}</p>
+              </div>
+            )}
           </div>
         </div>
       )}

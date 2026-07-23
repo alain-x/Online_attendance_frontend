@@ -176,7 +176,7 @@ export default function AuditorDashboard() {
 
   return (
     <AppLayout
-      title="Auditor"
+      title="SportClub Pro"
       sidebarItems={sidebarItems}
       activeSidebarKey={user?.role === 'ADMIN' ? 'auditor_nav' : section}
       onSidebarChange={(k) => {

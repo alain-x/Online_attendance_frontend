@@ -93,14 +93,14 @@ export default function ParentDashboard() {
 
   if (loading) {
     return (
-      <AppLayout title="Parent Dashboard" sidebarItems={sidebarItems} activeSidebarKey={section} onSidebarChange={setSection}>
+      <AppLayout title="SportClub Pro" sidebarItems={sidebarItems} activeSidebarKey={section} onSidebarChange={setSection}>
         <div className="flex items-center justify-center py-20"><LoadingSpinner size="lg" /></div>
       </AppLayout>
     );
   }
 
   return (
-    <AppLayout title="Parent Dashboard" sidebarItems={sidebarItems} activeSidebarKey={section} onSidebarChange={setSection}>
+    <AppLayout title="SportClub Pro" sidebarItems={sidebarItems} activeSidebarKey={section} onSidebarChange={setSection}>
       {toast && <Toast message={toast.message} type={toast.type} onClose={hideToast} />}
 
       {section === 'dashboard' && (

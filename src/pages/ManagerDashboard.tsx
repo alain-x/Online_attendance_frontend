@@ -241,7 +241,7 @@ export default function ManagerDashboard() {
 
   return (
     <AppLayout
-      title="Manager"
+      title="SportClub Pro"
       sidebarItems={sidebarItems}
       activeSidebarKey={user?.role === 'ADMIN' ? 'manager_nav' : section}
       onSidebarChange={(k) => {

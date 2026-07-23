@@ -173,7 +173,7 @@ export default function HRDashboard() {
 
   return (
     <AppLayout
-      title="HR"
+      title="SportClub Pro"
       sidebarItems={sidebarItems}
       activeSidebarKey={user?.role === 'ADMIN' ? 'hr_nav' : section}
       onSidebarChange={(k) => {

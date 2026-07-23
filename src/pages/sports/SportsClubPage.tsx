@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import AppLayout from '../../components/AppLayout';
 import { useAuth } from '../../auth/AuthContext';
 import ClubDashboardPage from './ClubDashboardPage';
@@ -18,7 +18,6 @@ import { useChatNotifier } from './useChatNotifier';
 
 export default function SportsClubPage() {
   const { user } = useAuth();
-  const navigate = useNavigate();
   const location = useLocation();
   const [section, setSection] = useState('dashboard');
   const { totalUnread, clearUnread } = useChatNotifier();
@@ -50,16 +49,9 @@ export default function SportsClubPage() {
     ];
     if (isSystemOrAdmin || isClubAdmin) {
       items.push({ key: 'users', label: 'Users' });
-      items.push({ key: 'reports', label: 'Reports' });
-      items.push({ key: 'employee_nav', label: 'Employee Dashboard' });
-      items.push({ key: 'recorder_nav', label: 'Recorder' });
-      items.push({ key: 'hr_nav', label: 'HR' });
-      items.push({ key: 'manager_nav', label: 'Manager' });
-      items.push({ key: 'payroll_nav', label: 'Payroll' });
-      items.push({ key: 'auditor_nav', label: 'Auditor' });
     }
     return items;
-  }, [isSystemOrAdmin, isClubAdmin]);
+  }, [isSystemOrAdmin, isClubAdmin, totalUnread]);
 
   useEffect(() => {
     const allowed = sidebarItems.some((x) => x.key === section);
@@ -72,23 +64,17 @@ export default function SportsClubPage() {
 
   return (
     <AppLayout
-      title="Sports Club"
+      title="SportClub Pro"
       sidebarItems={sidebarItems}
       activeSidebarKey={section}
       onSidebarChange={(k) => {
-        if (k === 'employee_nav') { navigate('/employee'); return; }
-        if (k === 'recorder_nav') { navigate('/recorder'); return; }
-        if (k === 'hr_nav') { navigate('/hr'); return; }
-        if (k === 'manager_nav') { navigate('/manager'); return; }
-        if (k === 'payroll_nav') { navigate('/payroll'); return; }
-        if (k === 'auditor_nav') { navigate('/auditor'); return; }
         setSection(k);
       }}
     >
-      <div className="mb-4">
+        <div className="mb-4">
         <h1 className="text-2xl font-bold text-slate-900">{sectionTitle}</h1>
         <p className="mt-1 text-sm text-slate-600">
-          {user?.companyName ? `${user.companyName} - ` : ''}Sports Club Management
+          {user?.companyName ? `${user.companyName} - ` : ''}SportClub Pro
         </p>
       </div>
 
@@ -104,12 +90,6 @@ export default function SportsClubPage() {
       {section === 'payments' && <PaymentsPage />}
       {section === 'attendance' && <AttendanceSection />}
       {section === 'users' && <UsersPage />}
-      {section === 'reports' && (
-        <div className="rounded-xl border bg-white p-8">
-          <h2 className="text-lg font-semibold text-slate-900 mb-4">Reports & Analytics</h2>
-          <p className="text-sm text-slate-600">Advanced reporting features will be available here.</p>
-        </div>
-      )}
     </AppLayout>
   );
 }

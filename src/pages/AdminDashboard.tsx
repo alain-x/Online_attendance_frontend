@@ -1985,7 +1985,7 @@ export default function AdminDashboard() {
   if (loading && employees.length === 0) {
     return (
       <AppLayout
-        title="Dashboard"
+        title="SportClub Pro"
         sidebarItems={sidebarItems}
         activeSidebarKey={section}
         onSidebarChange={setSection}

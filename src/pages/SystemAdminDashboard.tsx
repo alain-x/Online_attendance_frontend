@@ -534,7 +534,7 @@ export default function SystemAdminDashboard() {
     try {
       await updateSystemBranding({ systemName: systemName.trim() });
       localStorage.setItem('systemName', systemName.trim());
-      document.title = systemName.trim() ? systemName.trim() : 'Attendance System';
+      document.title = systemName.trim() ? systemName.trim() : 'SportClub Pro';
       showToast('System name updated', 'success');
     } catch (e: unknown) {
       showToast(getApiErrorMessage(e, 'Failed to update system name'), 'error');
@@ -549,7 +549,7 @@ export default function SystemAdminDashboard() {
       await deleteSystemBranding();
       localStorage.setItem('systemName', '');
       setSystemName('');
-      document.title = 'Attendance System';
+      document.title = 'SportClub Pro';
       showToast('System name removed', 'success');
     } catch (e: unknown) {
       showToast(getApiErrorMessage(e, 'Failed to remove system name'), 'error');
@@ -745,7 +745,7 @@ export default function SystemAdminDashboard() {
   }
 
   return (
-    <AppLayout title="" sidebarItems={sidebarItems} activeSidebarKey={section} onSidebarChange={(k) => { if (k === 'sports_club_nav') { navigate('/sports'); return; } setSection(k as any); }}>
+    <AppLayout title="SportClub Pro" sidebarItems={sidebarItems} activeSidebarKey={section} onSidebarChange={(k) => { if (k === 'sports_club_nav') { navigate('/sports'); return; } setSection(k as any); }}>
       {toast && <Toast message={toast.message} type={toast.type} onClose={hideToast} />}
 
       <div className="space-y-6">
@@ -755,33 +755,15 @@ export default function SystemAdminDashboard() {
           <div className="relative">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
-                <h1 className="text-2xl font-bold text-white sm:text-3xl">System Administration</h1>
-                <p className="mt-1 text-sm text-slate-300">Full system access — companies, branding, billing, and dashboard navigation.</p>
+                <h1 className="text-2xl font-bold text-white sm:text-3xl">SportClub Pro Admin</h1>
+                <p className="mt-1 text-sm text-slate-300">Full system access — companies, branding, billing, and sports management.</p>
               </div>
               <div className="flex flex-wrap gap-2">
                 <button type="button" className="rounded-md bg-white/20 px-3 py-2 text-sm text-white hover:bg-white/30 backdrop-blur-sm transition-colors" onClick={() => navigate('/sports')}>
-                  Sports
+                  Sports Club
                 </button>
                 <button type="button" className="rounded-md bg-white/20 px-3 py-2 text-sm text-white hover:bg-white/30 backdrop-blur-sm transition-colors" onClick={() => navigate('/admin')}>
-                  Admin
-                </button>
-                <button type="button" className="rounded-md bg-white/20 px-3 py-2 text-sm text-white hover:bg-white/30 backdrop-blur-sm transition-colors" onClick={() => navigate('/payroll')}>
-                  Payroll
-                </button>
-                <button type="button" className="rounded-md bg-white/20 px-3 py-2 text-sm text-white hover:bg-white/30 backdrop-blur-sm transition-colors" onClick={() => navigate('/hr')}>
-                  HR
-                </button>
-                <button type="button" className="rounded-md bg-white/20 px-3 py-2 text-sm text-white hover:bg-white/30 backdrop-blur-sm transition-colors" onClick={() => navigate('/manager')}>
-                  Manager
-                </button>
-                <button type="button" className="rounded-md bg-white/20 px-3 py-2 text-sm text-white hover:bg-white/30 backdrop-blur-sm transition-colors" onClick={() => navigate('/recorder')}>
-                  Recorder
-                </button>
-                <button type="button" className="rounded-md bg-white/20 px-3 py-2 text-sm text-white hover:bg-white/30 backdrop-blur-sm transition-colors" onClick={() => navigate('/auditor')}>
-                  Auditor
-                </button>
-                <button type="button" className="rounded-md bg-white/20 px-3 py-2 text-sm text-white hover:bg-white/30 backdrop-blur-sm transition-colors" onClick={() => navigate('/employee')}>
-                  Employee
+                  Company Admin
                 </button>
               </div>
             </div>
