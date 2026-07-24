@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import AppLayout from '../components/AppLayout';
+import { useBranding } from '../hooks/useBranding';
 import EmptyState from '../components/EmptyState';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Toast from '../components/Toast';
@@ -19,6 +20,7 @@ type ManagerSection = 'overview' | 'team' | 'timesheet' | 'reports' | 'workforce
 export default function ManagerDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { systemName } = useBranding();
   const { toast, showToast, hideToast } = useToast();
   const [section, setSection] = useState<ManagerSection>('overview');
 
@@ -241,7 +243,7 @@ export default function ManagerDashboard() {
 
   return (
     <AppLayout
-      title="SportClub Pro"
+      title=""
       sidebarItems={sidebarItems}
       activeSidebarKey={user?.role === 'ADMIN' ? 'manager_nav' : section}
       onSidebarChange={(k) => {

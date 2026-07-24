@@ -6,11 +6,13 @@ import { API_BASE_URL } from '../api/http';
 import { useAuth } from '../auth/AuthContext';
 import { getSystemBranding } from '../api/system';
 import { applyFavicon } from '../utils/favicon';
+import { useBranding } from '../hooks/useBranding';
 
 export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { setToken, refreshMe } = useAuth();
+  const { systemName } = useBranding();
 
   const navState = location.state as { username?: string } | null;
   const [username, setUsername] = useState(navState?.username || '');
@@ -131,7 +133,7 @@ export default function LoginPage() {
                 </svg>
               </div>
               <div>
-                <div className="text-2xl font-bold">SportClub Pro</div>
+                <div className="text-2xl font-bold">{systemName}</div>
                 <div className="text-emerald-200 text-sm">Sports Management Platform</div>
               </div>
             </div>
@@ -174,7 +176,7 @@ export default function LoginPage() {
               </svg>
             </div>
             <div>
-              <div className="text-xl font-bold text-slate-900">SportClub Pro</div>
+              <div className="text-xl font-bold text-slate-900">{systemName}</div>
               <div className="text-xs text-slate-500">Sports Management</div>
             </div>
           </div>
@@ -252,7 +254,7 @@ export default function LoginPage() {
           </div>
 
           <p className="mt-8 text-center text-xs text-slate-400">
-            SportClub Pro &mdash; Professional Sports Management
+            {systemName} &mdash; Professional Sports Management
           </p>
         </div>
       </div>

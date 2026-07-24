@@ -15,9 +15,11 @@ import UsersPage from './UsersPage';
 import AttendanceSection from './AttendanceSection';
 import SportsPage from './SportsPage';
 import { useChatNotifier } from './useChatNotifier';
+import { useBranding } from '../../hooks/useBranding';
 
 export default function SportsClubPage() {
   const { user } = useAuth();
+  const { systemName } = useBranding();
   const location = useLocation();
   const [section, setSection] = useState('dashboard');
   const { totalUnread, clearUnread } = useChatNotifier();
@@ -31,7 +33,6 @@ export default function SportsClubPage() {
   }, [location.state]);
 
   const isSystemOrAdmin = user?.role === 'SYSTEM_ADMIN' || user?.role === 'ADMIN';
-  const isClubAdmin = user?.role === 'CLUB_ADMIN';
 
   const sidebarItems = useMemo(() => {
     const items = [
@@ -47,11 +48,11 @@ export default function SportsClubPage() {
       { key: 'payments', label: 'Payments' },
       { key: 'attendance', label: 'Attendance' },
     ];
-    if (isSystemOrAdmin || isClubAdmin) {
+    if (isSystemOrAdmin) {
       items.push({ key: 'users', label: 'Users' });
     }
     return items;
-  }, [isSystemOrAdmin, isClubAdmin, totalUnread]);
+  }, [isSystemOrAdmin, totalUnread]);
 
   useEffect(() => {
     const allowed = sidebarItems.some((x) => x.key === section);
@@ -64,7 +65,7 @@ export default function SportsClubPage() {
 
   return (
     <AppLayout
-      title="SportClub Pro"
+      title=""
       sidebarItems={sidebarItems}
       activeSidebarKey={section}
       onSidebarChange={(k) => {
@@ -74,7 +75,7 @@ export default function SportsClubPage() {
         <div className="mb-4">
         <h1 className="text-2xl font-bold text-slate-900">{sectionTitle}</h1>
         <p className="mt-1 text-sm text-slate-600">
-          {user?.companyName ? `${user.companyName} - ` : ''}SportClub Pro
+          {user?.companyName ? `${user.companyName} - ` : ''}{systemName}
         </p>
       </div>
 

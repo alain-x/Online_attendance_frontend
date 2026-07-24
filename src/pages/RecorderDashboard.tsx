@@ -3,6 +3,7 @@ import AppLayout from '../components/AppLayout';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Toast from '../components/Toast';
 import { useToast } from '../hooks/useToast';
+import { useBranding } from '../hooks/useBranding';
 import { useAuth } from '../auth/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { listEmployees } from '../api/employees';
@@ -15,6 +16,7 @@ import { getCurrentPosition } from '../utils/geo';
 
 export default function RecorderDashboard() {
   const { toast, showToast, hideToast } = useToast();
+  const { systemName } = useBranding();
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -372,7 +374,7 @@ export default function RecorderDashboard() {
   if (initialLoading) {
     return (
       <AppLayout
-      title="SportClub Pro"
+      title=""
         sidebarItems={sidebarItems}
         activeSidebarKey={user?.role === 'ADMIN' ? 'recorder_nav' : 'record'}
         onSidebarChange={(k) => {

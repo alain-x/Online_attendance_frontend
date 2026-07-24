@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import AppLayout from '../components/AppLayout';
+import { useBranding } from '../hooks/useBranding';
 import EmptyState from '../components/EmptyState';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Toast from '../components/Toast';
@@ -17,6 +18,7 @@ type AuditorSection = 'overview' | 'payroll' | 'exports' | 'audit_log';
 export default function AuditorDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { systemName } = useBranding();
   const { toast, showToast, hideToast } = useToast();
   const [section, setSection] = useState<AuditorSection>('overview');
 
@@ -176,7 +178,7 @@ export default function AuditorDashboard() {
 
   return (
     <AppLayout
-      title="SportClub Pro"
+      title=""
       sidebarItems={sidebarItems}
       activeSidebarKey={user?.role === 'ADMIN' ? 'auditor_nav' : section}
       onSidebarChange={(k) => {

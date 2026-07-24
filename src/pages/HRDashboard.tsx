@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import AppLayout from '../components/AppLayout';
+import { useBranding } from '../hooks/useBranding';
 import EmptyState from '../components/EmptyState';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Toast from '../components/Toast';
@@ -22,6 +23,7 @@ type HrSection = 'overview' | 'staff' | 'reports' | 'holidays' | 'settings';
 export default function HRDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { systemName } = useBranding();
   const { toast, showToast, hideToast } = useToast();
   const [section, setSection] = useState<HrSection>('overview');
 
@@ -173,7 +175,7 @@ export default function HRDashboard() {
 
   return (
     <AppLayout
-      title="SportClub Pro"
+      title=""
       sidebarItems={sidebarItems}
       activeSidebarKey={user?.role === 'ADMIN' ? 'hr_nav' : section}
       onSidebarChange={(k) => {

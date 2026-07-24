@@ -290,7 +290,7 @@ function renderInvoiceHtml(d: InvoiceDraft): string {
 export default function SystemAdminDashboard() {
   const { toast, showToast, hideToast } = useToast();
   const navigate = useNavigate();
-  const [section, setSection] = useState<'companies' | 'create_company' | 'billing'>('companies');
+  const [section, setSection] = useState<'overview' | 'companies' | 'create_company' | 'billing'>('overview');
 
   const [systemLogoUrl, setSystemLogoUrl] = useState<string | null>(() => localStorage.getItem('systemLogoUrl'));
   const [systemFaviconUrl, setSystemFaviconUrl] = useState<string | null>(() => localStorage.getItem('systemFaviconUrl'));
@@ -303,6 +303,7 @@ export default function SystemAdminDashboard() {
 
   const sidebarItems = useMemo(
     () => [
+      { key: 'overview', label: 'Overview & Roles' },
       { key: 'sports_club_nav', label: 'Sports Club' },
       { key: 'companies', label: 'Companies' },
       { key: 'create_company', label: 'Create Company' },
@@ -745,7 +746,7 @@ export default function SystemAdminDashboard() {
   }
 
   return (
-    <AppLayout title="SportClub Pro" sidebarItems={sidebarItems} activeSidebarKey={section} onSidebarChange={(k) => { if (k === 'sports_club_nav') { navigate('/sports'); return; } setSection(k as any); }}>
+    <AppLayout title="" sidebarItems={sidebarItems} activeSidebarKey={section} onSidebarChange={(k) => { if (k === 'sports_club_nav') { navigate('/sports'); return; } setSection(k as any); }}>
       {toast && <Toast message={toast.message} type={toast.type} onClose={hideToast} />}
 
       <div className="space-y-6">
@@ -755,8 +756,8 @@ export default function SystemAdminDashboard() {
           <div className="relative">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
-                <h1 className="text-2xl font-bold text-white sm:text-3xl">SportClub Pro Admin</h1>
-                <p className="mt-1 text-sm text-slate-300">Full system access — companies, branding, billing, and sports management.</p>
+                <h1 className="text-2xl font-bold text-white sm:text-3xl">{systemName || 'SportClub Pro'} Admin</h1>
+                <p className="mt-1 text-sm text-slate-300">Full system access — System Admin {'>'} Admin {'>'} Club Admin {'>'} Coach / Team Manager.</p>
               </div>
               <div className="flex flex-wrap gap-2">
                 <button type="button" className="rounded-md bg-white/20 px-3 py-2 text-sm text-white hover:bg-white/30 backdrop-blur-sm transition-colors" onClick={() => navigate('/sports')}>
@@ -764,6 +765,9 @@ export default function SystemAdminDashboard() {
                 </button>
                 <button type="button" className="rounded-md bg-white/20 px-3 py-2 text-sm text-white hover:bg-white/30 backdrop-blur-sm transition-colors" onClick={() => navigate('/admin')}>
                   Company Admin
+                </button>
+                <button type="button" className="rounded-md bg-white/20 px-3 py-2 text-sm text-white hover:bg-white/30 backdrop-blur-sm transition-colors" onClick={() => setSection('overview')}>
+                  Role Hierarchy
                 </button>
               </div>
             </div>
@@ -821,11 +825,13 @@ export default function SystemAdminDashboard() {
           <div>
             <div className="text-2xl font-bold text-slate-900">{sidebarItems.find((x) => x.key === section)?.label}</div>
             <div className="mt-1 text-sm text-slate-600">
-              {section === 'companies'
-                ? 'Manage all companies in the system and enforce access.'
-                : section === 'create_company'
-                  ? 'Create a new company and its initial admin account.'
-                : 'Create, track, and manage invoices and receipts professionally.'}
+              {section === 'overview'
+                ? 'Role hierarchy, access levels, and quick navigation to all dashboards.'
+                : section === 'companies'
+                  ? 'Manage all companies in the system and enforce access.'
+                  : section === 'create_company'
+                    ? 'Create a new company and its initial admin account.'
+                  : 'Create, track, and manage invoices and receipts professionally.'}
             </div>
           </div>
           <button
@@ -837,6 +843,286 @@ export default function SystemAdminDashboard() {
             {loading ? 'Loading…' : 'Refresh'}
           </button>
         </div>
+
+        {section === 'overview' ? (
+          <div className="space-y-6">
+            <div className="rounded-xl border bg-white p-6">
+              <div className="text-sm font-semibold text-slate-900">Role Hierarchy & Access Control</div>
+              <div className="mt-1 text-sm text-slate-600">System Admin has full access over all roles. Admin manages company-level operations. Club Admin manages sports club operations.</div>
+
+              <div className="mt-6 space-y-4">
+                <div className="rounded-xl border-2 border-slate-900 bg-slate-50 p-5">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-slate-900 to-slate-700 flex items-center justify-center">
+                      <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+                    </div>
+                    <div>
+                      <div className="font-bold text-slate-900 text-lg">SYSTEM_ADMIN</div>
+                      <div className="text-xs text-slate-500">Highest access level — full system control</div>
+                    </div>
+                    <span className="ml-auto rounded-full bg-slate-900 px-3 py-1 text-xs font-medium text-white">Level 1</span>
+                  </div>
+                  <div className="ml-13 pl-13 border-l-2 border-slate-200 ml-[52px] pl-4 space-y-1">
+                    <div className="text-sm text-slate-700">Manage all companies, branding, billing & subscriptions</div>
+                    <div className="text-sm text-slate-700">Full access to all dashboards: Company Admin, HR, Manager, Payroll, Auditor, Recorder</div>
+                    <div className="text-sm text-slate-700">Full access to Sports Club: all sports, teams, players, matches, training</div>
+                    <div className="text-sm text-slate-700">Can create and manage all user roles including Admin and Club Admin</div>
+                  </div>
+                </div>
+
+                <div className="ml-8 rounded-xl border-2 border-blue-200 bg-blue-50/50 p-5">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-blue-600 to-blue-700 flex items-center justify-center">
+                      <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                    </div>
+                    <div>
+                      <div className="font-bold text-slate-900 text-lg">ADMIN</div>
+                      <div className="text-xs text-slate-500">Company-level admin — manages employees & operations</div>
+                    </div>
+                    <span className="ml-auto rounded-full bg-blue-600 px-3 py-1 text-xs font-medium text-white">Level 2</span>
+                  </div>
+                  <div className="ml-[52px] pl-4 border-l-2 border-blue-200 space-y-1">
+                    <div className="text-sm text-slate-700">Manage employees, attendance, timesheets & reports</div>
+                    <div className="text-sm text-slate-700">Access HR, Manager, Payroll, Auditor, Recorder dashboards</div>
+                    <div className="text-sm text-slate-700">Full Sports Club access: create teams, players, matches</div>
+                    <div className="text-sm text-slate-700">Can create Club Admin, Coach, Team Manager, Player, Parent users</div>
+                  </div>
+                </div>
+
+                <div className="ml-16 rounded-xl border-2 border-emerald-200 bg-emerald-50/50 p-5">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-emerald-600 to-teal-700 flex items-center justify-center">
+                      <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+                    </div>
+                    <div>
+                      <div className="font-bold text-slate-900 text-lg">CLUB_ADMIN</div>
+                      <div className="text-xs text-slate-500">Sports club admin — manages club operations & staff</div>
+                    </div>
+                    <span className="ml-auto rounded-full bg-emerald-600 px-3 py-1 text-xs font-medium text-white">Level 3</span>
+                  </div>
+                  <div className="ml-[52px] pl-4 border-l-2 border-emerald-200 space-y-1">
+                    <div className="text-sm text-slate-700">Full Sports Club access: sports, teams, players, training, matches</div>
+                    <div className="text-sm text-slate-700">Manage club operations: evaluations, payments, schedule, attendance</div>
+                    <div className="text-sm text-slate-700">View users within the club (read-only, no create/delete)</div>
+                    <div className="text-xs text-slate-500 mt-1">Cannot create or manage system users — that is Admin-level</div>
+                  </div>
+                </div>
+
+                <div className="ml-24 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="rounded-xl border bg-white p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="h-8 w-8 rounded-lg bg-teal-100 flex items-center justify-center">
+                        <svg className="h-4 w-4 text-teal-700" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+                      </div>
+                      <div className="font-semibold text-slate-900 text-sm">COACH</div>
+                    </div>
+                    <div className="text-xs text-slate-600">Manage training sessions, evaluate players, view team data</div>
+                    <div className="mt-2 text-xs text-slate-500">Reports to: Club Admin, Admin</div>
+                  </div>
+
+                  <div className="rounded-xl border bg-white p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="h-8 w-8 rounded-lg bg-amber-100 flex items-center justify-center">
+                        <svg className="h-4 w-4 text-amber-700" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                      </div>
+                      <div className="font-semibold text-slate-900 text-sm">TEAM_MANAGER</div>
+                    </div>
+                    <div className="text-xs text-slate-600">Manage team roster, lineups, match events & schedules</div>
+                    <div className="mt-2 text-xs text-slate-500">Reports to: Club Admin, Admin</div>
+                  </div>
+
+                  <div className="rounded-xl border bg-white p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="h-8 w-8 rounded-lg bg-purple-100 flex items-center justify-center">
+                        <svg className="h-4 w-4 text-purple-700" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                      </div>
+                      <div className="font-semibold text-slate-900 text-sm">PLAYER</div>
+                    </div>
+                    <div className="text-xs text-slate-600">View profile, stats, training, matches & chat</div>
+                    <div className="mt-2 text-xs text-slate-500">Reports to: Coach, Team Manager</div>
+                  </div>
+                </div>
+
+                <div className="ml-24 rounded-xl border bg-white p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="h-8 w-8 rounded-lg bg-pink-100 flex items-center justify-center">
+                      <svg className="h-4 w-4 text-pink-700" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                    </div>
+                    <div className="font-semibold text-slate-900 text-sm">PARENT</div>
+                    <span className="text-xs text-slate-500">— View-only access to child's profile, stats, schedule & payments</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-xl border bg-white p-6">
+              <div className="text-sm font-semibold text-slate-900">Quick Navigation</div>
+              <div className="mt-1 text-sm text-slate-600">Jump directly to any role's dashboard or management area.</div>
+
+              <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                <button
+                  type="button"
+                  onClick={() => navigate('/sports')}
+                  className="rounded-xl border bg-white p-4 text-left hover:bg-slate-50 transition-colors group"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                      <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                    </div>
+                    <div>
+                      <div className="font-semibold text-slate-900 text-sm">Sports Club</div>
+                      <div className="text-xs text-slate-500">Dashboard, Teams, Players, Matches</div>
+                    </div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => navigate('/admin')}
+                  className="rounded-xl border bg-white p-4 text-left hover:bg-slate-50 transition-colors group"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                      <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                    </div>
+                    <div>
+                      <div className="font-semibold text-slate-900 text-sm">Company Admin</div>
+                      <div className="text-xs text-slate-500">Employees, Attendance, Reports</div>
+                    </div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => navigate('/hr')}
+                  className="rounded-xl border bg-white p-4 text-left hover:bg-slate-50 transition-colors group"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-violet-500 to-violet-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                      <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                    </div>
+                    <div>
+                      <div className="font-semibold text-slate-900 text-sm">HR Dashboard</div>
+                      <div className="text-xs text-slate-500">Workforce, Staff Directory</div>
+                    </div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => navigate('/manager')}
+                  className="rounded-xl border bg-white p-4 text-left hover:bg-slate-50 transition-colors group"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                      <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+                    </div>
+                    <div>
+                      <div className="font-semibold text-slate-900 text-sm">Manager Dashboard</div>
+                      <div className="text-xs text-slate-500">Reports, Workforce Planning</div>
+                    </div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => navigate('/payroll')}
+                  className="rounded-xl border bg-white p-4 text-left hover:bg-slate-50 transition-colors group"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                      <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    </div>
+                    <div>
+                      <div className="font-semibold text-slate-900 text-sm">Payroll</div>
+                      <div className="text-xs text-slate-500">Salaries, Payments, Approvals</div>
+                    </div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => navigate('/auditor')}
+                  className="rounded-xl border bg-white p-4 text-left hover:bg-slate-50 transition-colors group"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-cyan-500 to-cyan-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                      <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
+                    </div>
+                    <div>
+                      <div className="font-semibold text-slate-900 text-sm">Auditor</div>
+                      <div className="text-xs text-slate-500">Audit Logs, Compliance</div>
+                    </div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => navigate('/employee')}
+                  className="rounded-xl border bg-white p-4 text-left hover:bg-slate-50 transition-colors group"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-rose-500 to-rose-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                      <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                    </div>
+                    <div>
+                      <div className="font-semibold text-slate-900 text-sm">Employee</div>
+                      <div className="text-xs text-slate-500">Self-service, Check-in/out</div>
+                    </div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => navigate('/recorder')}
+                  className="rounded-xl border bg-white p-4 text-left hover:bg-slate-50 transition-colors group"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                      <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                    </div>
+                    <div>
+                      <div className="font-semibold text-slate-900 text-sm">Recorder</div>
+                      <div className="text-xs text-slate-500">Take Attendance, Record Hours</div>
+                    </div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => navigate('/player')}
+                  className="rounded-xl border bg-white p-4 text-left hover:bg-slate-50 transition-colors group"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                      <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    </div>
+                    <div>
+                      <div className="font-semibold text-slate-900 text-sm">Player Dashboard</div>
+                      <div className="text-xs text-slate-500">Profile, Stats, Schedule</div>
+                    </div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => navigate('/parent')}
+                  className="rounded-xl border bg-white p-4 text-left hover:bg-slate-50 transition-colors group"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-pink-500 to-pink-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                      <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                    </div>
+                    <div>
+                      <div className="font-semibold text-slate-900 text-sm">Parent Dashboard</div>
+                      <div className="text-xs text-slate-500">Child's Profile, Payments</div>
+                    </div>
+                  </div>
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         {section === 'create_company' ? (
           <div className="rounded-xl border bg-white p-4">

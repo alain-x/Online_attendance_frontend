@@ -194,7 +194,6 @@ export default function ShellHeader({ title, onMenuClick }: ShellHeaderProps) {
           )}
           <div className="font-semibold text-base sm:text-lg truncate">
             {systemName || 'SportClub Pro'}
-            {title ? ` ${title}` : ''}
           </div>
         </div>
 

@@ -647,7 +647,7 @@ export default function AdminDashboard() {
   const [showGeofenceForm, setShowGeofenceForm] = useState(false);
 
   const roleOptions = useMemo<Role[]>(
-    () => ['SYSTEM_ADMIN', 'ADMIN', 'HR', 'MANAGER', 'RECORDER', 'EMPLOYEE', 'PAYROLL', 'AUDITOR'],
+    () => ['SYSTEM_ADMIN', 'ADMIN', 'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'HR', 'MANAGER', 'RECORDER', 'EMPLOYEE', 'PAYROLL', 'AUDITOR', 'PLAYER', 'PARENT'],
     []
   );
   const staffRoleOptions = useMemo<Role[]>(() => roleOptions.filter((r) => r !== 'SYSTEM_ADMIN'), [roleOptions]);
@@ -1959,6 +1959,7 @@ export default function AdminDashboard() {
       { key: 'dashboard', label: 'Dashboard' },
       ...(role === 'ADMIN'
         ? [
+            { key: 'sports_club_nav', label: 'Sports Club' },
             { key: 'employee_nav', label: 'Employee Dashboard' },
             { key: 'recorder_nav', label: 'Recorder (Take Attendance)' },
             { key: 'hr_nav', label: 'HR Dashboard' },
@@ -1985,7 +1986,7 @@ export default function AdminDashboard() {
   if (loading && employees.length === 0) {
     return (
       <AppLayout
-        title="SportClub Pro"
+        title=""
         sidebarItems={sidebarItems}
         activeSidebarKey={section}
         onSidebarChange={setSection}
@@ -2003,6 +2004,10 @@ export default function AdminDashboard() {
       sidebarItems={sidebarItems}
       activeSidebarKey={section}
       onSidebarChange={(k) => {
+        if (k === 'sports_club_nav') {
+          navigate('/sports');
+          return;
+        }
         if (k === 'employee_nav') {
           navigate('/employee');
           return;

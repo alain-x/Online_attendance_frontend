@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AppLayout from '../components/AppLayout';
 import { useAuth } from '../auth/AuthContext';
+import { useBranding } from '../hooks/useBranding';
 import LoadingSpinner from '../components/LoadingSpinner';
 import EmptyState from '../components/EmptyState';
 import Toast from '../components/Toast';
@@ -61,6 +62,7 @@ function CustomBarTooltip({ active, payload, label }: any) {
 export default function PlayerDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { systemName } = useBranding();
   const { toast, showToast, hideToast } = useToast();
   const [section, setSection] = useState('dashboard');
   const [profileImgError, setProfileImgError] = useState(false);
@@ -186,14 +188,14 @@ export default function PlayerDashboard() {
 
   if (loading) {
     return (
-      <AppLayout title="SportClub Pro" sidebarItems={sidebarItems} activeSidebarKey={section} onSidebarChange={setSection}>
+      <AppLayout title="" sidebarItems={sidebarItems} activeSidebarKey={section} onSidebarChange={setSection}>
         <div className="flex items-center justify-center py-20"><LoadingSpinner size="lg" /></div>
       </AppLayout>
     );
   }
 
   return (
-    <AppLayout title="SportClub Pro" sidebarItems={sidebarItems} activeSidebarKey={section} onSidebarChange={setSection}>
+    <AppLayout title="" sidebarItems={sidebarItems} activeSidebarKey={section} onSidebarChange={setSection}>
       {toast && <Toast message={toast.message} type={toast.type} onClose={hideToast} />}
 
       {section === 'dashboard' && (

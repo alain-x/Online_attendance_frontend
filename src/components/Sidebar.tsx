@@ -1,5 +1,6 @@
 import React from 'react';
 import { useAuth } from '../auth/AuthContext';
+import { useBranding } from '../hooks/useBranding';
 
 type SidebarItem = {
   key: string;
@@ -47,6 +48,7 @@ type SidebarProps = {
 
 export default function Sidebar({ items, activeKey, onChange, className, showBranding = true }: SidebarProps) {
   const { user } = useAuth();
+  const { systemName } = useBranding();
   const logoLetter = (user?.companySlug || 'A').trim().charAt(0).toUpperCase();
   const logoUrl = user?.companyLogoUrl || null;
 
@@ -270,7 +272,7 @@ export default function Sidebar({ items, activeKey, onChange, className, showBra
               </div>
             )}
             <div>
-              <div className="text-sm font-semibold text-slate-900">SportClub Pro</div>
+              <div className="text-sm font-semibold text-slate-900">{systemName}</div>
               <div className="text-xs text-slate-500">Sports Management</div>
             </div>
           </div>

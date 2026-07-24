@@ -4,10 +4,15 @@ import { useToast } from '../../hooks/useToast';
 import Toast from '../../components/Toast';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import EmptyState from '../../components/EmptyState';
+import { useAuth } from '../../auth/AuthContext';
 import { getApiErrorMessage } from '../../utils/error';
 import type { UserResponse, CreateUserRequest, Role } from '../../api/types';
 
-const CREATABLE_ROLES: Role[] = [
+const ADMIN_CREATABLE_ROLES: Role[] = [
+  'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT',
+];
+
+const SUPER_ADMIN_CREATABLE_ROLES: Role[] = [
   'CLUB_ADMIN', 'COACH', 'TEAM_MANAGER', 'PLAYER', 'PARENT',
   'ADMIN', 'HR', 'MANAGER', 'RECORDER', 'EMPLOYEE', 'PAYROLL', 'AUDITOR',
 ];
@@ -44,6 +49,7 @@ const ROLE_COLORS: Record<string, string> = {
 
 export default function UsersPage() {
   const { toast, showToast, hideToast } = useToast();
+  const { user } = useAuth();
   const [users, setUsers] = useState<UserResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -51,8 +57,12 @@ export default function UsersPage() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<UserResponse | null>(null);
   const [editing, setEditing] = useState<UserResponse | null>(null);
-  const [form, setForm] = useState<CreateUserRequest & { firstName: string; lastName: string }>({ username: '', firstName: '', lastName: '', email: '', password: '', role: 'CLUB_ADMIN', enabled: true });
+  const [form, setForm] = useState<CreateUserRequest & { firstName: string; lastName: string }>({ username: '', firstName: '', lastName: '', email: '', password: '', role: 'PLAYER', enabled: true });
   const [search, setSearch] = useState('');
+
+  const creatableRoles = useMemo(() => {
+    return user?.role === 'SYSTEM_ADMIN' ? SUPER_ADMIN_CREATABLE_ROLES : ADMIN_CREATABLE_ROLES;
+  }, [user?.role]);
 
   const fetchUsers = useCallback(async () => {
     try {
@@ -83,7 +93,7 @@ export default function UsersPage() {
 
   function openCreate() {
     setEditing(null);
-    setForm({ username: '', firstName: '', lastName: '', email: '', password: '', role: 'CLUB_ADMIN', enabled: true });
+    setForm({ username: '', firstName: '', lastName: '', email: '', password: '', role: creatableRoles[0], enabled: true });
     setShowModal(true);
   }
 
@@ -456,7 +466,7 @@ export default function UsersPage() {
                     onChange={(e) => setForm({ ...form, role: e.target.value as Role })}
                     className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-8 text-sm text-slate-900 transition-all focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200 appearance-none"
                   >
-                    {CREATABLE_ROLES.map((r) => (
+                    {creatableRoles.map((r) => (
                       <option key={r} value={r}>{ROLE_LABELS[r] || r}</option>
                     ))}
                   </select>

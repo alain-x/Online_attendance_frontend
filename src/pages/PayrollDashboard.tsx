@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import AppLayout from '../components/AppLayout';
+import { useBranding } from '../hooks/useBranding';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Toast from '../components/Toast';
 import { useToast } from '../hooks/useToast';
@@ -43,6 +44,7 @@ function CustomTooltip({ active, payload, label }: any) {
 export default function PayrollDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { systemName } = useBranding();
   const { toast, showToast, hideToast } = useToast();
   const [section, setSection] = useState<'overview' | 'approvals' | 'payroll'>('overview');
 
@@ -380,7 +382,7 @@ export default function PayrollDashboard() {
 
   return (
     <AppLayout
-      title="SportClub Pro"
+      title=""
       sidebarItems={sidebarItems}
       activeSidebarKey={user?.role === 'ADMIN' ? 'payroll_nav' : section}
       onSidebarChange={(k) => {

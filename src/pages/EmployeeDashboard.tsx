@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AppLayout from '../components/AppLayout';
+import { useBranding } from '../hooks/useBranding';
 import { checkIn, checkOut, checkOutCompanyPurpose, endBreak, myAttendance, startBreak, verifyFace } from '../api/attendance';
 import { enrollFace } from '../api/face';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -23,6 +24,7 @@ function blobToFile(blob: Blob, filename: string): File {
 export default function EmployeeDashboard() {
   const navigate = useNavigate();
   const { user, refreshMe } = useAuth();
+  const { systemName } = useBranding();
   const { toast, showToast, hideToast } = useToast();
   const [section, setSection] = useState<'day' | 'history' | 'profile'>('day');
   const [profile, setProfile] = useState<EmployeeResponse | null>(null);
@@ -753,7 +755,7 @@ export default function EmployeeDashboard() {
   if (initialLoading) {
     return (
       <AppLayout
-        title="SportClub Pro"
+        title=""
         sidebarItems={sidebarItems}
         activeSidebarKey={user?.role === 'ADMIN' ? 'employee_nav' : section}
         onSidebarChange={(k) => {
