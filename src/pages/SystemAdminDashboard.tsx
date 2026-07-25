@@ -9,6 +9,7 @@ import { listCompanies, registerCompany, setCompanyActive } from '../api/compani
 import { deleteSystemBranding, deleteSystemFavicon, deleteSystemLogo, getSystemBranding, updateSystemBranding, uploadSystemFavicon, uploadSystemLogo } from '../api/system';
 import { generateInvoicePdf } from '../api/invoices';
 import { createAdminPlan, deleteAdminPlan, getAdminPesapalSettings, listAdminPlans, updateAdminPesapalSettings, updateAdminPlan } from '../api/billing';
+import { backfillClubsCompany, backfillSportsCompany } from '../api/sports';
 
 import type { Company } from '../api/types';
 import type { PesapalEnvironment, PesapalSettingsResponse, SubscriptionPlan, UpsertSubscriptionPlanRequest } from '../api/types';
@@ -300,6 +301,7 @@ export default function SystemAdminDashboard() {
   const [systemLogoBusy, setSystemLogoBusy] = useState(false);
   const [systemFaviconFile, setSystemFaviconFile] = useState<File | null>(null);
   const [systemFaviconBusy, setSystemFaviconBusy] = useState(false);
+  const [backfillBusy, setBackfillBusy] = useState(false);
 
   const sidebarItems = useMemo(
     () => [
@@ -952,6 +954,24 @@ export default function SystemAdminDashboard() {
                     <span className="text-xs text-slate-500">— View-only access to child's profile, stats, schedule & payments</span>
                   </div>
                 </div>
+              </div>
+            </div>
+
+            <div className="rounded-xl border bg-white p-6">
+              <div className="text-sm font-semibold text-slate-900">Data Maintenance</div>
+              <div className="mt-1 text-sm text-slate-600">Assign orphaned sports data to your company. Run once after upgrading to company-isolated data.</div>
+              <div className="mt-4 flex gap-3">
+                <button type="button" disabled={backfillBusy} onClick={async () => {
+                  setBackfillBusy(true);
+                  try {
+                    const [clubs, sports] = await Promise.all([backfillClubsCompany(), backfillSportsCompany()]);
+                    showToast(`${clubs.updated} clubs and ${sports.updated} sports assigned to your company`, 'success');
+                  } catch (err: unknown) {
+                    showToast(getApiErrorMessage(err, 'Backfill failed'), 'error');
+                  } finally { setBackfillBusy(false); }
+                }} className="rounded-md bg-emerald-600 px-4 py-2 text-sm text-white hover:bg-emerald-700 disabled:opacity-50">
+                  {backfillBusy ? 'Running...' : 'Backfill Data to My Company'}
+                </button>
               </div>
             </div>
 

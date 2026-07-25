@@ -349,3 +349,12 @@ export async function getTeamAnalytics(teamId: number): Promise<Record<string, u
   const res = await http.get(`/api/sports/analytics/team/${teamId}`);
   return res.data;
 }
+
+export async function backfillClubsCompany(): Promise<{ message: string; updated: number }> {
+  const res = await http.post<{ message: string; updated: number }>('/api/sports/clubs/backfill-company');
+  return res.data;
+}
+export async function backfillSportsCompany(): Promise<{ message: string; updated: number }> {
+  const res = await http.post<{ message: string; updated: number }>('/api/sports/sports/backfill-company');
+  return res.data;
+}

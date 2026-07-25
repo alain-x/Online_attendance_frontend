@@ -160,14 +160,24 @@ export default function TrainingPage() {
             ) : (
               <div className="divide-y">
                 {attendance.map((a) => (
-                  <div key={a.id} className="px-5 py-3 flex items-center justify-between">
-                    <span className="text-sm font-medium text-slate-900">{a.playerName}</span>
-                    <select value={a.status} onChange={(e) => updateAttendanceStatus(a.playerId, e.target.value)} className="rounded-md border bg-white px-3 py-1.5 text-xs">
-                      <option value="PRESENT">Present</option>
-                      <option value="ABSENT">Absent</option>
-                      <option value="LATE">Late</option>
-                      <option value="EXCUSED">Excused</option>
-                    </select>
+                  <div key={a.id} className="px-5 py-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-slate-900">{a.playerName}</span>
+                      <select value={a.status} onChange={(e) => updateAttendanceStatus(a.playerId, e.target.value)} className="rounded-md border bg-white px-3 py-1.5 text-xs">
+                        <option value="PRESENT">Present</option>
+                        <option value="ABSENT">Absent</option>
+                        <option value="LATE">Late</option>
+                        <option value="EXCUSED">Excused</option>
+                      </select>
+                    </div>
+                    {(a.checkedInAt || a.checkedOutAt || a.checkinReason || a.checkoutReason) && (
+                      <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+                        {a.checkedInAt && <span>In: {new Date(a.checkedInAt).toLocaleTimeString()}</span>}
+                        {a.checkedOutAt && <span>Out: {new Date(a.checkedOutAt).toLocaleTimeString()}</span>}
+                        {a.checkinReason && <span className="italic">Reason in: {a.checkinReason}</span>}
+                        {a.checkoutReason && <span className="italic">Reason out: {a.checkoutReason}</span>}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

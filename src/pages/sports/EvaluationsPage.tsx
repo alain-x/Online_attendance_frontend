@@ -17,7 +17,7 @@ export default function EvaluationsPage() {
   const [showModal, setShowModal] = useState(false);
   const [selectedEval, setSelectedEval] = useState<PlayerEvaluation | null>(null);
   const [editingEval, setEditingEval] = useState<PlayerEvaluation | null>(null);
-  const [form, setForm] = useState<CreateEvaluationRequest>({ playerId: 0, teamId: 0, period: '', overallRating: 5, coachNotes: '', goals: '' });
+  const [form, setForm] = useState<CreateEvaluationRequest>({ playerId: 0, teamId: 0, period: '', overallRating: 5, coachNotes: '', goals: '', avgSpeedKmh: undefined, maxSpeedKmh: undefined, totalDistanceKm: undefined, totalTrainingMinutes: undefined });
   const [criteria, setCriteria] = useState<AddCriterionRequest[]>([{ criterionName: 'Technical Skills', score: 5 }, { criterionName: 'Tactical Awareness', score: 5 }, { criterionName: 'Physical Fitness', score: 5 }]);
   const [deleteConfirm, setDeleteConfirm] = useState<PlayerEvaluation | null>(null);
 
@@ -38,7 +38,7 @@ export default function EvaluationsPage() {
 
   function openCreate() {
     setEditingEval(null);
-    setForm({ playerId: 0, teamId: teams[0]?.id || 0, period: '', overallRating: 5, coachNotes: '', goals: '' });
+    setForm({ playerId: 0, teamId: teams[0]?.id || 0, period: '', overallRating: 5, coachNotes: '', goals: '', avgSpeedKmh: undefined, maxSpeedKmh: undefined, totalDistanceKm: undefined, totalTrainingMinutes: undefined });
     setCriteria([{ criterionName: 'Technical Skills', score: 5 }, { criterionName: 'Tactical Awareness', score: 5 }, { criterionName: 'Physical Fitness', score: 5 }]);
     setShowModal(true);
   }
@@ -83,7 +83,7 @@ export default function EvaluationsPage() {
 
   function openEdit(ev: PlayerEvaluation) {
     setEditingEval(ev);
-    setForm({ playerId: ev.playerId, teamId: ev.teamId, period: ev.period, overallRating: ev.overallRating, coachNotes: ev.coachNotes || '', goals: ev.goals || '' });
+    setForm({ playerId: ev.playerId, teamId: ev.teamId, period: ev.period, overallRating: ev.overallRating, coachNotes: ev.coachNotes || '', goals: ev.goals || '', avgSpeedKmh: ev.avgSpeedKmh ?? undefined, maxSpeedKmh: ev.maxSpeedKmh ?? undefined, totalDistanceKm: ev.totalDistanceKm ?? undefined, totalTrainingMinutes: ev.totalTrainingMinutes ?? undefined });
     setCriteria(ev.criteria && ev.criteria.length > 0 ? ev.criteria.map(c => ({ criterionName: c.criterionName, score: c.score, notes: c.notes || '' })) : [{ criterionName: 'Technical Skills', score: 5 }, { criterionName: 'Tactical Awareness', score: 5 }, { criterionName: 'Physical Fitness', score: 5 }]);
     setShowModal(true);
   }
@@ -165,6 +165,17 @@ export default function EvaluationsPage() {
                   <p className="mt-1 text-sm text-blue-700">{selectedEval.goals}</p>
                 </div>
               )}
+              {(selectedEval.avgSpeedKmh || selectedEval.maxSpeedKmh || selectedEval.totalDistanceKm || selectedEval.totalTrainingMinutes) && (
+                <div className="mt-4 rounded-lg bg-emerald-50 p-4">
+                  <h4 className="text-sm font-semibold text-emerald-900">Speed &amp; Performance</h4>
+                  <div className="mt-2 grid grid-cols-2 gap-3 text-sm">
+                    {selectedEval.avgSpeedKmh != null && <div><span className="text-emerald-600 font-medium">Avg Speed:</span> <span className="text-emerald-900">{selectedEval.avgSpeedKmh} km/h</span></div>}
+                    {selectedEval.maxSpeedKmh != null && <div><span className="text-emerald-600 font-medium">Max Speed:</span> <span className="text-emerald-900">{selectedEval.maxSpeedKmh} km/h</span></div>}
+                    {selectedEval.totalDistanceKm != null && <div><span className="text-emerald-600 font-medium">Distance:</span> <span className="text-emerald-900">{selectedEval.totalDistanceKm} km</span></div>}
+                    {selectedEval.totalTrainingMinutes != null && <div><span className="text-emerald-600 font-medium">Training:</span> <span className="text-emerald-900">{selectedEval.totalTrainingMinutes} min</span></div>}
+                  </div>
+                </div>
+              )}
               <p className="mt-4 text-xs text-slate-500">Evaluated by {selectedEval.evaluatorName} on {new Date(selectedEval.createdAt).toLocaleDateString()}</p>
               <div className="mt-4 flex gap-2">
                 <button type="button" onClick={() => openEdit(selectedEval)} className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">Edit</button>
@@ -203,6 +214,13 @@ export default function EvaluationsPage() {
                   </div>
                 )}
                 <div className="mt-3 text-xs text-slate-500">Created: {new Date(ev.createdAt).toLocaleDateString()}</div>
+                {(ev.avgSpeedKmh || ev.maxSpeedKmh || ev.totalDistanceKm) && (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {ev.avgSpeedKmh != null && <span className="inline-block rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">Avg {ev.avgSpeedKmh} km/h</span>}
+                    {ev.maxSpeedKmh != null && <span className="inline-block rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">Max {ev.maxSpeedKmh} km/h</span>}
+                    {ev.totalDistanceKm != null && <span className="inline-block rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">{ev.totalDistanceKm} km</span>}
+                  </div>
+                )}
               </div>
             </div>
           ))}
@@ -263,6 +281,27 @@ export default function EvaluationsPage() {
               <div>
                 <label className="block text-sm font-medium text-slate-700">Goals</label>
                 <textarea value={form.goals || ''} onChange={(e) => setForm(p => ({ ...p, goals: e.target.value }))} className="mt-1 w-full rounded-md border px-3 py-2 text-sm" rows={2} />
+              </div>
+              <div className="rounded-lg bg-slate-50 p-4 space-y-3">
+                <h4 className="text-sm font-medium text-slate-700">Speed &amp; Performance Metrics</h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600">Avg Speed (km/h)</label>
+                    <input type="number" step="0.1" min="0" value={form.avgSpeedKmh ?? ''} onChange={(e) => setForm(p => ({ ...p, avgSpeedKmh: e.target.value ? Number(e.target.value) : undefined }))} className="mt-1 w-full rounded-md border px-3 py-2 text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600">Max Speed (km/h)</label>
+                    <input type="number" step="0.1" min="0" value={form.maxSpeedKmh ?? ''} onChange={(e) => setForm(p => ({ ...p, maxSpeedKmh: e.target.value ? Number(e.target.value) : undefined }))} className="mt-1 w-full rounded-md border px-3 py-2 text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600">Distance (km)</label>
+                    <input type="number" step="0.1" min="0" value={form.totalDistanceKm ?? ''} onChange={(e) => setForm(p => ({ ...p, totalDistanceKm: e.target.value ? Number(e.target.value) : undefined }))} className="mt-1 w-full rounded-md border px-3 py-2 text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600">Training Minutes</label>
+                    <input type="number" min="0" value={form.totalTrainingMinutes ?? ''} onChange={(e) => setForm(p => ({ ...p, totalTrainingMinutes: e.target.value ? Number(e.target.value) : undefined }))} className="mt-1 w-full rounded-md border px-3 py-2 text-sm" />
+                  </div>
+                </div>
               </div>
               <div className="flex gap-3 justify-end pt-2">
                 <button type="button" onClick={() => setShowModal(false)} className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">Cancel</button>

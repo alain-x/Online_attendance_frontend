@@ -551,6 +551,10 @@ export type TrainingAttendance = {
   playerName: string;
   status: string;
   notes: string | null;
+  checkinReason: string | null;
+  checkoutReason: string | null;
+  checkedInAt: string | null;
+  checkedOutAt: string | null;
 };
 
 export type MarkAttendanceRequest = {
@@ -651,6 +655,10 @@ export type PlayerEvaluation = {
   overallRating: number;
   coachNotes: string | null;
   goals: string | null;
+  avgSpeedKmh: number | null;
+  maxSpeedKmh: number | null;
+  totalDistanceKm: number | null;
+  totalTrainingMinutes: number | null;
   criteria: EvaluationCriterion[];
   createdAt: string;
 };
@@ -669,6 +677,10 @@ export type CreateEvaluationRequest = {
   overallRating: number;
   coachNotes?: string;
   goals?: string;
+  avgSpeedKmh?: number;
+  maxSpeedKmh?: number;
+  totalDistanceKm?: number;
+  totalTrainingMinutes?: number;
 };
 
 export type AddCriterionRequest = {
